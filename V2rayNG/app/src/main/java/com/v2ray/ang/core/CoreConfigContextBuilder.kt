@@ -170,6 +170,13 @@ object CoreConfigContextBuilder {
                 .filter { it.hasDialableServer() }
                 .filter { !it.configType.isComplexType() }
                 .toList()
+                .let { members ->
+                    val (kept, leftOut) = withOneAetherProfile(members)
+                    leftOut.forEach {
+                        LogUtil.w(AppConfig.TAG, "Policy group '${config.remarks}' leaves out '${it.remarks}': a second Aether profile with other settings, and one core serves one profile")
+                    }
+                    kept
+                }
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve policy group profiles for '${config.remarks}'", e)
             return listOf(config)
@@ -267,6 +274,29 @@ object CoreConfigContextBuilder {
                     ?.let { resolveOutbound(tag, it) }
             }
             .toList()
+    }
+
+    /**
+     * A group is filled by a filter rather than by named members, so it can catch several Aether
+     * profiles while one core serves one of them. The first one stays, together with any whose
+     * settings are the same; the others are left out. A chain or a routing rule names its profiles,
+     * so a conflict there is reported instead.
+     */
+    internal fun withOneAetherProfile(members: List<ProfileItem>): Pair<List<ProfileItem>, List<ProfileItem>> {
+        var kept: List<String>? = null
+        return members.partition { member ->
+            if (member.configType != EConfigType.AETHER) return@partition true
+            val arguments = AetherCoreManager.buildArguments(member, AetherCoreManager.socksPort)
+            when (kept) {
+                null -> {
+                    kept = arguments
+                    true
+                }
+
+                arguments -> true
+                else -> false
+            }
+        }
     }
 
     /**
