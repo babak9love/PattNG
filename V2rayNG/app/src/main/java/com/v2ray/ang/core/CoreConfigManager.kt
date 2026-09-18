@@ -5,6 +5,7 @@ import android.text.TextUtils
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.ConfigResult
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.V2rayConfig
@@ -42,7 +43,9 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext)
             }
-            return toConfigResult(configContext, buildUnifiedConfig(configContext))
+            val dependency = AetherDependency.of(configContext.resolvedOutbounds)
+            aetherFailure(context, guid, dependency)?.let { return it }
+            return toConfigResult(configContext, buildUnifiedConfig(configContext), dependency)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config", e)
             return ConfigResult(
@@ -56,9 +59,10 @@ object CoreConfigManager {
     /**
      * Build a lightweight configuration for latency testing.
      *
-     * The core flow is reused, then non-essential sections are removed.
+     * The core flow is reused, then non-essential sections are removed. A configuration that runs
+     * on an Aether profile is pointed at [aetherPort] when the test opens a core of its own.
      */
-    fun getV2rayConfig4Speedtest(context: Context, guid: String): ConfigResult {
+    fun getV2rayConfig4Speedtest(context: Context, guid: String, aetherPort: Int = AetherCoreManager.socksPort): ConfigResult {
         try {
             val configContext = CoreConfigContextBuilder.build(context, guid)
                 ?: return ConfigResult(
@@ -69,10 +73,16 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext)
             }
+            // Only the primary outbound is measured; the routing outbounds lose their rules below.
+            val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
+            aetherFailure(context, guid, dependency)?.let { return it }
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
+            if (aetherPort != AetherCoreManager.socksPort) {
+                rebindAetherOutbounds(v2rayConfig.outbounds, aetherPort)
+            }
 
-            return toConfigResult(configContext, v2rayConfig)
+            return toConfigResult(configContext, v2rayConfig, dependency)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config for speedtest", e)
             return ConfigResult(
@@ -472,12 +482,43 @@ object CoreConfigManager {
     /**
      * Serialize a runtime configuration into a standard result object.
      */
-    private fun toConfigResult(configContext: CoreConfigContext, v2rayConfig: V2rayConfig): ConfigResult {
+    private fun toConfigResult(configContext: CoreConfigContext, v2rayConfig: V2rayConfig, dependency: AetherDependency): ConfigResult {
         return ConfigResult(
             status = true,
             guid = configContext.guid,
-            content = JsonUtil.toJsonPretty(v2rayConfig) ?: ""
+            content = JsonUtil.toJsonPretty(v2rayConfig) ?: "",
+            aetherProfile = (dependency as? AetherDependency.Single)?.profile,
         )
+    }
+
+    /**
+     * A configuration the one Aether core cannot serve, as a failure whose message is a resource
+     * string meant for the screen; null when the configuration is fine.
+     */
+    private fun aetherFailure(context: Context, guid: String, dependency: AetherDependency): ConfigResult? {
+        val message = when (dependency) {
+            AetherDependency.None, is AetherDependency.Single -> return null
+            AetherDependency.Conflicting -> R.string.aether_config_single_profile
+            is AetherDependency.NotEntryHop -> R.string.aether_chain_entry_only
+        }
+        LogUtil.w(AppConfig.TAG, "Aether cannot serve this configuration: $dependency, guid=$guid")
+        return ConfigResult(status = false, guid = guid, errorMessage = context.getString(message), localizedError = true)
+    }
+
+    /**
+     * Points every Aether outbound at [port] instead of the session port. A latency test of a
+     * configuration that runs on Aether opens a core of its own when the daemon's session is busy
+     * with another profile or absent, and that core listens on a port of its own.
+     */
+    internal fun rebindAetherOutbounds(outbounds: List<V2rayConfig.OutboundBean>, port: Int) {
+        outbounds.forEach { outbound ->
+            val settings = outbound.settings ?: return@forEach
+            if (outbound.protocol.equals(EConfigType.SOCKS.name, ignoreCase = true) &&
+                settings.address == AppConfig.LOOPBACK && settings.port == AetherCoreManager.socksPort
+            ) {
+                settings.port = port
+            }
+        }
     }
 
     /**

@@ -615,6 +615,8 @@
     <string name="aether_log_inner_key_missing">مفتاح القفزة الداخلية: غير مسجل بعد؛ سيُسجل عند أول فحص أو اتصال</string>
     <string name="aether_renew_blocked">افصل ملف Aether قبل الحصول على مفتاح WARP جديد؛ الاتصال الحالي يستخدم المفتاح الحالي</string>
     <string name="aether_scan_blocked">افصل ملف Aether قبل الفحص؛ الفحص سيفتح نفقًا ثانيًا بمفتاح الاتصال الحالي</string>
+    <string name="aether_chain_entry_only">لا يمكن لملف Aether أن يكون إلا القفزة الأولى في سلسلة الوكيل، وهي القفزة التي تصل إلى الإنترنت مباشرة</string>
+    <string name="aether_config_single_profile">لا يمكن للتكوين استخدام أكثر من ملف Aether واحد</string>
     <string name="title_aether_core">نواة Aether</string>
     <string name="summary_aether_core">عميل WARP من CluvexStudio مضمّن بموجب رخصة AGPL-3.0. انقر لفتح الشيفرة المصدرية.</string>
     <string-array name="aether_scan_entries">

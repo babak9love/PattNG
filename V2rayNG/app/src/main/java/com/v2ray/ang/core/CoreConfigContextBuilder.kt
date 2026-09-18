@@ -120,10 +120,6 @@ object CoreConfigContextBuilder {
                             LogUtil.w(AppConfig.TAG, "Routing tag '$tag' has no matching profile — will fall back to proxy at routing time")
                             return@forEach
                         }
-                        if (profile.runsOnlyAlone()) {
-                            LogUtil.w(AppConfig.TAG, "Routing tag '$tag' names an Aether profile, which only runs as the selected profile, skipping")
-                            return@forEach
-                        }
                         val resolvedOutbound = resolveOutbound(tag, profile) ?: run {
                             LogUtil.w(AppConfig.TAG, "Cannot use CUSTOM profile as routing outbound for tag '$tag', skipping")
                             return@forEach
@@ -171,10 +167,8 @@ object CoreConfigContextBuilder {
                         }
                     }
                 }
-                .filter { it.server.isNotNullEmpty() }
-                .filter { Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
+                .filter { it.hasDialableServer() }
                 .filter { !it.configType.isComplexType() }
-                .filterNot { it.runsOnlyAlone() }
                 .toList()
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve policy group profiles for '${config.remarks}'", e)
@@ -191,10 +185,8 @@ object CoreConfigContextBuilder {
             return config.proxyChainProfiles.orEmpty().split(",")
                 .asSequence()
                 .mapNotNull { remark -> SettingsManager.getServerViaRemarks(remark) }
-                .filter { it.server.isNotNullEmpty() }
-                .filter { Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
+                .filter { it.hasDialableServer() }
                 .filter { !it.configType.isComplexType() }
-                .filterNot { it.runsOnlyAlone() }
                 .toList()
                 .reversed()
         } catch (e: Exception) {
@@ -209,16 +201,16 @@ object CoreConfigContextBuilder {
      * When no chain is available, return a single-node result.
      */
     private fun resolveProxyChainProfilesFromGroup(config: ProfileItem): List<ProfileItem> {
-        if (config.subscriptionId.isEmpty() || config.runsOnlyAlone()) {
+        if (config.subscriptionId.isEmpty()) {
             return listOf(config)
         }
 
         try {
             val subItem = MmkvManager.decodeSubscription(config.subscriptionId) ?: return listOf(config)
             val resolved = mutableListOf<ProfileItem>()
-            SettingsManager.getServerViaRemarks(subItem.nextProfile)?.takeUnless { it.runsOnlyAlone() }?.let { resolved.add(it) }
+            SettingsManager.getServerViaRemarks(subItem.nextProfile)?.let { resolved.add(it) }
             resolved.add(config)
-            SettingsManager.getServerViaRemarks(subItem.prevProfile)?.takeUnless { it.runsOnlyAlone() }?.let { resolved.add(it) }
+            SettingsManager.getServerViaRemarks(subItem.prevProfile)?.let { resolved.add(it) }
             return resolved
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain from group for '${config.remarks}'", e)
@@ -271,11 +263,17 @@ object CoreConfigContextBuilder {
             .distinct()
             .mapNotNull { tag ->
                 SettingsManager.getServerViaRemarks(tag)
-                    ?.takeUnless { it.configType == EConfigType.CUSTOM || it.configType == EConfigType.POLICYGROUP || it.runsOnlyAlone() }
+                    ?.takeUnless { it.configType == EConfigType.CUSTOM || it.configType == EConfigType.POLICYGROUP }
                     ?.let { resolveOutbound(tag, it) }
             }
             .toList()
     }
 
-    private fun ProfileItem.runsOnlyAlone(): Boolean = configType == EConfigType.AETHER
+    /**
+     * A member the core can dial. An Aether profile has no address of its own to check: its core
+     * finds the endpoint, and the outbound built for it points at that core.
+     */
+    private fun ProfileItem.hasDialableServer(): Boolean =
+        configType == EConfigType.AETHER ||
+            (server.isNotNullEmpty() && (Utils.isPureIpAddress(server!!) || Utils.isValidUrl(server!!)))
 }

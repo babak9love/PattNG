@@ -19,7 +19,6 @@ import com.v2ray.ang.dto.ConnectionTestResult
 import com.v2ray.ang.dto.OutboundTrafficStat
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BrowserDialerMode
-import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.delay
 import com.v2ray.ang.extension.isNotNullEmpty
 import com.v2ray.ang.handler.MmkvManager
@@ -55,6 +54,9 @@ object CoreServiceManager {
     private val coreController: CoreController = CoreNativeManager.newCoreController(CoreCallback())
     private val mMsgReceive = ReceiveMessageHandler()
     private var currentConfig: ProfileItem? = null
+
+    /** The Aether profile the running configuration depends on, null when it has no Aether outbound. */
+    private var currentAether: ProfileItem? = null
     private var processFinder: XrayProcessFinder? = null
     private var browserDialer: IDialerService? = null
     private var networkMonitor: NetworkMonitor? = null
@@ -157,22 +159,26 @@ object CoreServiceManager {
         val result = CoreConfigManager.getV2rayConfig(service, guid)
         LogUtil.d(AppConfig.TAG, result.content)
         if (!result.status) {
+            if (result.localizedError) throw StartFailure(result.errorMessage)
             error(result.errorMessage.ifBlank { "Failed to get V2Ray config" })
         }
 
         cancelAetherWarmUp()
-        if (config.configType == EConfigType.AETHER) {
+        // One core serves every Aether outbound of the configuration: the selected profile itself, the
+        // entry hop of its chain, a routing target or a policy-group member.
+        val aether = result.aetherProfile
+        if (aether != null) {
             if (!AetherCoreManager.isSupported(service)) {
                 throw StartFailure(service.getString(R.string.aether_unsupported_abi))
             }
             aetherExitHandled = false
-            AetherCoreManager.start(service, config) { onAetherExit(guid) }
+            AetherCoreManager.start(service, aether) { onAetherExit(guid) }
         } else {
             AetherCoreManager.stop()
         }
 
         try {
-            launchNativeCore(service, guid, config, result.content, vpnInterface, isReload)
+            launchNativeCore(service, guid, config, aether, result.content, vpnInterface, isReload)
         } catch (e: Exception) {
             // Setup failed after this attempt spawned the Aether process; release it with the rest.
             AetherCoreManager.stop()
@@ -185,11 +191,13 @@ object CoreServiceManager {
         service: Service,
         guid: String,
         config: ProfileItem,
+        aether: ProfileItem?,
         content: String,
         vpnInterface: ParcelFileDescriptor?,
         isReload: Boolean,
     ) {
         currentConfig = config
+        currentAether = aether
         var tunFd = vpnInterface?.fd ?: 0
         val dialerMode = BrowserDialerMode.from(config.browserDialerMode)
         val dialerAddr = if (dialerMode != null) {
@@ -229,7 +237,7 @@ object CoreServiceManager {
             else -> {}
         }
 
-        if (config.configType == EConfigType.AETHER) {
+        if (aether != null) {
             announceAetherWarmUp(service, guid, isReload)
         } else if (!isReload) {
             MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_SUCCESS, "")
@@ -438,7 +446,7 @@ object CoreServiceManager {
         connectionTestScope.coroutineContext.cancelChildren()
         connectionTestScope.launch {
             // The same budget every other profile's probe gets; a tunnel still scanning past it is reported, not waited for.
-            if (currentConfig?.configType == EConfigType.AETHER && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) {
+            if (currentAether != null && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) {
                 val reason = if (AetherCoreManager.isRunning) R.string.aether_core_connecting else R.string.aether_core_stopped
                 val stalled = ConnectionTestResult(delayMillis = -1L, errorMessage = service.getString(reason))
                 withContext(Dispatchers.Main.immediate) {

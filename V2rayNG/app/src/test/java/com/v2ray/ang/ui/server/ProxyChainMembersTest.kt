@@ -1,6 +1,8 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.enums.EConfigType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -56,5 +58,15 @@ class ProxyChainMembersTest {
             listOf("One") to listOf("one"),
             withoutProxyChainMember(listOf("One", ""), listOf("one", "blank"), "blank"),
         )
+    }
+
+    @Test
+    fun anAetherMemberIsAllowedAsTheFirstHopOnly() {
+        assertNull(aetherChainProblem(listOf(EConfigType.AETHER, EConfigType.VLESS)))
+        assertNull(aetherChainProblem(listOf(EConfigType.VLESS, EConfigType.TROJAN)))
+        assertNull(aetherChainProblem(listOf(null, EConfigType.VLESS)))
+        assertEquals(AetherChainProblem.NOT_FIRST, aetherChainProblem(listOf(EConfigType.VLESS, EConfigType.AETHER)))
+        assertEquals(AetherChainProblem.NOT_FIRST, aetherChainProblem(listOf(EConfigType.VLESS, EConfigType.AETHER, EConfigType.TROJAN)))
+        assertEquals(AetherChainProblem.MORE_THAN_ONE, aetherChainProblem(listOf(EConfigType.AETHER, EConfigType.AETHER)))
     }
 }

@@ -133,6 +133,21 @@ class ServerProxyChainActivity : BaseComponentActivity() {
             return false
         }
 
+        // The first member dials the internet; an Aether member can only be that one, and one core runs.
+        when (aetherChainProblem(chainMembers.map { SettingsManager.getServerViaRemarks(it)?.configType })) {
+            AetherChainProblem.NOT_FIRST -> {
+                toast(R.string.aether_chain_entry_only)
+                return false
+            }
+
+            AetherChainProblem.MORE_THAN_ONE -> {
+                toast(R.string.aether_config_single_profile)
+                return false
+            }
+
+            null -> Unit
+        }
+
         val config =
             MmkvManager.decodeServerConfig(editGuid)
                 ?: ProfileItem.create(EConfigType.PROXYCHAIN)

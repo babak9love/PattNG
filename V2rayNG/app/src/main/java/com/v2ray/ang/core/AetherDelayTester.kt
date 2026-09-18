@@ -54,12 +54,27 @@ object AetherDelayTester {
         NOT_READY,
     }
 
-    suspend fun measure(context: Context, guid: String, profile: ProfileItem, url: String): Long {
+    suspend fun measure(context: Context, guid: String, profile: ProfileItem, url: String): Long =
+        measureVia(context, guid, profile) { port, deadline -> withContext(Dispatchers.IO) { requestDelay(port, url, deadline) } }
+
+    /**
+     * Runs [probe] against a core serving [profile]: the live session when it runs this profile, a
+     * test tunnel on a port of its own otherwise, and none at all when a second tunnel would share
+     * the live session's key. [probe] gets the core's SOCKS port and the deadline of the budget.
+     * A chain, a routing target or a policy group that runs on an Aether profile is measured this
+     * way, with its own Xray configuration pointed at that port.
+     */
+    suspend fun measureVia(
+        context: Context,
+        guid: String,
+        profile: ProfileItem,
+        probe: suspend (port: Int, deadline: Long) -> Long,
+    ): Long {
         val activeGuid = MmkvManager.getSelectServer()
         val session = withContext(Dispatchers.IO) { liveSession(context, activeGuid) }
         return when (route(guid, profile, activeGuid, session)) {
-            Route.ACTIVE_SESSION -> withContext(Dispatchers.IO) { requestDelay(AetherCoreManager.socksPort, url) }
-            Route.NEW_TUNNEL -> tunnels.withLock { throughNewTunnel(context, guid, profile, url) }
+            Route.ACTIVE_SESSION -> probe(AetherCoreManager.socksPort, deadlineAfter(TEST_BUDGET_MS))
+            Route.NEW_TUNNEL -> tunnels.withLock { throughNewTunnel(context, guid, profile, probe) }
             Route.SKIP -> {
                 // A second tunnel on the live session's key would disturb it.
                 LogUtil.i(AppConfig.TAG, "AetherTest: left untested, it shares the live session's key, guid=$guid")
@@ -127,7 +142,12 @@ object AetherDelayTester {
         return if (shared) Route.SKIP else Route.NEW_TUNNEL
     }
 
-    private suspend fun throughNewTunnel(context: Context, guid: String, profile: ProfileItem, url: String): Long {
+    private suspend fun throughNewTunnel(
+        context: Context,
+        guid: String,
+        profile: ProfileItem,
+        probe: suspend (port: Int, deadline: Long) -> Long,
+    ): Long {
         val port = withContext(Dispatchers.IO) { Utils.findRandomFreePort() }
         // The clock starts before the spawn: the budget covers the whole test, as it does for every other profile.
         val deadline = deadlineAfter(TEST_BUDGET_MS)
@@ -141,7 +161,7 @@ object AetherDelayTester {
                 LogUtil.w(AppConfig.TAG, "AetherTest: the tunnel did not come up, guid=$guid")
                 return@withProcess -1L
             }
-            val delay = withContext(Dispatchers.IO) { requestDelay(port, url, deadline) }
+            val delay = probe(port, deadline)
             if (delay < 0) LogUtil.w(AppConfig.TAG, "AetherTest: no answer through the tunnel, guid=$guid")
             delay
         } ?: -1L

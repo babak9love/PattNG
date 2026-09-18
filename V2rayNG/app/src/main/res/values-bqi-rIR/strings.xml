@@ -607,6 +607,8 @@
     <string name="aether_log_inner_key_missing">کلید مسیر درونی: هنی ثبت نبیڌه؛ د اولین اسکن یا اتصال ثبت ابۊ</string>
     <string name="aether_renew_blocked">پیش زه گرفتن کلید تازه WARP، اتصال Aether نه قطع کنین؛ اتصال ایسا زه کلید ایسا استفاده ایکنه</string>
     <string name="aether_scan_blocked">پیش زه اسکن، اتصال Aether نه قطع کنین؛ اسکن یه تونل دوم وا کلید اتصال ایسا وا ایکنه</string>
+    <string name="aether_chain_entry_only">پروفایل Aether فقط ایتره اولین گام زنجیره پروکسی بو؛ گامی که راست به اینترنت ارسه</string>
+    <string name="aether_config_single_profile">یه پیکربندی فقط ایتره زه یه پروفایل Aether استفاده کنه</string>
     <string name="title_aether_core">هسته Aether</string>
     <string name="summary_aether_core">کلاینت WARP که CluvexStudio ساخته و وا مجوز AGPL-3.0 ور برنامه هده. سی دیدن کد منبع بزنین.</string>
     <string-array name="aether_scan_entries">
