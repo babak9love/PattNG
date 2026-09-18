@@ -70,4 +70,27 @@ class CoreOutboundBuilderTest {
         assertNull(outbound.streamSettings?.network)
         assertEquals("code-1", outbound.streamSettings?.sockopt?.dialMode)
     }
+
+    @Test
+    fun test_applyTargetStrategy_setsOutboundTargetStrategy() {
+        val outbound = OutboundBean(protocol = "vless")
+
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.VLESS).apply { targetStrategy = "ForceIPv6v4" })
+
+        assertEquals("ForceIPv6v4", outbound.targetStrategy)
+    }
+
+    @Test
+    fun test_applyTargetStrategy_leavesTheDefaultOut() {
+        val outbound = OutboundBean(protocol = "vless", targetStrategy = "UseIP")
+
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.VLESS).apply { targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS })
+        assertNull(outbound.targetStrategy)
+
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.VLESS).apply { targetStrategy = " " })
+        assertNull(outbound.targetStrategy)
+
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.VLESS))
+        assertNull(outbound.targetStrategy)
+    }
 }

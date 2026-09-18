@@ -77,6 +77,9 @@ data class ProfileItem(
 
     var dialMode: String? = null,
 
+    /** Xray targetStrategy of the outbound built for this profile; null means the default, AsIs. */
+    var targetStrategy: String? = null,
+
     var aetherProtocol: String? = null,
     var aetherTransport: String? = null,
     var aetherScanMode: String? = null,

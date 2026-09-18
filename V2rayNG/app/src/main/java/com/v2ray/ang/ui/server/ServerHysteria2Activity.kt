@@ -34,6 +34,7 @@ class ServerHysteria2Activity : BaseServerActivity() {
             CommonBasicFields(uiState)
             Hysteria2ProtocolFields(uiState)
             CommonDialModeField(uiState)
+            CommonTargetStrategyField(uiState)
 
         }
     }

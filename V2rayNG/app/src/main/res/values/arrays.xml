@@ -263,5 +263,18 @@
         <item>v6</item>
         <item>both</item>
     </string-array>
+    <string-array name="target_strategy_values" translatable="false">
+        <item>AsIs</item>
+        <item>UseIP</item>
+        <item>UseIPv4</item>
+        <item>UseIPv6</item>
+        <item>UseIPv4v6</item>
+        <item>UseIPv6v4</item>
+        <item>ForceIP</item>
+        <item>ForceIPv4</item>
+        <item>ForceIPv6</item>
+        <item>ForceIPv4v6</item>
+        <item>ForceIPv6v4</item>
+    </string-array>
 
 </resources>

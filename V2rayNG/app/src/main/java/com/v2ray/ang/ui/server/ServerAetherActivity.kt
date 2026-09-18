@@ -198,6 +198,7 @@ class ServerAetherActivity : BaseServerActivity() {
                 values = R.array.aether_ip_values,
                 onValueChange = { uiState.aetherIpVersion = it }
             )
+            CommonTargetStrategyField(uiState)
             if (protocol == AetherProtocol.GOOL) {
                 FormTextField(
                     stringResource(R.string.aether_lab_wiw_outer),

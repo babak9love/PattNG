@@ -255,6 +255,17 @@ abstract class BaseServerActivity : BaseComponentActivity() {
         )
     }
 
+    /** targetStrategy is an option of every Xray outbound, so every protocol offers it. */
+    @Composable
+    protected fun CommonTargetStrategyField(state: ServerUiState) {
+        FormDropdownField(
+            stringResource(R.string.server_lab_target_strategy),
+            state.targetStrategy,
+            stringArrayResource(R.array.target_strategy_values).toList(),
+            { state.targetStrategy = it }
+        )
+    }
+
     @Composable
     protected fun CommonStreamSecurityFields(
         state: ServerUiState,

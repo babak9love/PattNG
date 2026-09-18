@@ -6,6 +6,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
 import com.v2ray.ang.AppConfig.REALITY
+import com.v2ray.ang.AppConfig.TARGET_STRATEGY_AS_IS
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -55,6 +56,7 @@ class ServerUiState(
     kcpTti: String = "",
     browserDialerMode: String = "",
     dialMode: String = "",
+    targetStrategy: String = TARGET_STRATEGY_AS_IS,
     streamSecurity: String = "",
     sni: String = "",
     allowInsecure: Boolean = false,
@@ -115,6 +117,7 @@ class ServerUiState(
     var kcpTti by mutableStateOf(kcpTti)
     var browserDialerMode by mutableStateOf(browserDialerMode)
     var dialMode by mutableStateOf(dialMode)
+    var targetStrategy by mutableStateOf(targetStrategy)
     var streamSecurity by mutableStateOf(streamSecurity)
     var sni by mutableStateOf(sni)
     var allowInsecure by mutableStateOf(allowInsecure)
@@ -196,6 +199,7 @@ class ServerUiState(
                 null
             },
             dialMode = dialMode.nullIfBlank(),
+            targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == TARGET_STRATEGY_AS_IS },
             security = streamSecurity,
             sni = sni,
             insecure = allowInsecure,
@@ -262,6 +266,7 @@ class ServerUiState(
                 kcpTti = initialConfig.kcpTti?.toString() ?: "",
                 browserDialerMode = initialConfig.browserDialerMode ?: "",
                 dialMode = initialConfig.dialMode ?: "",
+                targetStrategy = initialConfig.targetStrategy ?: TARGET_STRATEGY_AS_IS,
                 streamSecurity = initialConfig.security ?: "",
                 sni = initialConfig.sni ?: "",
                 allowInsecure = initialConfig.insecure == true,

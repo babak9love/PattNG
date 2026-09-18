@@ -69,7 +69,8 @@ data class V2rayConfig(
         var settings: OutSettingsBean? = null,
         var streamSettings: StreamSettingsBean? = null,
         val sendThrough: String? = null,
-        var mux: MuxBean? = MuxBean(false)
+        var mux: MuxBean? = MuxBean(false),
+        var targetStrategy: String? = null
     ) {
         data class OutSettingsBean(
             /*Common */

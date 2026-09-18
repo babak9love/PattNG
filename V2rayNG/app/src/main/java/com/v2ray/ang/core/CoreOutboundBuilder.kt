@@ -38,6 +38,7 @@ object CoreOutboundBuilder {
 
         outbound ?: return null
         applyDialMode(outbound, profileItem)
+        applyTargetStrategy(outbound, profileItem)
         val ret = updateOutboundWithGlobalSettings(outbound)
         if (!ret) return null
         return outbound
@@ -58,6 +59,15 @@ object CoreOutboundBuilder {
             outbound.streamSettings = OutboundBean.StreamSettingsBean(network = null)
         }
         outbound.ensureSockopt().dialMode = dialMode
+    }
+
+    /**
+     * Copies the profile targetStrategy onto the outbound. Blank and AsIs, Xray's default, leave
+     * the field out, so a profile saved with the default emits nothing new.
+     */
+    internal fun applyTargetStrategy(outbound: OutboundBean, profileItem: ProfileItem) {
+        outbound.targetStrategy = profileItem.targetStrategy?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals(AppConfig.TARGET_STRATEGY_AS_IS, ignoreCase = true) }
     }
 
     /** Applies global outbound options (mux, protocol-specific tweaks, etc.). */
