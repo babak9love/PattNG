@@ -591,6 +591,7 @@
     <string name="aether_same_hop">يجب أن تكون القفزتان بعنوانين مختلفين</string>
     <string name="aether_invalid_fragment">اكتب رقمًا أو نطاقًا مثل 16-32: الحجم من 1 إلى 4096 بايت، والتأخير من 0 إلى 1000 مللي ثانية</string>
     <string name="aether_invalid_listen_port">استخدم منفذ استماع من 1 إلى 65535، أو اتركه فارغًا لاستخدام المنفذ الافتراضي</string>
+    <string name="aether_listen_port_taken">لا يمكن أن يكون منفذ الاستماع هو نفسه منفذ البروكسي المحلي للتطبيق</string>
     <string name="aether_unsupported_abi">نواة Aether غير متوفرة لهذا الجهاز</string>
     <string name="aether_core_stopped">توقفت نواة Aether عن العمل</string>
     <string name="aether_core_connecting">لا تزال نواة Aether قيد الاتصال</string>

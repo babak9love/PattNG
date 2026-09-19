@@ -352,6 +352,41 @@ class AetherFmtTest {
     }
 
     @Test
+    fun theListenPortCannotBeAPortTheLocalProxyListensOn() {
+        val localProxy = setOf(10808, 10809)
+
+        val onSocks = profile { aetherListenPort = "10808" }
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(onSocks, localProxy))
+        // A refused profile keeps what was typed, for the editor to show again.
+        assertEquals("10808", onSocks.aetherListenPort)
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(profile { aetherListenPort = " 10809 " }, localProxy))
+
+        val free = profile { aetherListenPort = "20808" }
+        assertNull(AetherFmt.normalize(free, localProxy))
+        assertEquals("20808", free.aetherListenPort)
+        assertNull(AetherFmt.normalize(profile { }, localProxy))
+    }
+
+    @Test
+    fun theDefaultListenPortIsTakenOnceTheLocalProxyWasMovedOntoIt() {
+        val movedOntoIt = setOf(10819)
+
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(profile { }, movedOntoIt))
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(profile { aetherListenPort = "" }, movedOntoIt))
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(profile { aetherListenPort = "10819" }, movedOntoIt))
+        assertNull(AetherFmt.normalize(profile { aetherListenPort = "20808" }, movedOntoIt))
+    }
+
+    @Test
+    fun withoutKnownLocalPortsOnlyTheListenPortItselfIsChecked() {
+        // The local proxy port is picked at random on every start, or the caller has none to name.
+        assertNull(AetherFmt.normalize(profile { aetherListenPort = "10808" }))
+        assertNull(AetherFmt.normalize(profile { aetherListenPort = "10808" }, emptySet()))
+        // What is no port at all is reported as that, whatever is taken.
+        assertEquals(AetherFmt.Problem.INVALID_LISTEN_PORT, AetherFmt.normalize(profile { aetherListenPort = "0" }, setOf(10808)))
+    }
+
+    @Test
     fun theListenPortIsReadFromAProfile() {
         assertEquals(20808, AetherFmt.listenPortOf("20808"))
         assertEquals(1, AetherFmt.listenPortOf(" 1 "))

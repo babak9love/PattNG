@@ -291,6 +291,15 @@ object SettingsManager {
         return getSocksPort() + if (Utils.isXray()) 0 else 1
     }
 
+    /**
+     * The loopback ports the local proxy is set to listen on, which nothing else the app starts can
+     * share. Empty while the SOCKS port is picked at random on every start: no port is known before
+     * the service runs then, and asking for one here would pick one for this process only.
+     */
+    fun getLocalProxyPorts(): Set<Int> {
+        return if (IsDynamicSocksPort()) emptySet() else setOf(getSocksPort(), getHttpPort())
+    }
+
     private fun IsDynamicSocksPort(): Boolean {
         return MmkvManager.decodeSettingsBool(AppConfig.PREF_DYNAMIC_SOCKS_PORT, false)
     }

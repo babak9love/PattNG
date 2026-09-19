@@ -526,6 +526,7 @@ object CoreConfigManager {
                         AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
                         AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
                         AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
+                        AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
                     }
                 )
             }

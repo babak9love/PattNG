@@ -586,6 +586,7 @@
     <string name="aether_same_hop">The two hops must be different addresses</string>
     <string name="aether_invalid_fragment">Use a number or a range such as 16-32: size 1–4096 bytes, delay 0–1000 ms</string>
     <string name="aether_invalid_listen_port">Use a listen port from 1 to 65535, or leave it empty for the default</string>
+    <string name="aether_listen_port_taken">The listen port cannot be the same as the local proxy port of the app</string>
     <string name="aether_unsupported_abi">The Aether core is not available for this device</string>
     <string name="aether_core_stopped">The Aether core stopped running</string>
     <string name="aether_core_connecting">The Aether core is still connecting</string>

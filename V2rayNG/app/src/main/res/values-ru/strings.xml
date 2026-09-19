@@ -587,6 +587,7 @@
     <string name="aether_same_hop">Узлы должны иметь разные адреса</string>
     <string name="aether_invalid_fragment">Укажите число или диапазон, например 16-32: размер 1–4096 байт, задержка 0–1000 мс</string>
     <string name="aether_invalid_listen_port">Укажите порт прослушивания от 1 до 65535 или оставьте поле пустым для порта по умолчанию</string>
+    <string name="aether_listen_port_taken">Порт прослушивания не должен совпадать с портом локального прокси приложения</string>
     <string name="aether_unsupported_abi">Ядро Aether недоступно для этого устройства</string>
     <string name="aether_core_stopped">Ядро Aether остановлено</string>
     <string name="aether_core_connecting">Ядро Aether ещё подключается</string>

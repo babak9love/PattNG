@@ -25,6 +25,7 @@ object AetherFmt : FmtBase() {
         SHARED_HOP,
         INVALID_FRAGMENT,
         INVALID_LISTEN_PORT,
+        LISTEN_PORT_TAKEN,
     }
 
     /** Every key of aetherSettings, the fields of [AetherSettingsBean]. */
@@ -194,13 +195,19 @@ object AetherFmt : FmtBase() {
      */
     fun storedListenPort(port: Int): String? = port.toString().takeUnless { it == AppConfig.PORT_AETHER_SOCKS }
 
-    fun normalize(config: ProfileItem): Problem? =
-        normalizeFragment(config) ?: normalizeEndpoints(config) ?: normalizeListenPort(config)
+    /**
+     * [takenPorts] are loopback ports something else of the app listens on, the local proxy above
+     * all; the core of the profile cannot listen there as well.
+     */
+    fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet()): Problem? =
+        normalizeFragment(config) ?: normalizeEndpoints(config) ?: normalizeListenPort(config, takenPorts)
 
-    private fun normalizeListenPort(config: ProfileItem): Problem? {
+    private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>): Problem? {
         val text = config.aetherListenPort?.trim().orEmpty()
         val port = listenPortOf(text)
         if (text.isNotEmpty() && port == null) return Problem.INVALID_LISTEN_PORT
+        // The default port can be taken too, once the local proxy has been moved onto it.
+        if ((port ?: AppConfig.PORT_AETHER_SOCKS.toInt()) in takenPorts) return Problem.LISTEN_PORT_TAKEN
         config.aetherListenPort = port?.let(::storedListenPort)
         return null
     }

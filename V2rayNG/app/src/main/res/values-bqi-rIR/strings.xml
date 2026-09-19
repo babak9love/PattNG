@@ -583,6 +583,7 @@
     <string name="aether_same_hop">دو مسیر بایس نشونی جیا داشته بوهن</string>
     <string name="aether_invalid_fragment">یه عدد یا بازه مثل 16-32 بنویسین: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
     <string name="aether_invalid_listen_port">یه پورت شنود زه 1 تا 65535 بنویسین، یا سی پورت پیش‌فرض خالی بیلینس</string>
+    <string name="aether_listen_port_taken">پورت شنود نباید وا پورت پروکسی محلی برنامه یکی بۊ</string>
     <string name="aether_unsupported_abi">هسته Aether سی ای دستگاه د دسترس نیه</string>
     <string name="aether_core_stopped">هسته Aether وستاده</string>
     <string name="aether_core_connecting">هسته Aether هونی وصل ابۊ</string>

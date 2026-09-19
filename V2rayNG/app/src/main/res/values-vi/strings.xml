@@ -581,6 +581,7 @@
     <string name="aether_same_hop">Hai chặng phải có địa chỉ khác nhau</string>
     <string name="aether_invalid_fragment">Nhập một số hoặc khoảng như 16-32: kích thước 1–4096 byte, độ trễ 0–1000 ms</string>
     <string name="aether_invalid_listen_port">Nhập cổng lắng nghe từ 1 đến 65535, hoặc để trống để dùng cổng mặc định</string>
+    <string name="aether_listen_port_taken">Cổng lắng nghe không được trùng với cổng proxy cục bộ của ứng dụng</string>
     <string name="aether_unsupported_abi">Lõi Aether không khả dụng cho thiết bị này</string>
     <string name="aether_core_stopped">Lõi Aether đã dừng chạy</string>
     <string name="aether_core_connecting">Lõi Aether vẫn đang kết nối</string>

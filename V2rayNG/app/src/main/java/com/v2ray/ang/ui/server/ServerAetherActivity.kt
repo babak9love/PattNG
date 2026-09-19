@@ -57,6 +57,7 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.fmt.AetherFmt
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.compose.ConfirmDialog
 import com.v2ray.ang.ui.compose.FormDropdownField
 import com.v2ray.ang.ui.compose.FormTextField
@@ -315,7 +316,8 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
-        val problem = AetherFmt.normalize(config) ?: return true
+        // The core cannot listen where the local proxy of the app does; Xray would get the port first.
+        val problem = AetherFmt.normalize(config, SettingsManager.getLocalProxyPorts()) ?: return true
         toast(
             when (problem) {
                 AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint
@@ -323,6 +325,7 @@ class ServerAetherActivity : BaseServerActivity() {
                 AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
                 AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
                 AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
+                AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
             }
         )
         return false

@@ -583,6 +583,7 @@
     <string name="aether_same_hop">دو مسیر باید نشانی متفاوت داشته باشند</string>
     <string name="aether_invalid_fragment">یک عدد یا بازه مثل 16-32 بنویسید: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
     <string name="aether_invalid_listen_port">یک پورت شنود از 1 تا 65535 وارد کنید، یا برای پورت پیش‌فرض آن را خالی بگذارید</string>
+    <string name="aether_listen_port_taken">پورت شنود نباید با پورت پروکسی محلی برنامه یکسان باشد</string>
     <string name="aether_unsupported_abi">هسته Aether برای این دستگاه در دسترس نیست</string>
     <string name="aether_core_stopped">هسته Aether متوقف شده است</string>
     <string name="aether_core_connecting">هسته Aether هنوز در حال اتصال است</string>

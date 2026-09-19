@@ -581,6 +581,7 @@
     <string name="aether_same_hop">两个节点的地址必须不同</string>
     <string name="aether_invalid_fragment">请填写数字或范围，例如 16-32：大小 1–4096 字节，间隔 0–1000 毫秒</string>
     <string name="aether_invalid_listen_port">请填写 1 到 65535 之间的监听端口，或留空使用默认端口</string>
+    <string name="aether_listen_port_taken">监听端口不能与应用的本地代理端口相同</string>
     <string name="aether_unsupported_abi">此设备不支持 Aether 内核</string>
     <string name="aether_core_stopped">Aether 内核已停止运行</string>
     <string name="aether_core_connecting">Aether 内核仍在连接中</string>

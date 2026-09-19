@@ -583,6 +583,7 @@
     <string name="aether_same_hop">দুটি হপের ঠিকানা আলাদা হতে হবে</string>
     <string name="aether_invalid_fragment">একটি সংখ্যা বা 16-32 এর মতো পরিসর লিখুন: আকার 1–4096 বাইট, বিলম্ব 0–1000 মিলিসেকেন্ড</string>
     <string name="aether_invalid_listen_port">1 থেকে 65535 এর মধ্যে একটি লিসেন পোর্ট দিন, অথবা ডিফল্ট পোর্টের জন্য খালি রাখুন</string>
+    <string name="aether_listen_port_taken">লিসেন পোর্ট অ্যাপের স্থানীয় প্রক্সি পোর্টের সমান হতে পারবে না</string>
     <string name="aether_unsupported_abi">এই ডিভাইসের জন্য Aether কোর উপলব্ধ নয়</string>
     <string name="aether_core_stopped">Aether কোর চলা বন্ধ হয়ে গেছে</string>
     <string name="aether_core_connecting">Aether কোর এখনও সংযোগ করছে</string>
