@@ -665,7 +665,10 @@ object CoreServiceManager {
             val serviceControl = serviceControl?.get() ?: return
             when (intent?.getIntExtra("key", 0)) {
                 AppConfig.MSG_REGISTER_CLIENT -> {
-                    if (isRunning()) {
+                    // A client that gets no acknowledgement takes the service for gone: the daemon
+                    // cannot report its own death, so silence is the only sign of it.
+                    if (isOrderedBroadcast) resultCode = Activity.RESULT_OK
+                    if (ReloadOutcome.serviceRuns(coreRunning = isRunning(), reloading = isReloading)) {
                         MessageHelper.sendMsg2UI(serviceControl.getService(), AppConfig.MSG_STATE_RUNNING, "")
                         if (isAetherWarmingUp()) {
                             val service = serviceControl.getService()

@@ -1,6 +1,8 @@
 package com.v2ray.ang.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReloadOutcomeTest {
@@ -22,5 +24,14 @@ class ReloadOutcomeTest {
         assertEquals(ReloadOutcome.RELEASE_CORES, ReloadOutcome.of(coreRunning = true, stoppedMeanwhile = true))
         // A reload that also failed has nothing of its own left, and releasing is harmless then.
         assertEquals(ReloadOutcome.RELEASE_CORES, ReloadOutcome.of(coreRunning = false, stoppedMeanwhile = true))
+    }
+
+    @Test
+    fun aClientThatAsksDuringAReloadIsToldTheServiceRuns() {
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = false))
+        // Xray is stopped for a moment, the service is not; nothing would correct a "not running" answer later.
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = false, reloading = true))
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = true))
+        assertFalse(ReloadOutcome.serviceRuns(coreRunning = false, reloading = false))
     }
 }

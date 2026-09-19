@@ -281,6 +281,7 @@ class MainViewModel(
     fun onAction(action: MainAction) {
         when (action) {
             MainAction.Initialize -> initialize()
+            MainAction.RefreshServiceState -> dataSource.queryServiceState()
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
             MainAction.TestAllServers -> testAllRealPing(true)
             MainAction.TestRealAllServers -> testAllRealPing()

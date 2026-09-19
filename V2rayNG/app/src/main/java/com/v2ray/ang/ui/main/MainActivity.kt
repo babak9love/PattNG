@@ -98,6 +98,12 @@ class MainActivity : HelperBaseComponentActivity() {
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }
 
+    override fun onStart() {
+        super.onStart()
+        // The service can have gone away while the screen was not shown, without a word if its process died.
+        mainViewModel.onAction(MainAction.RefreshServiceState)
+    }
+
     @Composable
     override fun ScreenContent() {
         BackHandler { moveTaskToBack(false) }

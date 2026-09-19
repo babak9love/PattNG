@@ -41,5 +41,13 @@ internal enum class ReloadOutcome {
             coreRunning -> KEEP_RUNNING
             else -> STOP_SERVICE
         }
+
+        /**
+         * What a client that asks for the state is told. A reload has Xray stopped for a moment while
+         * the service stays up, and nothing tells the client once it runs again; answering "not
+         * running" then would leave the main screen showing a stopped service that runs. A reload
+         * that fails reports it and stops the service, which corrects the answer.
+         */
+        fun serviceRuns(coreRunning: Boolean, reloading: Boolean): Boolean = coreRunning || reloading
     }
 }

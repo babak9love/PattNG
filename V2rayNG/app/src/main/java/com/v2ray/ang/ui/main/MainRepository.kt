@@ -218,6 +218,14 @@ class MainRepository(
         )
     }
 
+    override fun queryServiceState() {
+        // The daemon cannot report its own death, so what the screen shows is only as good as the last
+        // message. Only the daemon's receiver takes this broadcast: no acknowledgement means no service.
+        MessageHelper.sendMsg2ServiceForResult(app, AppConfig.MSG_REGISTER_CLIENT, "") { acknowledged ->
+            MainServiceEvent.forStateQuery(acknowledged)?.let { mainServiceEventChannel.trySend(it) }
+        }
+    }
+
     override fun testCurrentServerRealPing(requestId: String) {
         MessageHelper.sendMsg2ServiceForResult(app, AppConfig.MSG_MEASURE_DELAY, requestId) { handled ->
             if (!handled) mainServiceEventChannel.trySend(MainServiceEvent.MeasureDelayCancelled(requestId))

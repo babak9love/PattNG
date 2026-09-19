@@ -37,6 +37,9 @@ data class MainUiState(
  */
 sealed interface MainAction {
     data object Initialize : MainAction
+
+    /** The screen became visible: what it shows of the service may be out of date. */
+    data object RefreshServiceState : MainAction
     data object RefreshGroups : MainAction
     data object ToggleService : MainAction
     data object TestCurrentServer : MainAction

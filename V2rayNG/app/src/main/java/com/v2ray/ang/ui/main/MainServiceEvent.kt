@@ -16,4 +16,14 @@ sealed class MainServiceEvent {
     data class MeasureConfigNotify(val progress: String, val requestId: String) : MainServiceEvent()
     data class MeasureConfigFinish(val requestId: String) : MainServiceEvent()
     data class MeasureConfigCancelled(val requestId: String) : MainServiceEvent()
+
+    companion object {
+
+        /**
+         * What the outcome of a state query means. A service that [acknowledged] the query reports
+         * its state with an event of its own, so nothing is added; a query nobody acknowledged found
+         * no service, whatever the screen was told last, and that is the state.
+         */
+        fun forStateQuery(acknowledged: Boolean): MainServiceEvent? = if (acknowledged) null else StateNotRunning
+    }
 }
