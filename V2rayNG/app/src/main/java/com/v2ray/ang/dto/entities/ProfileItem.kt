@@ -90,6 +90,9 @@ data class ProfileItem(
     var aetherFragment: Boolean? = null,
     var aetherFragmentSize: String? = null,
     var aetherFragmentDelay: String? = null,
+
+    /** Loopback port the Aether core of this profile listens on; null means the default, AppConfig.PORT_AETHER_SOCKS. */
+    var aetherListenPort: String? = null,
 ) {
 
     companion object {

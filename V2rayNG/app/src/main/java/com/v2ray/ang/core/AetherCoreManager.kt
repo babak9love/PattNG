@@ -11,6 +11,7 @@ import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTransport
+import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CancellationException
@@ -55,6 +56,14 @@ object AetherCoreManager {
      */
     internal const val OWNER_ENV = "PATTNG_AETHER_OWNER"
 
+    /**
+     * Environment variable set on the daemon's session core and on no other. A profile and a custom
+     * configuration choose the port their core listens on, so the port does not tell the session
+     * from a scan or a test core; this does, for the processes that have to leave the session's key
+     * alone.
+     */
+    internal const val SESSION_ENV = "PATTNG_AETHER_SESSION"
+
     private val logLevels = setOf("ERROR", "WARN", "INFO", "DEBUG", "TRACE")
     private val procDir = File("/proc")
 
@@ -62,7 +71,11 @@ object AetherCoreManager {
         Thread(task, "aether-core").apply { isDaemon = true }
     }
 
+    /** The port a core listens on unless its profile or its custom configuration names another. */
     val socksPort: Int get() = AppConfig.PORT_AETHER_SOCKS.toInt()
+
+    /** The loopback port the session core of [profile] listens on, and the one its SOCKS outbound dials. */
+    fun listenPort(profile: ProfileItem): Int = AetherFmt.listenPortOf(profile.aetherListenPort) ?: socksPort
 
     @Volatile
     private var session: Session? = null
@@ -125,13 +138,14 @@ object AetherCoreManager {
         else -> DEFAULT_LOG_LEVEL
     }
 
-    internal fun startProcess(context: Context, arguments: List<String>): Process {
+    internal fun startProcess(context: Context, arguments: List<String>, markSession: Boolean = false): Process {
         val workDir = AetherIdentityManager.workDir(context).apply { mkdirs() }
         val builder = ProcessBuilder(listOf(binary(context).absolutePath) + arguments)
             .directory(workDir)
             .redirectErrorStream(true)
         builder.environment().apply {
             put(OWNER_ENV, android.os.Process.myPid().toString())
+            if (markSession) put(SESSION_ENV, "1")
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)
@@ -188,14 +202,16 @@ object AetherCoreManager {
         withTimeoutOrNull(timeoutMs) { output.receiveAsFlow().mapNotNull(match).firstOrNull() }
     }
 
+    /** Starts the session core for [profile], listening on [listenPort]. */
     @Synchronized
     fun start(context: Context, profile: ProfileItem, onExit: () -> Unit) {
         stop()
-        val next = Session(onExit)
+        val port = listenPort(profile)
+        val next = Session(port, onExit)
         session = next
         val appContext = context.applicationContext
         val logLevel = coreLogLevel(MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL))
-        val arguments = buildArguments(profile, socksPort, logLevel = logLevel)
+        val arguments = buildArguments(profile, port, logLevel = logLevel)
         lifecycle.execute { open(next, appContext, arguments) }
     }
 
@@ -207,7 +223,7 @@ object AetherCoreManager {
     }
 
     suspend fun awaitListening(timeoutMs: Long): Boolean =
-        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { acceptsConnections(socksPort) })
+        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { session?.port?.let(::acceptsConnections) == true })
 
     internal suspend fun awaitReady(
         timeoutMs: Long,
@@ -306,27 +322,31 @@ object AetherCoreManager {
 
     /**
      * The arguments of the daemon's live session core, without the binary, or null when no core
-     * owned by a living app process holds the session address. They are read from /proc, so they
-     * are available during the scanning phase before the listener exists, which is exactly when
-     * the shared key files must not be replaced and no second tunnel must be opened on the same
-     * key.
+     * owned by a living app process is the session. They are read from /proc, so they are
+     * available during the scanning phase before the listener exists, which is exactly when the
+     * shared key files must not be replaced and no second tunnel must be opened on the same key.
      */
     fun sessionArguments(context: Context): List<String>? =
-        coreProcesses(context).firstOrNull { isSession(it.argv, it.ownerAlive, sessionAddress) }?.argv?.drop(1)
+        coreProcesses(context).firstOrNull { isSession(it.argv, it.ownerAlive, it.sessionMarked, sessionAddress) }?.argv?.drop(1)
 
     /** The protocol of the daemon's live session, or null without one; see [sessionArguments]. */
     fun sessionProtocol(context: Context): AetherProtocol? = sessionArguments(context)?.let(::protocolOf)
 
     /**
      * True when [arguments] are those the daemon starts [profile] with, apart from the log level,
-     * which follows a setting that can change while the session runs. This is how another process
-     * tells the running profile from a merely selected one.
+     * which follows a setting that can change while the session runs, and from the listener: the
+     * same tunnel behind another port, as another profile or a custom configuration may run it,
+     * serves the profile just as well. This is how another process tells the running profile from
+     * a merely selected one.
      */
     fun runsProfile(arguments: List<String>, profile: ProfileItem): Boolean =
-        withoutLogLevel(arguments) == withoutLogLevel(buildArguments(profile, socksPort))
+        tunnelArguments(arguments) == tunnelArguments(buildArguments(profile, socksPort))
 
-    private fun withoutLogLevel(arguments: List<String>): List<String> {
-        val index = arguments.indexOf("--log-level")
+    private fun tunnelArguments(arguments: List<String>): List<String> =
+        withoutOption(withoutOption(arguments, "--log-level"), "--bind")
+
+    private fun withoutOption(arguments: List<String>, flag: String): List<String> {
+        val index = arguments.indexOf(flag)
         return if (index < 0) arguments else arguments.filterIndexed { i, _ -> i != index && i != index + 1 }
     }
 
@@ -334,14 +354,21 @@ object AetherCoreManager {
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =
         ownerAlive == false || (bindAddress != null && bindAddressOf(argv) == bindAddress)
 
-    /** A core process counts as the session while its owner is not known to be dead and it holds the session address. */
-    internal fun isSession(argv: List<String>, ownerAlive: Boolean?, sessionAddress: String): Boolean =
-        ownerAlive != false && bindAddressOf(argv) == sessionAddress
+    /**
+     * A core process counts as the session while its owner is not known to be dead and it carries
+     * the session mark. When its environment could not be read, [sessionMarked] is null and the
+     * address a session holds by default stands in for the mark.
+     */
+    internal fun isSession(argv: List<String>, ownerAlive: Boolean?, sessionMarked: Boolean?, sessionAddress: String): Boolean =
+        ownerAlive != false && (sessionMarked ?: (bindAddressOf(argv) == sessionAddress))
 
     private val sessionAddress: String get() = "${AppConfig.LOOPBACK}:$socksPort"
 
-    /** A core process of this app found in /proc; [ownerAlive] is null when its owner could not be read. */
-    internal class CoreProcess(val pid: Int, val argv: List<String>, val ownerAlive: Boolean?)
+    /**
+     * A core process of this app found in /proc; [ownerAlive] is null when its owner could not be
+     * read, [sessionMarked] when its environment could not.
+     */
+    internal class CoreProcess(val pid: Int, val argv: List<String>, val ownerAlive: Boolean?, val sessionMarked: Boolean?)
 
     private fun coreProcesses(context: Context): List<CoreProcess> {
         val binary = binary(context).absolutePath
@@ -350,13 +377,17 @@ object AetherCoreManager {
             val pid = entry.name.toIntOrNull() ?: return@mapNotNull null
             val argv = readNulSeparated(File(entry, "cmdline")) ?: return@mapNotNull null
             if (argv.firstOrNull() != binary) return@mapNotNull null
-            val ownerAlive = ownerPid(readNulSeparated(File(entry, "environ")))
-                ?.let { File(procDir, it.toString()).isDirectory }
-            CoreProcess(pid, argv, ownerAlive)
+            val environ = readNulSeparated(File(entry, "environ"))
+            val ownerAlive = ownerPid(environ)?.let { File(procDir, it.toString()).isDirectory }
+            CoreProcess(pid, argv, ownerAlive, environ?.let(::isSessionMarked))
         }
     }
 
     internal fun bindAddressOf(argv: List<String>): String? = valueAfter(argv, "--bind")
+
+    /** The port of the listener [argv] asks for, null when it names none. */
+    internal fun bindPortOf(argv: List<String>): Int? =
+        bindAddressOf(argv)?.substringAfterLast(':', "")?.toIntOrNull()
 
     internal fun protocolOf(argv: List<String>): AetherProtocol = AetherProtocol.fromString(valueAfter(argv, "--protocol"))
 
@@ -365,6 +396,8 @@ object AetherCoreManager {
 
     internal fun ownerPid(environ: List<String>?): Int? =
         environ?.firstOrNull { it.startsWith("$OWNER_ENV=") }?.substringAfter('=')?.toIntOrNull()
+
+    internal fun isSessionMarked(environ: List<String>): Boolean = environ.any { it.startsWith("$SESSION_ENV=") }
 
     private fun readNulSeparated(file: File): List<String>? = try {
         file.readBytes().toString(Charsets.UTF_8).split('\u0000').filter { it.isNotEmpty() }
@@ -381,7 +414,7 @@ object AetherCoreManager {
         if (session !== target) return
         reapStale(context, bindAddressOf(arguments))
         val process = try {
-            startProcess(context, arguments)
+            startProcess(context, arguments, markSession = true)
         } catch (e: IOException) {
             LogUtil.e(AppConfig.TAG, "AetherCore: failed to launch the core", e)
             if (release(target)) target.onExit()
@@ -424,7 +457,7 @@ object AetherCoreManager {
         return true
     }
 
-    private class Session(val onExit: () -> Unit) {
+    private class Session(val port: Int, val onExit: () -> Unit) {
         var process: Process? = null
     }
 }

@@ -567,6 +567,7 @@
     <string name="aether_lab_scan_mode">حالت اسکن</string>
     <string name="aether_lab_obfuscation">مبهم‌سازی</string>
     <string name="aether_lab_ip_version">نسخه IP</string>
+    <string name="aether_lab_listen_port">پورت شنود</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌یل (بایت)</string>
     <string name="aether_lab_fragment_delay">تأخیر میون تکه‌یل (میلی‌ثانیه)</string>
@@ -581,6 +582,7 @@
     <string name="aether_invalid_hop">نشونی و پورت ره با هم بنویسید، مثل 162.159.192.1:2408</string>
     <string name="aether_same_hop">دو مسیر بایس نشونی جیا داشته بوهن</string>
     <string name="aether_invalid_fragment">یه عدد یا بازه مثل 16-32 بنویسین: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
+    <string name="aether_invalid_listen_port">یه پورت شنود زه 1 تا 65535 بنویسین، یا سی پورت پیش‌فرض خالی بیلینس</string>
     <string name="aether_unsupported_abi">هسته Aether سی ای دستگاه د دسترس نیه</string>
     <string name="aether_core_stopped">هسته Aether وستاده</string>
     <string name="aether_core_connecting">هسته Aether هونی وصل ابۊ</string>
@@ -609,6 +611,9 @@
     <string name="aether_scan_blocked">پیش زه اسکن، اتصال Aether نه قطع کنین؛ اسکن یه تونل دوم وا کلید اتصال ایسا وا ایکنه</string>
     <string name="aether_chain_entry_only">پروفایل Aether فقط ایتره اولین گام زنجیره پروکسی بو؛ گامی که راست به اینترنت ارسه</string>
     <string name="aether_config_single_profile">یه پیکربندی فقط ایتره زه یه پروفایل Aether استفاده کنه</string>
+    <string name="aether_custom_single_core">فقط یه هسته Aether ایتره اجرا بۊ: aetherSettings ن فقط من یه خروجی SOCKS بیلین</string>
+    <string name="aether_custom_no_listener">خروجی SOCKS که aetherSettings داره باید به %1$s وو پورتی زه 1 تا 65535 وصل بۊ؛ هسته Aether همۊچو گوش اکنه</string>
+    <string name="aether_custom_unknown_entry">من aetherSettings یه موردی هڌ که هسته Aether نیشناسه: %1$s</string>
     <string name="title_aether_core">هسته Aether</string>
     <string name="summary_aether_core">کلاینت WARP که CluvexStudio ساخته و وا مجوز AGPL-3.0 ور برنامه هده. سی دیدن کد منبع بزنین.</string>
     <string-array name="aether_scan_entries">

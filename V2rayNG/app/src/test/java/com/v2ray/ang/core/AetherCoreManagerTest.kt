@@ -306,11 +306,47 @@ class AetherCoreManagerTest {
         val session = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:10819", "--protocol", "masque")
         val scan = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:0", "--protocol", "masque")
 
-        assertTrue(AetherCoreManager.isSession(session, ownerAlive = true, sessionAddress = "127.0.0.1:10819"))
-        assertTrue(AetherCoreManager.isSession(session, ownerAlive = null, sessionAddress = "127.0.0.1:10819"))
-        assertFalse(AetherCoreManager.isSession(session, ownerAlive = false, sessionAddress = "127.0.0.1:10819"))
-        assertFalse(AetherCoreManager.isSession(scan, ownerAlive = true, sessionAddress = "127.0.0.1:10819"))
-        assertFalse(AetherCoreManager.isSession(emptyList(), ownerAlive = true, sessionAddress = "127.0.0.1:10819"))
+        assertTrue(AetherCoreManager.isSession(session, ownerAlive = true, sessionMarked = true, sessionAddress = "127.0.0.1:10819"))
+        assertFalse(AetherCoreManager.isSession(session, ownerAlive = false, sessionMarked = true, sessionAddress = "127.0.0.1:10819"))
+        assertFalse(AetherCoreManager.isSession(scan, ownerAlive = true, sessionMarked = false, sessionAddress = "127.0.0.1:10819"))
+        assertFalse(AetherCoreManager.isSession(emptyList(), ownerAlive = true, sessionMarked = false, sessionAddress = "127.0.0.1:10819"))
+    }
+
+    @Test
+    fun theSessionOfACustomConfigurationIsRecognisedOnWhateverPortItListens() {
+        val session = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:20808", "--protocol", "wg")
+        val test = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:41234", "--protocol", "wg")
+
+        // The mark tells them apart, not the port: a test core listens on a port of its own as well.
+        assertTrue(AetherCoreManager.isSession(session, ownerAlive = true, sessionMarked = true, sessionAddress = "127.0.0.1:10819"))
+        assertFalse(AetherCoreManager.isSession(test, ownerAlive = true, sessionMarked = false, sessionAddress = "127.0.0.1:10819"))
+        assertEquals(20808, AetherCoreManager.bindPortOf(session))
+        assertNull(AetherCoreManager.bindPortOf(listOf("/data/app/lib/libaether.so", "--bind")))
+        assertNull(AetherCoreManager.bindPortOf(listOf("/data/app/lib/libaether.so", "--bind", "20808")))
+    }
+
+    @Test
+    fun withoutAReadableEnvironmentTheSessionIsToldByTheAddressEveryProfileUses() {
+        val session = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:10819", "--protocol", "masque")
+        val scan = listOf("/data/app/lib/libaether.so", "--bind", "127.0.0.1:0", "--protocol", "masque")
+
+        assertTrue(AetherCoreManager.isSession(session, ownerAlive = null, sessionMarked = null, sessionAddress = "127.0.0.1:10819"))
+        assertFalse(AetherCoreManager.isSession(scan, ownerAlive = null, sessionMarked = null, sessionAddress = "127.0.0.1:10819"))
+    }
+
+    @Test
+    fun aProfileListensOnThePortItNamesAndOnTheDefaultOtherwise() {
+        assertEquals(10819, AetherCoreManager.listenPort(profile()))
+        assertEquals(20808, AetherCoreManager.listenPort(profile().copy(aetherListenPort = "20808")))
+        assertEquals(10819, AetherCoreManager.listenPort(profile().copy(aetherListenPort = "70000")))
+        assertEquals(10819, AetherCoreManager.listenPort(profile().copy(aetherListenPort = "")))
+    }
+
+    @Test
+    fun theSessionMarkIsReadFromTheEnvironmentTheAppGaveTheCore() {
+        assertTrue(AetherCoreManager.isSessionMarked(listOf("HOME=/x", "${AetherCoreManager.OWNER_ENV}=4242", "${AetherCoreManager.SESSION_ENV}=1")))
+        assertFalse(AetherCoreManager.isSessionMarked(listOf("HOME=/x", "${AetherCoreManager.OWNER_ENV}=4242")))
+        assertFalse(AetherCoreManager.isSessionMarked(emptyList()))
     }
 
     @Test
@@ -332,6 +368,9 @@ class AetherCoreManagerTest {
         assertFalse(AetherCoreManager.runsProfile(session, profile(AetherProtocol.WIREGUARD, server = "162.159.198.1", port = "443")))
         assertFalse(AetherCoreManager.runsProfile(AetherCoreManager.buildArguments(pinned, 0, scan = true), pinned))
         assertFalse(AetherCoreManager.runsProfile(emptyList(), pinned))
+        // A custom configuration runs the same tunnel behind a port of its own.
+        assertTrue(AetherCoreManager.runsProfile(AetherCoreManager.buildArguments(pinned, 20808), pinned))
+        assertFalse(AetherCoreManager.runsProfile(AetherCoreManager.buildArguments(pinned, 20808), pinned.copy(serverPort = "2408")))
     }
 
     @Test

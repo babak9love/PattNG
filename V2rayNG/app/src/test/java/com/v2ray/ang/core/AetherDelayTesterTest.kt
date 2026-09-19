@@ -20,8 +20,12 @@ class AetherDelayTesterTest {
     private fun aether(protocol: AetherProtocol) =
         ProfileItem.create(EConfigType.AETHER).apply { aetherProtocol = protocol.type }
 
-    private fun session(protocol: AetherProtocol, running: ProfileItem? = null, listening: Boolean = true) =
-        AetherDelayTester.LiveSession(protocol, running?.let { AetherCoreManager.buildArguments(it, AetherCoreManager.socksPort) }, listening)
+    private fun session(
+        protocol: AetherProtocol,
+        running: ProfileItem? = null,
+        listening: Boolean = true,
+        port: Int = AetherCoreManager.socksPort,
+    ) = AetherDelayTester.LiveSession(protocol, running?.let { AetherCoreManager.buildArguments(it, port) }, port, listening)
 
     @Test
     fun withoutAnAetherSessionEachTestGetsItsOwnTunnel() {
@@ -38,6 +42,11 @@ class AetherDelayTesterTest {
         // Without the process, the selected profile stands in for the running one.
         assertEquals(Route.ACTIVE_SESSION, AetherDelayTester.route("a", wireguard, "a", session(AetherProtocol.WIREGUARD)))
         assertEquals(Route.SKIP, AetherDelayTester.route("a", wireguard, "b", session(AetherProtocol.WIREGUARD)))
+        // The same tunnel behind another port, as a custom configuration or another listen port runs it, is the same session.
+        assertEquals(
+            Route.ACTIVE_SESSION,
+            AetherDelayTester.route("a", wireguard, "b", session(AetherProtocol.WIREGUARD, wireguard, port = 20808))
+        )
     }
 
     @Test

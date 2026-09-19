@@ -568,6 +568,7 @@
     <string name="aether_lab_scan_mode">Scan mode</string>
     <string name="aether_lab_obfuscation">Obfuscation</string>
     <string name="aether_lab_ip_version">IP version</string>
+    <string name="aether_lab_listen_port">Listen port</string>
     <string name="aether_lab_fragment">Fragment ClientHello</string>
     <string name="aether_lab_fragment_size">Fragment size (bytes)</string>
     <string name="aether_lab_fragment_delay">Fragment delay (ms)</string>
@@ -584,6 +585,7 @@
     <string name="aether_invalid_hop">Write an address and a port, such as 162.159.192.1:2408</string>
     <string name="aether_same_hop">The two hops must be different addresses</string>
     <string name="aether_invalid_fragment">Use a number or a range such as 16-32: size 1–4096 bytes, delay 0–1000 ms</string>
+    <string name="aether_invalid_listen_port">Use a listen port from 1 to 65535, or leave it empty for the default</string>
     <string name="aether_unsupported_abi">The Aether core is not available for this device</string>
     <string name="aether_core_stopped">The Aether core stopped running</string>
     <string name="aether_core_connecting">The Aether core is still connecting</string>
@@ -612,6 +614,9 @@
     <string name="aether_scan_blocked">Disconnect the Aether profile before scanning; a scan would open a second tunnel on the running connection\'s key</string>
     <string name="aether_chain_entry_only">An Aether profile can only be the first hop of a proxy chain, the one that reaches the internet directly</string>
     <string name="aether_config_single_profile">A configuration can use only one Aether profile</string>
+    <string name="aether_custom_single_core">Only one Aether core can run: leave aetherSettings in one SOCKS outbound only</string>
+    <string name="aether_custom_no_listener">The SOCKS outbound with aetherSettings has to dial %1$s and a port from 1 to 65535; the Aether core listens there</string>
+    <string name="aether_custom_unknown_entry">aetherSettings has an entry the Aether core does not know: %1$s</string>
     <string name="title_aether_core">Aether core</string>
     <string name="summary_aether_core">WARP client by CluvexStudio, bundled under the AGPL-3.0 license. Tap to open its source code.</string>
     <string-array name="aether_scan_entries">

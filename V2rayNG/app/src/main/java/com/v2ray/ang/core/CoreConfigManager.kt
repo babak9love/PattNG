@@ -15,6 +15,7 @@ import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.isNotNullEmpty
+import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.HttpUtil
@@ -60,9 +61,10 @@ object CoreConfigManager {
      * Build a lightweight configuration for latency testing.
      *
      * The core flow is reused, then non-essential sections are removed. A configuration that runs
-     * on an Aether profile is pointed at [aetherPort] when the test opens a core of its own.
+     * on an Aether core is pointed at [aetherPort] when the test opens a core of its own; null
+     * leaves it on the port it was written for.
      */
-    fun getV2rayConfig4Speedtest(context: Context, guid: String, aetherPort: Int = AetherCoreManager.socksPort): ConfigResult {
+    fun getV2rayConfig4Speedtest(context: Context, guid: String, aetherPort: Int? = null): ConfigResult {
         try {
             val configContext = CoreConfigContextBuilder.build(context, guid)
                 ?: return ConfigResult(
@@ -71,15 +73,15 @@ object CoreConfigManager {
                     errorMessage = "Failed to build config context"
                 )
             if (configContext.isCustom) {
-                return buildV2rayCustomConfig(configContext)
+                return buildV2rayCustomConfig(configContext, aetherPort)
             }
             // Only the primary outbound is measured; the routing outbounds lose their rules below.
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
-            if (aetherPort != AetherCoreManager.socksPort) {
-                rebindAetherOutbounds(v2rayConfig.outbounds, aetherPort)
+            if (aetherPort != null && dependency is AetherDependency.Single) {
+                rebindAetherOutbounds(v2rayConfig.outbounds, from = AetherCoreManager.listenPort(dependency.profile), port = aetherPort)
             }
 
             return toConfigResult(configContext, v2rayConfig, dependency)
@@ -95,8 +97,11 @@ object CoreConfigManager {
 
     /**
      * Build configuration for custom profiles.
+     *
+     * A custom configuration asks for an Aether core with aetherSettings in a SOCKS outbound; the
+     * result names that core, and [aetherPort] moves the outbound to the core a latency test opened.
      */
-    private fun buildV2rayCustomConfig(configContext: CoreConfigContext): ConfigResult {
+    private fun buildV2rayCustomConfig(configContext: CoreConfigContext, aetherPort: Int? = null): ConfigResult {
         val context = configContext.context
         val raw = MmkvManager.decodeServerRaw(configContext.guid)
             ?: return ConfigResult(
@@ -107,6 +112,15 @@ object CoreConfigManager {
         val result = ConfigResult(true, configContext.guid, raw)
 
         val json = JsonUtil.parseString(raw)?.takeIf { it.isJsonObject }?.asJsonObject ?: return result
+
+        val dependency = AetherDependency.ofCustom(json)
+        aetherFailure(context, configContext.guid, dependency)?.let { return it }
+        if (dependency is AetherDependency.Single) {
+            result.aetherProfile = dependency.profile
+            if (aetherPort != null) {
+                AetherDependency.rebindCustom(json, from = AetherCoreManager.listenPort(dependency.profile), port = aetherPort)
+            }
+        }
 
         // Inject or remove traffic statistics configuration based on user preference
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_SPEED_ENABLED) == true) {
@@ -133,7 +147,7 @@ object CoreConfigManager {
         }
 
         if (!needTun()) {
-            return JsonUtil.toJsonPretty(json)?.let { ConfigResult(true, configContext.guid, it) } ?: result
+            return JsonUtil.toJsonPretty(json)?.let { result.copy(content = it) } ?: result
         }
 
         // Check whether package names need to be replaced with UIDs
@@ -177,7 +191,7 @@ object CoreConfigManager {
             }
         }
 
-        return JsonUtil.toJsonPretty(json)?.let { ConfigResult(true, configContext.guid, it) } ?: result
+        return JsonUtil.toJsonPretty(json)?.let { result.copy(content = it) } ?: result
     }
 
     /**
@@ -230,6 +244,7 @@ object CoreConfigManager {
                 balancerStrategies = balancerStrategies,
             )
         }
+        keepOneAetherSettings(v2rayConfig.outbounds)
 
         // User routing rules (policyGroupBalancerTags rewrites TAG_PROXY→balancer when main is POLICYGROUP).
         configureRouting(configContext, v2rayConfig, policyGroupBalancerTags)
@@ -498,23 +513,47 @@ object CoreConfigManager {
     private fun aetherFailure(context: Context, guid: String, dependency: AetherDependency): ConfigResult? {
         val message = when (dependency) {
             AetherDependency.None, is AetherDependency.Single -> return null
-            AetherDependency.Conflicting -> R.string.aether_config_single_profile
-            is AetherDependency.NotEntryHop -> R.string.aether_chain_entry_only
+            AetherDependency.Conflicting -> context.getString(R.string.aether_config_single_profile)
+            is AetherDependency.NotEntryHop -> context.getString(R.string.aether_chain_entry_only)
+            AetherDependency.SeveralCores -> context.getString(R.string.aether_custom_single_core)
+            AetherDependency.NoListener -> context.getString(R.string.aether_custom_no_listener, AppConfig.LOOPBACK)
+            is AetherDependency.UnusableSettings -> when (val reason = dependency.reason) {
+                is AetherFmt.Settings.Unknown -> context.getString(R.string.aether_custom_unknown_entry, reason.entry)
+                // The same values the Aether editor refuses, reported with its words.
+                is AetherFmt.Settings.Refused -> context.getString(
+                    when (reason.problem) {
+                        AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint
+                        AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
+                        AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
+                        AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
+                        AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
+                    }
+                )
+            }
         }
         LogUtil.w(AppConfig.TAG, "Aether cannot serve this configuration: $dependency, guid=$guid")
-        return ConfigResult(status = false, guid = guid, errorMessage = context.getString(message), localizedError = true)
+        return ConfigResult(status = false, guid = guid, errorMessage = message, localizedError = true)
     }
 
     /**
-     * Points every Aether outbound at [port] instead of the session port. A latency test of a
-     * configuration that runs on Aether opens a core of its own when the daemon's session is busy
-     * with another profile or absent, and that core listens on a port of its own.
+     * One core serves every Aether outbound of a configuration, and a custom configuration may ask
+     * for its core in one outbound only. The first Aether outbound keeps its aetherSettings, so the
+     * exported configuration runs as a custom one; the others dial the same core without them.
      */
-    internal fun rebindAetherOutbounds(outbounds: List<V2rayConfig.OutboundBean>, port: Int) {
+    internal fun keepOneAetherSettings(outbounds: List<V2rayConfig.OutboundBean>) {
+        outbounds.filter { it.settings?.aetherSettings != null }.drop(1).forEach { it.settings?.aetherSettings = null }
+    }
+
+    /**
+     * Points every Aether outbound at [port] instead of [from], the port its profile listens on. A
+     * latency test of a configuration that runs on Aether opens a core of its own when the daemon's
+     * session is busy with another profile or absent, and that core listens on a port of its own.
+     */
+    internal fun rebindAetherOutbounds(outbounds: List<V2rayConfig.OutboundBean>, from: Int, port: Int) {
         outbounds.forEach { outbound ->
             val settings = outbound.settings ?: return@forEach
             if (outbound.protocol.equals(EConfigType.SOCKS.name, ignoreCase = true) &&
-                settings.address == AppConfig.LOOPBACK && settings.port == AetherCoreManager.socksPort
+                settings.address == AppConfig.LOOPBACK && settings.port == from
             ) {
                 settings.port = port
             }

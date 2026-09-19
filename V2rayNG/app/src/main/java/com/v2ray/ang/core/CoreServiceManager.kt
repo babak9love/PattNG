@@ -165,7 +165,8 @@ object CoreServiceManager {
 
         cancelAetherWarmUp()
         // One core serves every Aether outbound of the configuration: the selected profile itself, the
-        // entry hop of its chain, a routing target or a policy-group member.
+        // entry hop of its chain, a routing target, a policy-group member, or the SOCKS outbound of a
+        // custom configuration that asks for it with aetherSettings. It listens on the profile's port.
         val aether = result.aetherProfile
         if (aether != null) {
             if (!AetherCoreManager.isSupported(service)) {

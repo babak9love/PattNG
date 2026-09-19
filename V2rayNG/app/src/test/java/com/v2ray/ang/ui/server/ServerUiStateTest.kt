@@ -56,4 +56,32 @@ class ServerUiStateTest {
         val stored = ServerUiState.from(ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = "ForceIP" })
         assertEquals("ForceIP", stored.targetStrategy)
     }
+
+    @Test
+    fun theAetherListenPortShowsItsDefaultAndIsStoredOnlyWhenChanged() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+
+        val untouched = ServerUiState.from(profile)
+        assertEquals(AppConfig.PORT_AETHER_SOCKS, untouched.aetherListenPort)
+        assertNull(untouched.toProfileItem(profile).aetherListenPort)
+
+        untouched.aetherListenPort = " 20808 "
+        assertEquals("20808", untouched.toProfileItem(profile).aetherListenPort)
+
+        // An emptied field is the default; a port that is none reaches the validation as it was written.
+        untouched.aetherListenPort = ""
+        assertNull(untouched.toProfileItem(profile).aetherListenPort)
+        untouched.aetherListenPort = "70000"
+        assertEquals("70000", untouched.toProfileItem(profile).aetherListenPort)
+
+        val stored = ServerUiState.from(ProfileItem.create(EConfigType.AETHER).apply { aetherListenPort = "20808" })
+        assertEquals("20808", stored.aetherListenPort)
+    }
+
+    @Test
+    fun theListenPortBelongsToAetherProfilesOnly() {
+        val vless = ProfileItem.create(EConfigType.VLESS)
+        val state = ServerUiState.from(vless).apply { aetherListenPort = "20808" }
+        assertNull(state.toProfileItem(vless).aetherListenPort)
+    }
 }

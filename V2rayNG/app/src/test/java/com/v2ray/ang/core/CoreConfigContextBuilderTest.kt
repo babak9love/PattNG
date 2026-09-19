@@ -26,6 +26,17 @@ class CoreConfigContextBuilderTest {
     }
 
     @Test
+    fun aGroupLeavesOutTheSameTunnelOnAnotherListenPort() {
+        val first = aether("warp", AetherProtocol.MASQUE)
+        val elsewhere = aether("warp on 20808", AetherProtocol.MASQUE).apply { aetherListenPort = "20808" }
+
+        val (kept, leftOut) = CoreConfigContextBuilder.withOneAetherProfile(listOf(first, elsewhere))
+
+        assertEquals(listOf(first), kept)
+        assertEquals(listOf(elsewhere), leftOut)
+    }
+
+    @Test
     fun aGroupWithoutAetherIsUnchanged() {
         assertEquals(listOf(vless) to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(listOf(vless)))
         assertEquals(emptyList<ProfileItem>() to emptyList<ProfileItem>(), CoreConfigContextBuilder.withOneAetherProfile(emptyList()))

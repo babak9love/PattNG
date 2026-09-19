@@ -73,7 +73,7 @@ object AetherDelayTester {
         val activeGuid = MmkvManager.getSelectServer()
         val session = withContext(Dispatchers.IO) { liveSession(context, activeGuid) }
         return when (route(guid, profile, activeGuid, session)) {
-            Route.ACTIVE_SESSION -> probe(AetherCoreManager.socksPort, deadlineAfter(TEST_BUDGET_MS))
+            Route.ACTIVE_SESSION -> probe(session?.port ?: AetherCoreManager.socksPort, deadlineAfter(TEST_BUDGET_MS))
             Route.NEW_TUNNEL -> tunnels.withLock { throughNewTunnel(context, guid, profile, probe) }
             Route.SKIP -> {
                 // A second tunnel on the live session's key would disturb it.
@@ -90,22 +90,25 @@ object AetherDelayTester {
 
     /**
      * The daemon's live Aether session: its protocol, its arguments when its process could be read,
-     * and whether its SOCKS listener accepts connections yet.
+     * the port of its SOCKS listener, and whether that listener accepts connections yet.
      */
-    internal class LiveSession(val protocol: AetherProtocol, val arguments: List<String>?, val listening: Boolean)
+    internal class LiveSession(val protocol: AetherProtocol, val arguments: List<String>?, val port: Int, val listening: Boolean)
 
     /**
-     * The daemon's live Aether session, or null without one. Its core process names the protocol
-     * and the running profile, whether it is still scanning or already listening; when /proc
-     * cannot be read, a listener on the session port together with a selected Aether profile
+     * The daemon's live Aether session, or null without one. Its core process names the protocol,
+     * the running profile and the port it listens on, whether it is still scanning or already
+     * listening; when /proc cannot be read, a selected Aether profile with a listener on its port
      * stands in for it.
      */
     private fun liveSession(context: Context, activeGuid: String?): LiveSession? {
-        val listening = AetherCoreManager.acceptsConnections(AetherCoreManager.socksPort)
-        AetherCoreManager.sessionArguments(context)?.let { return LiveSession(AetherCoreManager.protocolOf(it), it, listening) }
-        if (!listening) return null
+        AetherCoreManager.sessionArguments(context)?.let { arguments ->
+            val port = AetherCoreManager.bindPortOf(arguments) ?: AetherCoreManager.socksPort
+            return LiveSession(AetherCoreManager.protocolOf(arguments), arguments, port, AetherCoreManager.acceptsConnections(port))
+        }
         val active = activeGuid?.let(MmkvManager::decodeServerConfig)?.takeIf { it.configType == EConfigType.AETHER } ?: return null
-        return LiveSession(AetherProtocol.fromString(active.aetherProtocol), arguments = null, listening = true)
+        val port = AetherCoreManager.listenPort(active)
+        if (!AetherCoreManager.acceptsConnections(port)) return null
+        return LiveSession(AetherProtocol.fromString(active.aetherProtocol), arguments = null, port = port, listening = true)
     }
 
     /**

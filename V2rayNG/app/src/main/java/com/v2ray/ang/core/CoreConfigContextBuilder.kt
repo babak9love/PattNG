@@ -286,7 +286,7 @@ object CoreConfigContextBuilder {
         var kept: List<String>? = null
         return members.partition { member ->
             if (member.configType != EConfigType.AETHER) return@partition true
-            val arguments = AetherCoreManager.buildArguments(member, AetherCoreManager.socksPort)
+            val arguments = AetherCoreManager.buildArguments(member, AetherCoreManager.listenPort(member))
             when (kept) {
                 null -> {
                     kept = arguments

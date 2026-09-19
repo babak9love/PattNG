@@ -571,6 +571,7 @@
     <string name="aether_lab_scan_mode">Режим сканирования</string>
     <string name="aether_lab_obfuscation">Обфускация</string>
     <string name="aether_lab_ip_version">Версия IP</string>
+    <string name="aether_lab_listen_port">Порт прослушивания</string>
     <string name="aether_lab_fragment">Фрагментировать ClientHello</string>
     <string name="aether_lab_fragment_size">Размер фрагментов (байт)</string>
     <string name="aether_lab_fragment_delay">Задержка между фрагментами (мс)</string>
@@ -585,6 +586,7 @@
     <string name="aether_invalid_hop">Укажите адрес и порт, например 162.159.192.1:2408</string>
     <string name="aether_same_hop">Узлы должны иметь разные адреса</string>
     <string name="aether_invalid_fragment">Укажите число или диапазон, например 16-32: размер 1–4096 байт, задержка 0–1000 мс</string>
+    <string name="aether_invalid_listen_port">Укажите порт прослушивания от 1 до 65535 или оставьте поле пустым для порта по умолчанию</string>
     <string name="aether_unsupported_abi">Ядро Aether недоступно для этого устройства</string>
     <string name="aether_core_stopped">Ядро Aether остановлено</string>
     <string name="aether_core_connecting">Ядро Aether ещё подключается</string>
@@ -613,6 +615,9 @@
     <string name="aether_scan_blocked">Отключите профиль Aether, прежде чем сканировать: сканирование откроет второй туннель с ключом текущего подключения</string>
     <string name="aether_chain_entry_only">Профиль Aether может быть только первым звеном цепочки прокси, тем, которое выходит в интернет напрямую</string>
     <string name="aether_config_single_profile">Конфигурация может использовать только один профиль Aether</string>
+    <string name="aether_custom_single_core">Можно запустить только одно ядро Aether: оставьте aetherSettings только в одном исходящем SOCKS</string>
+    <string name="aether_custom_no_listener">Исходящий SOCKS с aetherSettings должен подключаться к %1$s и порту от 1 до 65535; там слушает ядро Aether</string>
+    <string name="aether_custom_unknown_entry">В aetherSettings есть запись, неизвестная ядру Aether: %1$s</string>
     <string name="title_aether_core">Ядро Aether</string>
     <string name="summary_aether_core">Клиент WARP от CluvexStudio, включён по лицензии AGPL-3.0. Нажмите, чтобы открыть исходный код.</string>
     <string-array name="aether_scan_entries">

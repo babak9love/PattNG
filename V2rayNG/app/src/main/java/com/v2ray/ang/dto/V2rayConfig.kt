@@ -102,11 +102,34 @@ data class V2rayConfig(
             var reserved: List<Int>? = null,
             var mtu: Int? = null,
             var domainStrategy: String? = null,
+            /*Aether: read by the app, which runs the Aether core this SOCKS outbound dials; Xray ignores the key.
+              Untyped, so a hand-written value of any shape still loads and is checked when the core is needed.*/
+            var aetherSettings: Any? = null,
         ) {
             data class WireGuardBean(
                 var publicKey: String = "",
                 var preSharedKey: String? = null,
                 var endpoint: String = ""
+            )
+
+            /**
+             * The Aether core behind a SOCKS outbound, as written into aetherSettings. [address] and
+             * [port] name the endpoint of the masque and wg protocols and are left out to let the core
+             * scan for one; [outer] and [inner] do the same for the two hops of gool.
+             */
+            data class AetherSettingsBean(
+                var address: String? = null,
+                var port: String? = null,
+                var protocol: String? = null,
+                var transport: String? = null,
+                var scan: String? = null,
+                var noize: String? = null,
+                var ip: String? = null,
+                var fragment: Boolean? = null,
+                var fragmentSize: String? = null,
+                var fragmentDelay: String? = null,
+                var outer: String? = null,
+                var inner: String? = null,
             )
         }
 

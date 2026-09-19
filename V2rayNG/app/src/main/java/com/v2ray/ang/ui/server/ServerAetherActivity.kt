@@ -46,6 +46,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -199,6 +200,13 @@ class ServerAetherActivity : BaseServerActivity() {
                 onValueChange = { uiState.aetherIpVersion = it }
             )
             CommonTargetStrategyField(uiState)
+            FormTextField(
+                stringResource(R.string.aether_lab_listen_port),
+                uiState.aetherListenPort,
+                { uiState.aetherListenPort = it },
+                keyboardType = KeyboardType.Number,
+                placeholder = AppConfig.PORT_AETHER_SOCKS
+            )
             if (protocol == AetherProtocol.GOOL) {
                 FormTextField(
                     stringResource(R.string.aether_lab_wiw_outer),
@@ -314,6 +322,7 @@ class ServerAetherActivity : BaseServerActivity() {
                 AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
                 AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
                 AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
+                AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
             }
         )
         return false

@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
+import com.v2ray.ang.AppConfig.PORT_AETHER_SOCKS
 import com.v2ray.ang.AppConfig.REALITY
 import com.v2ray.ang.AppConfig.TARGET_STRATEGY_AS_IS
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
@@ -80,7 +81,8 @@ class ServerUiState(
     aetherWiwInner: String = "",
     aetherFragment: Boolean = false,
     aetherFragmentSize: String = "",
-    aetherFragmentDelay: String = ""
+    aetherFragmentDelay: String = "",
+    aetherListenPort: String = PORT_AETHER_SOCKS
 ) {
     var configType by mutableStateOf(configType)
     var remarks by mutableStateOf(remarks)
@@ -142,6 +144,7 @@ class ServerUiState(
     var aetherFragment by mutableStateOf(aetherFragment)
     var aetherFragmentSize by mutableStateOf(aetherFragmentSize)
     var aetherFragmentDelay by mutableStateOf(aetherFragmentDelay)
+    var aetherListenPort by mutableStateOf(aetherListenPort)
 
     fun toProfileItem(initialConfig: ProfileItem): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
@@ -221,7 +224,10 @@ class ServerUiState(
             aetherWiwInner = if (isAether) aetherWiwInner.nullIfBlank() else null,
             aetherFragment = if (isAether) aetherFragment else null,
             aetherFragmentSize = if (isAether) aetherFragmentSize.nullIfBlank() else null,
-            aetherFragmentDelay = if (isAether) aetherFragmentDelay.nullIfBlank() else null
+            aetherFragmentDelay = if (isAether) aetherFragmentDelay.nullIfBlank() else null,
+            // Stored only when it is not the default, the way AetherFmt.normalize stores it; text that is
+            // no port goes through as written, for normalize to refuse.
+            aetherListenPort = if (isAether) aetherListenPort.trim().takeUnless { it.isEmpty() || it == PORT_AETHER_SOCKS } else null
         )
     }
 
@@ -290,7 +296,8 @@ class ServerUiState(
                 aetherWiwInner = initialConfig.aetherWiwInner ?: "",
                 aetherFragment = initialConfig.aetherFragment ?: false,
                 aetherFragmentSize = initialConfig.aetherFragmentSize ?: "",
-                aetherFragmentDelay = initialConfig.aetherFragmentDelay ?: ""
+                aetherFragmentDelay = initialConfig.aetherFragmentDelay ?: "",
+                aetherListenPort = initialConfig.aetherListenPort ?: PORT_AETHER_SOCKS
             )
 
         fun from(

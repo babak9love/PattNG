@@ -1,5 +1,7 @@
 package com.v2ray.ang.fmt
 
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
@@ -7,6 +9,7 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.util.JsonUtil
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -313,5 +316,188 @@ class AetherFmtTest {
         assertEquals(AetherFmt.Problem.SHARED_HOP, AetherFmt.normalize(config))
         assertEquals("162.159.192.1:2408", config.aetherWiwOuter)
         assertEquals("162.159.192.1:894", config.aetherWiwInner)
+    }
+
+    @Test
+    fun aChosenListenPortSurvivesTheRoundTripAndTheDefaultStaysOutOfTheLink() {
+        val chosen = profile { aetherListenPort = "20808" }
+        assertTrue(link(chosen).contains("listen=20808"))
+        assertEquals("20808", AetherFmt.parse(link(chosen))?.aetherListenPort)
+
+        assertFalse(link(profile { }).contains("listen="))
+        assertFalse(link(profile { aetherListenPort = "10819" }).contains("listen="))
+        assertNull(AetherFmt.parse(link(profile { }))?.aetherListenPort)
+        // A link falls back to the default for a port that is none, as it does for its other settings.
+        assertNull(AetherFmt.parse(link(profile { }).replace("?", "?listen=70000&"))?.aetherListenPort)
+        assertNull(AetherFmt.parse(link(profile { }).replace("?", "?listen=10819&"))?.aetherListenPort)
+    }
+
+    @Test
+    fun theListenPortIsCheckedAndStoredOnlyWhenItIsNotTheDefault() {
+        val chosen = profile { aetherListenPort = " 020808 " }
+        assertNull(AetherFmt.normalize(chosen))
+        assertEquals("20808", chosen.aetherListenPort)
+
+        val default = profile { aetherListenPort = "10819" }
+        assertNull(AetherFmt.normalize(default))
+        assertNull(default.aetherListenPort)
+
+        val blank = profile { aetherListenPort = "  " }
+        assertNull(AetherFmt.normalize(blank))
+        assertNull(blank.aetherListenPort)
+
+        for (invalid in listOf("0", "65536", "-1", "socks", "10819.5")) {
+            assertEquals(AetherFmt.Problem.INVALID_LISTEN_PORT, AetherFmt.normalize(profile { aetherListenPort = invalid }))
+        }
+    }
+
+    @Test
+    fun theListenPortIsReadFromAProfile() {
+        assertEquals(20808, AetherFmt.listenPortOf("20808"))
+        assertEquals(1, AetherFmt.listenPortOf(" 1 "))
+        assertEquals(65535, AetherFmt.listenPortOf("65535"))
+        assertNull(AetherFmt.listenPortOf(null))
+        assertNull(AetherFmt.listenPortOf(""))
+        assertNull(AetherFmt.listenPortOf("0"))
+        assertNull(AetherFmt.listenPortOf("65536"))
+        assertEquals("20808", AetherFmt.storedListenPort(20808))
+        assertNull(AetherFmt.storedListenPort(10819))
+    }
+
+    /** aetherSettings as they are written into a full configuration: through the same Gson the app serializes with. */
+    private fun settingsOf(config: ProfileItem): JsonObject =
+        JsonParser.parseString(JsonUtil.toJson(AetherFmt.toSettings(config))).asJsonObject
+
+    private fun read(json: String): AetherFmt.Settings = AetherFmt.fromSettings(JsonParser.parseString(json).asJsonObject)
+
+    private fun valid(json: String): ProfileItem = (read(json) as AetherFmt.Settings.Valid).profile
+
+    @Test
+    fun aPinnedMasqueNodeSurvivesItsSettings() {
+        val original = profile {
+            server = "162.159.198.1"
+            serverPort = "443"
+            aetherTransport = AetherTransport.HTTP2.type
+            aetherScanMode = AetherScanMode.STEALTH.type
+            aetherObfuscation = AetherObfuscation.AGGRESSIVE.type
+            aetherIpVersion = AetherIpVersion.DUAL.type
+            aetherFragment = true
+            aetherFragmentSize = "16-32"
+            aetherFragmentDelay = "5"
+        }
+
+        val settings = settingsOf(original)
+        assertEquals(
+            """{"address":"162.159.198.1","port":"443","protocol":"masque","transport":"h2","scan":"stealth",""" +
+                """"noize":"aggressive","ip":"both","fragment":true,"fragmentSize":"16-32","fragmentDelay":"5"}""",
+            settings.toString()
+        )
+
+        val parsed = (AetherFmt.fromSettings(settings) as AetherFmt.Settings.Valid).profile
+        assertEquals(EConfigType.AETHER, parsed.configType)
+        assertEquals(original.duplicateIdentity(), parsed.duplicateIdentity())
+    }
+
+    @Test
+    fun bothGoolHopsSurviveTheirSettings() {
+        val original = profile {
+            aetherProtocol = AetherProtocol.GOOL.type
+            aetherWiwOuter = "162.159.192.1:2408"
+            aetherWiwInner = "[2606:4700:d0::a29f:c001]:894"
+            aetherFragment = false
+        }
+
+        val settings = settingsOf(original)
+        assertEquals(
+            """{"protocol":"gool","scan":"balanced","noize":"balanced","ip":"v4",""" +
+                """"outer":"162.159.192.1:2408","inner":"[2606:4700:d0::a29f:c001]:894"}""",
+            settings.toString()
+        )
+        val parsed = (AetherFmt.fromSettings(settings) as AetherFmt.Settings.Valid).profile
+        assertEquals(original.duplicateIdentity(), parsed.duplicateIdentity())
+    }
+
+    @Test
+    fun settingsLeaveOutWhatTheProtocolDoesNotUse() {
+        val scanned = settingsOf(
+            profile {
+                aetherProtocol = AetherProtocol.WIREGUARD.type
+                aetherWiwOuter = "162.159.192.1:2408"
+                aetherFragment = true
+            }
+        )
+        assertEquals("""{"protocol":"wg","scan":"balanced","noize":"balanced","ip":"v4"}""", scanned.toString())
+
+        val gool = settingsOf(profile { aetherProtocol = AetherProtocol.GOOL.type; server = "162.159.198.1"; serverPort = "443" })
+        assertFalse(gool.has("address"))
+        assertFalse(gool.has("port"))
+    }
+
+    @Test
+    fun emptySettingsAreTheDefaultsAndAScannedEndpoint() {
+        val parsed = valid("{}")
+        assertEquals(AetherProtocol.MASQUE.type, parsed.aetherProtocol)
+        assertEquals(AetherTransport.HTTP3.type, parsed.aetherTransport)
+        assertEquals(AetherScanMode.BALANCED.type, parsed.aetherScanMode)
+        assertEquals(AetherObfuscation.BALANCED.type, parsed.aetherObfuscation)
+        assertEquals(AetherIpVersion.V4.type, parsed.aetherIpVersion)
+        assertEquals(false, parsed.aetherFragment)
+        assertNull(parsed.server)
+        assertNull(parsed.serverPort)
+
+        // Null and empty values are left-out values.
+        val blank = valid("""{"address": "", "port": null, "protocol": null, "scan": " "}""")
+        assertNull(blank.server)
+        assertEquals(AetherProtocol.MASQUE.type, blank.aetherProtocol)
+        assertEquals(AetherScanMode.BALANCED.type, blank.aetherScanMode)
+    }
+
+    @Test
+    fun handWrittenSettingsMayUseNumbersAndCapitals() {
+        val parsed = valid(
+            """{"address": "188.114.96.77", "port": 443, "protocol": "WG", "scan": "Balanced", "noize": "aggressive", "ip": "both"}"""
+        )
+        assertEquals("188.114.96.77", parsed.server)
+        assertEquals("443", parsed.serverPort)
+        assertEquals(AetherProtocol.WIREGUARD.type, parsed.aetherProtocol)
+        assertEquals(AetherScanMode.BALANCED.type, parsed.aetherScanMode)
+        assertEquals(AetherObfuscation.AGGRESSIVE.type, parsed.aetherObfuscation)
+        assertEquals(AetherIpVersion.DUAL.type, parsed.aetherIpVersion)
+
+        val fragmented = valid("""{"transport": "h2", "fragment": true, "fragmentSize": 16, "fragmentDelay": "2-10", "port": "443"}""")
+        assertEquals(true, fragmented.aetherFragment)
+        assertEquals("16", fragmented.aetherFragmentSize)
+        assertEquals("2-10", fragmented.aetherFragmentDelay)
+        // A port without an address pins nothing.
+        assertNull(fragmented.serverPort)
+    }
+
+    @Test
+    fun anUnknownKeyOrModeIsReportedInsteadOfDefaulted() {
+        assertEquals(AetherFmt.Settings.Unknown("noise"), read("""{"noise": "off"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("protocol: wireguard"), read("""{"protocol": "wireguard"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("transport: quic"), read("""{"transport": "quic"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("scan: fast"), read("""{"scan": "fast"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("noize: gfw"), read("""{"noize": "gfw"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("ip: 4"), read("""{"ip": 4}"""))
+        assertEquals(AetherFmt.Settings.Unknown("fragment: yes"), read("""{"fragment": "yes"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("scan"), read("""{"scan": {"mode": "turbo"}}"""))
+        assertEquals(AetherFmt.Settings.Unknown("address"), read("""{"address": ["188.114.96.77"]}"""))
+    }
+
+    @Test
+    fun settingsTheEditorRefusesAreRefusedHereAsWell() {
+        assertEquals(AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_PEER), read("""{"address": "engage.cloudflareclient.com", "port": 2408}"""))
+        assertEquals(AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_PEER), read("""{"address": "188.114.96.77"}"""))
+        assertEquals(AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_PEER), read("""{"address": "188.114.96.77", "port": 70000}"""))
+        assertEquals(AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_HOP), read("""{"protocol": "gool", "outer": "162.159.192.1"}"""))
+        assertEquals(
+            AetherFmt.Settings.Refused(AetherFmt.Problem.SHARED_HOP),
+            read("""{"protocol": "gool", "outer": "162.159.192.1:2408", "inner": "162.159.192.1:894"}""")
+        )
+        assertEquals(
+            AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_FRAGMENT),
+            read("""{"transport": "h2", "fragment": true, "fragmentSize": "0"}""")
+        )
     }
 }
