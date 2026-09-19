@@ -10,6 +10,7 @@ import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.util.JsonUtil
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -285,5 +286,42 @@ class AetherDependencyTest {
         assertEquals(listOf(41234, 41234, 1080, 20808, 20808), ports)
         // The core of the rebound configuration is still the one its aetherSettings describe.
         assertEquals(41234, AetherCoreManager.listenPort((AetherDependency.ofCustom(config) as AetherDependency.Single).profile))
+    }
+
+    private fun withInbounds(vararg inbounds: String) = """{"inbounds": [${inbounds.joinToString(",")}], "outbounds": []}"""
+
+    @Test
+    fun anInboundOnTheAetherPortIsFoundBeforeTheCoreIsStarted() {
+        // What the app builds: the local proxy with a port, and a tun inbound without one.
+        val built = withInbounds(
+            """{"tag": "socks", "protocol": "socks", "listen": "127.0.0.1", "port": 10808}""",
+            """{"tag": "tun", "protocol": "tun", "settings": {"mtu": 1500}}""",
+        )
+        assertTrue(AetherDependency.inboundListensOn(built, 10808))
+        assertFalse(AetherDependency.inboundListensOn(built, 10819))
+
+        // The local proxy moved onto the default Aether port, or picked there at random.
+        assertTrue(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "socks", "port": 10819}"""), 10819))
+    }
+
+    @Test
+    fun theInboundPortsOfACustomConfigurationAreReadInEveryFormXrayReads() {
+        assertTrue(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "socks", "port": "20808"}"""), 20808))
+        assertTrue(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "dokodemo-door", "port": "20000-21000"}"""), 20808))
+        assertTrue(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "http", "port": "53, 443 ,20800-20810"}"""), 20808))
+        assertFalse(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "http", "port": "53,443,20800-20807"}"""), 20808))
+        assertFalse(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "socks", "port": "20000-21000"}"""), 21001))
+        // A port taken from the environment is not known here, and it is not a reason to refuse the start.
+        assertFalse(AetherDependency.inboundListensOn(withInbounds("""{"protocol": "socks", "port": "env:PORT"}"""), 20808))
+    }
+
+    @Test
+    fun aConfigurationWithoutReadableInboundsCollidesWithNothing() {
+        assertFalse(AetherDependency.inboundListensOn("""{"outbounds": []}""", 10819))
+        assertFalse(AetherDependency.inboundListensOn("""{"inbounds": {"port": 10819}}""", 10819))
+        assertFalse(AetherDependency.inboundListensOn(withInbounds("10819", """{"port": null}""", """{"port": [10819]}""", """{"port": true}"""), 10819))
+        assertFalse(AetherDependency.inboundListensOn("", 10819))
+        assertFalse(AetherDependency.inboundListensOn("not json {", 10819))
+        assertFalse(AetherDependency.inboundListensOn("[]", 10819))
     }
 }

@@ -2,6 +2,8 @@ package com.v2ray.ang.core
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
+import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -119,6 +121,35 @@ sealed interface AetherDependency {
                 if (settings.get("address")?.let(::textOf) == AppConfig.LOOPBACK && settings.get("port")?.let(::portOf) == from) {
                     settings.addProperty("port", port)
                 }
+            }
+        }
+
+        /**
+         * True when an inbound of the configuration [content], as it is handed to Xray, listens on
+         * [port]. The Aether core has to listen there on the loopback address, and Xray comes first:
+         * the core only binds once its tunnel is up. The Aether outbound would then dial the inbound of
+         * its own configuration until the core gives up. This covers what the profile editor cannot
+         * see: a local proxy port changed later or picked at random, an imported profile, and the
+         * inbounds of a custom configuration.
+         */
+        fun inboundListensOn(content: String, port: Int): Boolean {
+            val config = try {
+                JsonParser.parseString(content).takeIf { it.isJsonObject }?.asJsonObject
+            } catch (_: JsonParseException) {
+                null
+            }
+            val inbounds = config?.get("inbounds")?.takeIf { it.isJsonArray }?.asJsonArray ?: return false
+            return inbounds.any { inbound ->
+                inbound.isJsonObject && inboundPorts(inbound.asJsonObject.get("port")).any { port in it }
+            }
+        }
+
+        /** The ports of an inbound: a number, or the text forms Xray reads, such as "1080", "1000-2000" and "53,443,1000-2000". */
+        private fun inboundPorts(element: JsonElement?): List<IntRange> {
+            val primitive = element?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return emptyList()
+            return primitive.asString.split(',').mapNotNull { part ->
+                val bounds = part.split('-').map { it.trim().toIntOrNull() ?: return@mapNotNull null }
+                if (bounds.size in 1..2) bounds.min()..bounds.max() else null
             }
         }
 

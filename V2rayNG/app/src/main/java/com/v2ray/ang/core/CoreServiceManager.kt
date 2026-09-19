@@ -172,6 +172,18 @@ object CoreServiceManager {
             if (!AetherCoreManager.isSupported(service)) {
                 throw StartFailure(service.getString(R.string.aether_unsupported_abi))
             }
+            // Xray would take the port first, and the Aether outbound would dial the configuration's own inbound.
+            val aetherPort = AetherCoreManager.listenPort(aether)
+            if (AetherDependency.inboundListensOn(result.content, aetherPort)) {
+                LogUtil.w(
+                    AppConfig.TAG,
+                    "StartCore-Manager: ${service.javaClass.simpleName} ${if (isReload) "reload" else "start"} refused, " +
+                        "an inbound of the configuration listens on the Aether port $aetherPort, guid=$guid"
+                )
+                // A reload still has the previous session's core; without Xray it serves nothing.
+                AetherCoreManager.stop()
+                throw StartFailure(service.getString(R.string.aether_listen_port_taken))
+            }
             aetherExitHandled = false
             AetherCoreManager.start(service, aether) { onAetherExit(guid) }
         } else {
