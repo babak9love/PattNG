@@ -60,6 +60,10 @@ class CoreVpnService : VpnService(), ServiceControl {
         // going through stopAllService() (e.g. when killed unexpectedly). isRunning is
         // set to false at the start of stopAllService(), so this guard prevents a double-close.
         if (isRunning) {
+            // The interface is not all that would outlive the service then: tun2socks, Xray and the
+            // Aether core run on in this process, as the other two services stop them in onDestroy.
+            // The service is going down already, so this is the teardown without stopSelf().
+            stopAllService(isForced = false)
             try {
                 if (::mInterface.isInitialized) {
                     mInterface.close()
