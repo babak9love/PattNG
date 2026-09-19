@@ -121,6 +121,28 @@ class AetherDependencyTest {
     }
 
     @Test
+    fun socksOutboundsWithoutAetherSettingsAreNotAetherOutbounds() {
+        // Wherever they dial and however they are written, they take no part in choosing the core:
+        // they are neither counted nor held to what an Aether outbound has to look like.
+        val others = arrayOf(
+            plainSocks,
+            """{"tag": "remote", "protocol": "socks", "settings": {"address": "203.0.113.9", "port": 1080, "user": "u", "pass": "p"}}""",
+            """{"tag": "legacy", "protocol": "socks", "settings": {"servers": [{"address": "10.0.0.2", "port": 1080}]}}""",
+            """{"tag": "odd", "protocol": "socks", "settings": {"address": "localhost", "port": "1080"}}""",
+            """{"tag": "bare", "protocol": "socks"}""",
+        )
+
+        val dependency = AetherDependency.ofCustom(
+            custom(*others, aetherOutbound("warp", port = 20808, aetherSettings = """{"protocol": "wg"}"""), freedom)
+        )
+        val profile = (dependency as AetherDependency.Single).profile
+        assertEquals(20808, AetherCoreManager.listenPort(profile))
+        assertEquals("wg", profile.aetherProtocol)
+
+        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom(*others, freedom)))
+    }
+
+    @Test
     fun theCoreOfACustomConfigurationListensWhereItsOutboundDials() {
         val settings = """{"address": "188.114.96.77", "port": "443", "protocol": "wg", "scan": "balanced", "noize": "aggressive", "ip": "both"}"""
         val dependency = AetherDependency.ofCustom(custom(freedom, aetherOutbound("proxy", port = 20808, aetherSettings = settings)))
