@@ -167,13 +167,55 @@ class AetherDependencyTest {
     }
 
     @Test
-    fun aCustomConfigurationMayAskForOneCoreOnly() {
+    fun severalOutboundsOfACustomConfigurationMayAskForTheSameCore() {
+        val wg = """{"address": "188.114.96.77", "port": 443, "protocol": "wg"}"""
+        val twice = AetherDependency.ofCustom(
+            custom(aetherOutbound("proxy", port = 20808, aetherSettings = wg), freedom, aetherOutbound("warp", port = 20808, aetherSettings = wg))
+        )
+        assertEquals(20808, AetherCoreManager.listenPort((twice as AetherDependency.Single).profile))
+
+        // The same core written in other words: what counts is what the core would be started with.
+        val reworded = """{"port": "443", "address": "188.114.96.77", "protocol": "WG", "scan": "balanced", "fragment": false}"""
+        val same = AetherDependency.ofCustom(
+            custom(aetherOutbound("proxy", port = 20808, aetherSettings = wg), aetherOutbound("warp", port = 20808, aetherSettings = reworded))
+        )
+        assertTrue(same is AetherDependency.Single)
+    }
+
+    @Test
+    fun outboundsThroughTheSameCoreMayDifferInWhatXrayDoesWithThem() {
+        // What sets them apart belongs to Xray, such as targetStrategy; the core behind them is one.
+        fun outbound(tag: String, targetStrategy: String) =
+            """{"tag": "$tag", "protocol": "socks", "targetStrategy": "$targetStrategy", "settings": {"address": "127.0.0.1", "port": 20808,""" +
+                """ "aetherSettings": {"protocol": "masque", "noize": "aggressive"}}}"""
+
+        val dependency = AetherDependency.ofCustom(custom(outbound("warp", "AsIs"), outbound("warp-ip", "UseIPv4v6"), freedom))
+
+        val profile = (dependency as AetherDependency.Single).profile
+        assertEquals("127.0.0.1:20808", AetherCoreManager.bindAddressOf(AetherCoreManager.buildArguments(profile, AetherCoreManager.listenPort(profile))))
+    }
+
+    @Test
+    fun aCustomConfigurationCannotAskForTwoCores() {
+        // Other settings need another core.
         assertEquals(
             AetherDependency.SeveralCores,
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", port = 20808, aetherSettings = """{"protocol": "wg"}""")))
+            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", aetherSettings = """{"protocol": "wg"}""")))
         )
-        // Even the same core written twice: the rule is one outbound, which needs no comparing.
-        assertEquals(AetherDependency.SeveralCores, AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp"))))
+        // So does the same tunnel behind another port: one core listens on one port.
+        assertEquals(
+            AetherDependency.SeveralCores,
+            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", port = 20808)))
+        )
+        // A problem in any of them is reported before they are compared.
+        assertEquals(
+            AetherDependency.NoListener,
+            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", address = "10.0.0.2")))
+        )
+        assertEquals(
+            AetherDependency.UnusableSettings(AetherFmt.Settings.Unknown("noise")),
+            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", aetherSettings = """{"noise": "off"}""")))
+        )
     }
 
     @Test

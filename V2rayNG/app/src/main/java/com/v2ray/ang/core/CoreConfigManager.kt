@@ -99,7 +99,7 @@ object CoreConfigManager {
      * Build configuration for custom profiles.
      *
      * A custom configuration asks for an Aether core with aetherSettings in a SOCKS outbound; the
-     * result names that core, and [aetherPort] moves the outbound to the core a latency test opened.
+     * result names that core, and [aetherPort] moves its outbounds to the core a latency test opened.
      */
     private fun buildV2rayCustomConfig(configContext: CoreConfigContext, aetherPort: Int? = null): ConfigResult {
         val context = configContext.context
@@ -244,7 +244,6 @@ object CoreConfigManager {
                 balancerStrategies = balancerStrategies,
             )
         }
-        keepOneAetherSettings(v2rayConfig.outbounds)
 
         // User routing rules (policyGroupBalancerTags rewrites TAG_PROXY→balancer when main is POLICYGROUP).
         configureRouting(configContext, v2rayConfig, policyGroupBalancerTags)
@@ -533,15 +532,6 @@ object CoreConfigManager {
         }
         LogUtil.w(AppConfig.TAG, "Aether cannot serve this configuration: $dependency, guid=$guid")
         return ConfigResult(status = false, guid = guid, errorMessage = message, localizedError = true)
-    }
-
-    /**
-     * One core serves every Aether outbound of a configuration, and a custom configuration may ask
-     * for its core in one outbound only. The first Aether outbound keeps its aetherSettings, so the
-     * exported configuration runs as a custom one; the others dial the same core without them.
-     */
-    internal fun keepOneAetherSettings(outbounds: List<V2rayConfig.OutboundBean>) {
-        outbounds.filter { it.settings?.aetherSettings != null }.drop(1).forEach { it.settings?.aetherSettings = null }
     }
 
     /**

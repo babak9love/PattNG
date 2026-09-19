@@ -20,7 +20,7 @@ import com.v2ray.ang.fmt.AetherFmt
  * another hop can dial through it, but it cannot dial through anything, since its outbound only
  * reaches the core on the loopback address.
  *
- * A custom configuration asks for its core itself, with aetherSettings in the settings of one SOCKS
+ * A custom configuration asks for its core itself, with aetherSettings in the settings of a SOCKS
  * outbound, and the core listens on the port that outbound dials, as a profile names its own.
  */
 sealed interface AetherDependency {
@@ -37,7 +37,7 @@ sealed interface AetherDependency {
     /** An Aether profile in a chain position other than the entry hop. */
     data class NotEntryHop(val chainTag: String) : AetherDependency
 
-    /** A custom configuration with aetherSettings in more than one outbound, while one core runs. */
+    /** A custom configuration whose outbounds carry aetherSettings for different cores, or for one core on different ports. */
     data object SeveralCores : AetherDependency
 
     /** A custom configuration whose outbound with aetherSettings does not dial a port of [AppConfig.LOOPBACK], where the core listens. */
@@ -82,20 +82,31 @@ sealed interface AetherDependency {
         /**
          * [config] is a custom configuration. Its core is the one described by the aetherSettings of
          * a SOCKS outbound, and the port of that outbound is where the core listens: the profile the
-         * core is started with gets it as its listen port.
+         * core is started with gets it as its listen port. Several outbounds may carry aetherSettings
+         * as long as they describe that same core, which is the rule [of] applies to profiles.
          */
         fun ofCustom(config: JsonObject): AetherDependency {
-            val carriers = aetherOutboundSettings(config)
-            val settings = carriers.singleOrNull() ?: return if (carriers.isEmpty()) None else SeveralCores
-            val port = settings.get("port")?.let(::portOf)
-            if (port == null || settings.get("address")?.let(::textOf) != AppConfig.LOOPBACK) return NoListener
-            val written = settings.get(SETTINGS_KEY)
-            val aetherSettings = written.takeIf { it.isJsonObject }?.asJsonObject
-                ?: return UnusableSettings(AetherFmt.Settings.Unknown(written.toString().take(UNKNOWN_ENTRY_LENGTH)))
-            return when (val parsed = AetherFmt.fromSettings(aetherSettings)) {
-                is AetherFmt.Settings.Valid -> Single(parsed.profile.apply { aetherListenPort = AetherFmt.storedListenPort(port) })
-                is AetherFmt.Settings.Invalid -> UnusableSettings(parsed)
+            var found: ProfileItem? = null
+            var foundArguments: List<String>? = null
+            for (settings in aetherOutboundSettings(config)) {
+                val port = settings.get("port")?.let(::portOf)
+                if (port == null || settings.get("address")?.let(::textOf) != AppConfig.LOOPBACK) return NoListener
+                val written = settings.get(SETTINGS_KEY)
+                val aetherSettings = written.takeIf { it.isJsonObject }?.asJsonObject
+                    ?: return UnusableSettings(AetherFmt.Settings.Unknown(written.toString().take(UNKNOWN_ENTRY_LENGTH)))
+                val profile = when (val parsed = AetherFmt.fromSettings(aetherSettings)) {
+                    is AetherFmt.Settings.Valid -> parsed.profile.apply { aetherListenPort = AetherFmt.storedListenPort(port) }
+                    is AetherFmt.Settings.Invalid -> return UnusableSettings(parsed)
+                }
+                val arguments = AetherCoreManager.buildArguments(profile, port)
+                if (found == null) {
+                    found = profile
+                    foundArguments = arguments
+                } else if (arguments != foundArguments) {
+                    return SeveralCores
+                }
             }
+            return found?.let(::Single) ?: None
         }
 
         /**

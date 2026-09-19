@@ -3,8 +3,6 @@ package com.v2ray.ang.core
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.V2rayConfig
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CoreConfigManagerTest {
@@ -42,23 +40,5 @@ class CoreConfigManagerTest {
 
         assertEquals(41234, aether.settings?.port)
         assertEquals(AetherCoreManager.socksPort, defaultPort.settings?.port)
-    }
-
-    @Test
-    fun oneAetherOutboundKeepsTheSettingsACustomConfigurationNeeds() {
-        fun aether() = socks(AppConfig.LOOPBACK, AetherCoreManager.socksPort).apply {
-            settings?.aetherSettings = V2rayConfig.OutboundBean.OutSettingsBean.AetherSettingsBean(protocol = "masque")
-        }
-        val first = aether()
-        val second = aether()
-        val plain = socks(AppConfig.LOOPBACK, 1080)
-
-        CoreConfigManager.keepOneAetherSettings(listOf(plain, first, second))
-
-        assertNotNull(first.settings?.aetherSettings)
-        assertNull(second.settings?.aetherSettings)
-        assertNull(plain.settings?.aetherSettings)
-        // The second one still dials the core the first one describes.
-        assertEquals(AetherCoreManager.socksPort, second.settings?.port)
     }
 }
