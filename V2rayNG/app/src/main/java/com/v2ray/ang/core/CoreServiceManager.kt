@@ -410,7 +410,10 @@ object CoreServiceManager {
         } catch (e: Exception) {
             val message = e.message?.takeUnless { it.isBlank() } ?: e.javaClass.simpleName
             LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to reload core: $message", e)
-            MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, userFacingReason(e))
+            // After a stop the screen has been told of it, and after a new start its state is that start's to report.
+            if (networkMonitor === monitor) {
+                MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, userFacingReason(e))
+            }
         } finally {
             isReloading = false
         }
@@ -451,26 +454,34 @@ object CoreServiceManager {
     /**
      * Releases what a reload started for a service that was stopped while it ran; see
      * [ReloadOutcome.RELEASE_CORES]. The teardown of that service has done the rest already.
+     *
+     * It runs on the main thread, where a service starts as well: a start that followed the stop,
+     * such as the second half of a restart, is then either over, and what runs is its own, or has
+     * not begun, and finds nothing left running. For the same reason Xray is stopped in place here
+     * rather than in the background: a start that begins next must not meet the core of the reload.
      */
     private fun releaseAfterStoppedReload(service: Service) {
-        LogUtil.w(
-            AppConfig.TAG,
-            "StartCore-Manager: ${service.javaClass.simpleName} was stopped during a reload, releasing the cores the reload started, " +
-                "guid=${MmkvManager.getSelectServer()}"
-        )
-        cancelAetherWarmUp()
-        AetherCoreManager.stop()
-        try {
-            coreController.stopLoop()
-        } catch (e: Exception) {
-            LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to stop the core a stopped reload started", e)
+        ContextCompat.getMainExecutor(service).execute {
+            if (networkMonitor != null) return@execute
+            LogUtil.w(
+                AppConfig.TAG,
+                "StartCore-Manager: ${service.javaClass.simpleName} was stopped during a reload, releasing the cores the reload started, " +
+                    "guid=${MmkvManager.getSelectServer()}"
+            )
+            cancelAetherWarmUp()
+            AetherCoreManager.stop()
+            try {
+                coreController.stopLoop()
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to stop the core a stopped reload started", e)
+            }
+            CoreNativeManager.reconcileBrowserDialer("")
+            browserDialer?.stop()
+            browserDialer = null
+            NotificationManager.cancelNotification()
+            // The reload may have announced a running or connecting service after the stop was reported.
+            MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")
         }
-        CoreNativeManager.reconcileBrowserDialer("")
-        browserDialer?.stop()
-        browserDialer = null
-        NotificationManager.cancelNotification()
-        // The reload may have announced a running or connecting service after the stop was reported.
-        MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")
     }
 
     /**
