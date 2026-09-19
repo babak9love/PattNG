@@ -59,6 +59,9 @@ object CoreServiceManager {
     private var currentAether: ProfileItem? = null
     private var processFinder: XrayProcessFinder? = null
     private var browserDialer: IDialerService? = null
+
+    /** Written on the main thread and read by the reload thread, which tells a stop by it. */
+    @Volatile
     private var networkMonitor: NetworkMonitor? = null
     private val connectionTestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -389,8 +392,11 @@ object CoreServiceManager {
         if (isReloading) return false
         val service = getService() ?: return false
         if (!isRunning()) return false
+        // Only a monitor asks for a reload, and a stop clears it: without one the service is going down
+        // already, and a stop that arrives during the reload is told by it afterwards.
+        val monitor = networkMonitor ?: return false
 
-        return try {
+        try {
             val tunFd = currentVpnInterface
 
             isReloading = true
@@ -401,15 +407,70 @@ object CoreServiceManager {
             launchCore(service, tunFd, isReload = true)
 
             LogUtil.i(AppConfig.TAG, "StartCore-Manager: Core reload finished")
-            true
         } catch (e: Exception) {
             val message = e.message?.takeUnless { it.isBlank() } ?: e.javaClass.simpleName
             LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to reload core: $message", e)
             MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_START_FAILURE, userFacingReason(e))
-            false
         } finally {
             isReloading = false
         }
+
+        // No monitor at all means stopped and not started again; a new one belongs to a new start, which owns the cores.
+        return when (ReloadOutcome.of(coreRunning = isRunning(), stoppedMeanwhile = networkMonitor == null)) {
+            ReloadOutcome.KEEP_RUNNING -> true
+            ReloadOutcome.STOP_SERVICE -> {
+                stopServiceAfterFailedReload(monitor)
+                false
+            }
+
+            ReloadOutcome.RELEASE_CORES -> {
+                releaseAfterStoppedReload(service)
+                false
+            }
+        }
+    }
+
+    /**
+     * Stops the service once a reload has left Xray stopped; see [ReloadOutcome.STOP_SERVICE]. The
+     * reload runs on a background thread, the stop goes through the service on the main thread.
+     */
+    private fun stopServiceAfterFailedReload(monitor: NetworkMonitor) {
+        val control = serviceControl?.get() ?: return
+        val service = control.getService()
+        ContextCompat.getMainExecutor(service).execute {
+            // A stop or a new start that arrived meanwhile has taken over.
+            if (isRunning() || networkMonitor !== monitor || serviceControl?.get() !== control) return@execute
+            LogUtil.e(
+                AppConfig.TAG,
+                "StartCore-Manager: reload left no core running, stopping ${service.javaClass.simpleName}, guid=${MmkvManager.getSelectServer()}"
+            )
+            control.stopService()
+        }
+    }
+
+    /**
+     * Releases what a reload started for a service that was stopped while it ran; see
+     * [ReloadOutcome.RELEASE_CORES]. The teardown of that service has done the rest already.
+     */
+    private fun releaseAfterStoppedReload(service: Service) {
+        LogUtil.w(
+            AppConfig.TAG,
+            "StartCore-Manager: ${service.javaClass.simpleName} was stopped during a reload, releasing the cores the reload started, " +
+                "guid=${MmkvManager.getSelectServer()}"
+        )
+        cancelAetherWarmUp()
+        AetherCoreManager.stop()
+        try {
+            coreController.stopLoop()
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "StartCore-Manager: Failed to stop the core a stopped reload started", e)
+        }
+        CoreNativeManager.reconcileBrowserDialer("")
+        browserDialer?.stop()
+        browserDialer = null
+        NotificationManager.cancelNotification()
+        // The reload may have announced a running or connecting service after the stop was reported.
+        MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")
     }
 
     /**
