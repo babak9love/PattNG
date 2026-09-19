@@ -168,6 +168,9 @@ class MainActivity : HelperBaseComponentActivity() {
     private fun handleFabAction() {
         if (mainViewModel.uiState.value.isRunning) {
             LauncherManager.stopService(this)
+            // A service whose process died takes no stop and answers nothing; asking for its state right
+            // after lets that silence show the screen as stopped instead of leaving it connected.
+            mainViewModel.onAction(MainAction.RefreshServiceState)
         } else {
             requestServiceStart()
         }

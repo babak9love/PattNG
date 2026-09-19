@@ -229,6 +229,8 @@ class MainRepository(
     override fun testCurrentServerRealPing(requestId: String) {
         MessageHelper.sendMsg2ServiceForResult(app, AppConfig.MSG_MEASURE_DELAY, requestId) { handled ->
             if (!handled) mainServiceEventChannel.trySend(MainServiceEvent.MeasureDelayCancelled(requestId))
+            // Only the daemon takes this message as well, so a test nobody took found no service either.
+            MainServiceEvent.forStateQuery(handled)?.let { mainServiceEventChannel.trySend(it) }
         }
     }
 
