@@ -27,11 +27,23 @@ class ReloadOutcomeTest {
     }
 
     @Test
-    fun aClientThatAsksDuringAReloadIsToldTheServiceRuns() {
-        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = false))
-        // Xray is stopped for a moment, the service is not; nothing would correct a "not running" answer later.
-        assertTrue(ReloadOutcome.serviceRuns(coreRunning = false, reloading = true))
-        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = true))
-        assertFalse(ReloadOutcome.serviceRuns(coreRunning = false, reloading = false))
+    fun aServiceThatReloadsIsUpThoughXrayIsStoppedForAMoment() {
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = false, stoppedMeanwhile = false))
+        // A client that asked then would be told "not running" with nothing to correct it later, and a
+        // toggle meant as a stop would start a running service, beside the reload.
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = false, reloading = true, stoppedMeanwhile = false))
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = true, stoppedMeanwhile = false))
+        assertFalse(ReloadOutcome.serviceRuns(coreRunning = false, reloading = false, stoppedMeanwhile = false))
+    }
+
+    @Test
+    fun aReloadWhoseServiceWasStoppedDoesNotCountAsARunningService() {
+        // It is only finishing: taking it for a running service would swallow the start that follows the stop.
+        assertFalse(ReloadOutcome.serviceRuns(coreRunning = false, reloading = true, stoppedMeanwhile = true))
+        // No reload at all: a stopped service, as before a first start or on a system without a network monitor.
+        assertFalse(ReloadOutcome.serviceRuns(coreRunning = false, reloading = false, stoppedMeanwhile = true))
+        // Xray itself running is a running service whatever else holds.
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = false, stoppedMeanwhile = true))
+        assertTrue(ReloadOutcome.serviceRuns(coreRunning = true, reloading = true, stoppedMeanwhile = true))
     }
 }

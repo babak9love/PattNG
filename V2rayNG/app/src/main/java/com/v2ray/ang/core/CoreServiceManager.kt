@@ -97,6 +97,17 @@ object CoreServiceManager {
     fun isRunning() = coreController.isRunning
 
     /**
+     * Whether the service is up; see [ReloadOutcome.serviceRuns]. [isRunning] is Xray alone, which a
+     * reload has stopped for a moment. What answers a state query, or decides between a start and a
+     * stop, goes by this one.
+     */
+    fun isServiceRunning() = ReloadOutcome.serviceRuns(
+        coreRunning = isRunning(),
+        reloading = isReloading,
+        stoppedMeanwhile = networkMonitor == null,
+    )
+
+    /**
      * Gets the name of the currently running server.
      * @return The name of the running server.
      */
@@ -679,7 +690,7 @@ object CoreServiceManager {
                     // A client that gets no acknowledgement takes the service for gone: the daemon
                     // cannot report its own death, so silence is the only sign of it.
                     if (isOrderedBroadcast) resultCode = Activity.RESULT_OK
-                    if (ReloadOutcome.serviceRuns(coreRunning = isRunning(), reloading = isReloading)) {
+                    if (isServiceRunning()) {
                         MessageHelper.sendMsg2UI(serviceControl.getService(), AppConfig.MSG_STATE_RUNNING, "")
                         if (isAetherWarmingUp()) {
                             val service = serviceControl.getService()

@@ -43,11 +43,19 @@ internal enum class ReloadOutcome {
         }
 
         /**
-         * What a client that asks for the state is told. A reload has Xray stopped for a moment while
-         * the service stays up, and nothing tells the client once it runs again; answering "not
-         * running" then would leave the main screen showing a stopped service that runs. A reload
-         * that fails reports it and stops the service, which corrects the answer.
+         * Whether the service is up, which is more than whether Xray runs: a reload has Xray stopped
+         * for a moment while the service, its tunnel and the Aether core stay up.
+         *
+         * A client that asks for the state goes by it, as nothing tells it once Xray runs again, and
+         * "not running" would leave the main screen showing a stopped service that runs. So does
+         * whatever starts, stops or toggles the service: going by Xray alone, a toggle meant as a stop
+         * starts a running service instead, and that start runs beside the reload. A reload that
+         * fails reports it and stops the service, which corrects the answer.
+         *
+         * [stoppedMeanwhile] is whether the service was stopped while the reload ran, as in [of]. Such
+         * a reload is only finishing and its service is gone, so a start that follows is a real one.
          */
-        fun serviceRuns(coreRunning: Boolean, reloading: Boolean): Boolean = coreRunning || reloading
+        fun serviceRuns(coreRunning: Boolean, reloading: Boolean, stoppedMeanwhile: Boolean): Boolean =
+            coreRunning || (reloading && !stoppedMeanwhile)
     }
 }
