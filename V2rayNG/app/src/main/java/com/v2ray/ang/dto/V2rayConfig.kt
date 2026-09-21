@@ -101,6 +101,7 @@ data class V2rayConfig(
             val peers: List<WireGuardBean>? = null,
             var reserved: List<Int>? = null,
             var mtu: Int? = null,
+            var remoteDNS: List<String>? = null,
             var domainStrategy: String? = null,
             /*Aether: read by the app, which runs the Aether core this SOCKS outbound dials; Xray ignores the key.
               Untyped, so a hand-written value of any shape still loads and is checked when the core is needed.*/

@@ -57,6 +57,7 @@ data class ProfileItem(
     var localAddress: String? = null,
     var reserved: String? = null,
     var mtu: Int? = null,
+    var remoteDNS: String? = null,
 
     var obfsPassword: String? = null,
     var portHopping: String? = null,
