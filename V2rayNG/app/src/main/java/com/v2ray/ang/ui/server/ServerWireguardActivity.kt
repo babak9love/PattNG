@@ -75,6 +75,12 @@ class ServerWireguardActivity : BaseServerActivity() {
             state.finalMask,
             { state.finalMask = it }
         )
+
+        FormTextField(
+            stringResource(R.string.server_lab_remote_dns),
+            state.remoteDNS,
+            { state.remoteDNS = it }
+        )
     }
 }
 
