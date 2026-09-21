@@ -149,6 +149,10 @@ class ServerUiState(
     var aetherFragmentDelay by mutableStateOf(aetherFragmentDelay)
     var aetherListenPort by mutableStateOf(aetherListenPort)
 
+    var isRemarksError by mutableStateOf(false)
+    var isAddressError by mutableStateOf(false)
+    var isPortError by mutableStateOf(false)
+
     fun toProfileItem(initialConfig: ProfileItem): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
         val isVless = configType == EConfigType.VLESS
