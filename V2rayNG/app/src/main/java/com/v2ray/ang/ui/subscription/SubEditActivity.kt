@@ -30,6 +30,7 @@ import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toLongEx
+import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
@@ -201,7 +202,7 @@ fun SubEditScreen(
 
                         val hasError = remarksErr || urlErr || intervalErr
                         if (!hasError) {
-                            onSave(buildSubItem())
+                            buildSubItem()?.let { onSave(it) }
                         }
                     }) {
                         Icon(painterResource(R.drawable.ic_fab_check), contentDescription = stringResource(R.string.acc_save))
