@@ -6,38 +6,45 @@ import com.google.gson.JsonParseException
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.CoreConfigContext
-import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.fmt.AetherFmt
 
 /**
- * The Aether profile a configuration runs on. Every Aether outbound is a SOCKS connection to the
- * one core process the daemon starts, so a configuration can use one Aether profile, whether it is
- * the selected profile itself, the entry hop of a chain, a routing target or a policy-group member.
- * Two profiles count as the same one when the core would be started with the same arguments,
- * the port it listens on included.
+ * The Aether core a configuration runs on. Every Aether outbound is a SOCKS connection to the one
+ * core process the daemon starts, so a configuration can use one core, whether it is the selected
+ * profile itself, the entry hop of a chain, a routing target or a policy-group member. Two profiles
+ * count as the same core when it would be started with the same arguments, the port it listens on
+ * included.
  *
  * In a chain the Aether hop can only be the entry hop, the one that dials the internet itself:
  * another hop can dial through it, but it cannot dial through anything, since its outbound only
  * reaches the core on the loopback address.
  *
- * A custom configuration asks for its core itself, with aetherSettings in the settings of a SOCKS
- * outbound, and the core listens on the port that outbound dials, as a profile names its own.
+ * A custom configuration asks for its core itself, with the command line of the core as
+ * aetherCommand at its top level, and the SOCKS outbounds that dial the port that command listens
+ * on are its Aether outbounds. Before that, the settings of the core were written as aetherSettings
+ * into such an outbound; a configuration written that way is still read.
  */
 sealed interface AetherDependency {
 
     /** No Aether outbound anywhere in the configuration. */
     data object None : AetherDependency
 
-    /** Exactly one Aether profile; the daemon starts the core with it, on [AetherCoreManager.listenPort]. */
-    data class Single(val profile: ProfileItem) : AetherDependency
+    /** Exactly one Aether core; the daemon starts it, and the Aether outbounds dial its [AetherCore.port]. */
+    data class Single(val core: AetherCore) : AetherDependency
 
     /** Aether profiles with different settings, which one core cannot serve. */
     data object Conflicting : AetherDependency
 
     /** An Aether profile in a chain position other than the entry hop. */
     data class NotEntryHop(val chainTag: String) : AetherDependency
+
+    /** A custom configuration whose aetherCommand is no command line the app can run; [written] quotes it. */
+    data class UnusableCommand(val written: String) : AetherDependency
+
+    /** A custom configuration whose aetherCommand listens on [port] of [AppConfig.LOOPBACK], which none of its SOCKS outbounds dials. */
+    data class NoOutbound(val port: Int) : AetherDependency
 
     /** A custom configuration whose outbounds carry aetherSettings for different cores, or for one core on different ports. */
     data object SeveralCores : AetherDependency
@@ -50,18 +57,20 @@ sealed interface AetherDependency {
 
     companion object {
 
+        /** The key of a custom configuration that carries the command line of its core. */
+        const val COMMAND_KEY = "aetherCommand"
+
         private const val SETTINGS_KEY = "aetherSettings"
 
-        /** How much of a value that is no settings object at all is quoted back in the error. */
-        private const val UNKNOWN_ENTRY_LENGTH = 40
+        /** How much of a value that is no command or no settings object at all is quoted back in the error. */
+        private const val QUOTED_LENGTH = 40
 
         /**
          * [outbounds] are the resolved outbounds of a configuration. A chain's profiles are in
          * reverse dial order: the first is the exit, the last is the entry hop.
          */
         fun of(outbounds: List<CoreConfigContext.ResolvedOutbound>): AetherDependency {
-            var found: ProfileItem? = null
-            var foundArguments: List<String>? = null
+            var found: AetherCore? = null
             for (outbound in outbounds) {
                 val profiles = outbound.resolvedProfiles
                 for ((index, profile) in profiles.withIndex()) {
@@ -69,11 +78,10 @@ sealed interface AetherDependency {
                     if (outbound.resolvedType == CoreResolvedType.PROXYCHAIN && index != profiles.lastIndex) {
                         return NotEntryHop(outbound.tag)
                     }
-                    val arguments = AetherCoreManager.buildArguments(profile, AetherCoreManager.listenPort(profile))
+                    val core = AetherCore.of(profile)
                     if (found == null) {
-                        found = profile
-                        foundArguments = arguments
-                    } else if (arguments != foundArguments) {
+                        found = core
+                    } else if (core != found) {
                         return Conflicting
                     }
                 }
@@ -82,29 +90,40 @@ sealed interface AetherDependency {
         }
 
         /**
-         * [config] is a custom configuration. Its core is the one described by the aetherSettings of
-         * a SOCKS outbound, and the port of that outbound is where the core listens: the profile the
-         * core is started with gets it as its listen port. Several outbounds may carry aetherSettings
-         * as long as they describe that same core, which is the rule [of] applies to profiles.
+         * [config] is a custom configuration. Its core is the command line at its aetherCommand key,
+         * and the SOCKS outbounds dialing the port that command listens on are the ones the core
+         * serves; there has to be at least one, or the core would run for nothing. Without that key,
+         * the aetherSettings of a SOCKS outbound are read the way they were before it existed.
          */
         fun ofCustom(config: JsonObject): AetherDependency {
-            var found: ProfileItem? = null
-            var foundArguments: List<String>? = null
+            val written = config.get(COMMAND_KEY)?.takeUnless { it.isJsonNull } ?: return ofSettings(config)
+            val text = textOf(written) ?: return UnusableCommand(written.toString().take(QUOTED_LENGTH))
+            val core = AetherCore.ofCommand(text) ?: return UnusableCommand(text.take(QUOTED_LENGTH))
+            if (socksOutboundSettings(config).none { dials(it, core.port) }) return NoOutbound(core.port)
+            return Single(core)
+        }
+
+        /**
+         * The form before aetherCommand: the core described by the aetherSettings of a SOCKS outbound,
+         * listening on the port that outbound dials. Several outbounds may carry aetherSettings as long
+         * as they describe that same core, which is the rule [of] applies to profiles.
+         */
+        private fun ofSettings(config: JsonObject): AetherDependency {
+            var found: AetherCore? = null
             for (settings in aetherOutboundSettings(config)) {
                 val port = settings.get("port")?.let(::portOf)
                 if (port == null || settings.get("address")?.let(::textOf) != AppConfig.LOOPBACK) return NoListener
                 val written = settings.get(SETTINGS_KEY)
                 val aetherSettings = written.takeIf { it.isJsonObject }?.asJsonObject
-                    ?: return UnusableSettings(AetherFmt.Settings.Unknown(written.toString().take(UNKNOWN_ENTRY_LENGTH)))
+                    ?: return UnusableSettings(AetherFmt.Settings.Unknown(written.toString().take(QUOTED_LENGTH)))
                 val profile = when (val parsed = AetherFmt.fromSettings(aetherSettings)) {
                     is AetherFmt.Settings.Valid -> parsed.profile.apply { aetherListenPort = AetherFmt.storedListenPort(port) }
                     is AetherFmt.Settings.Invalid -> return UnusableSettings(parsed)
                 }
-                val arguments = AetherCoreManager.buildArguments(profile, port)
+                val core = AetherCore.of(profile)
                 if (found == null) {
-                    found = profile
-                    foundArguments = arguments
-                } else if (arguments != foundArguments) {
+                    found = core
+                } else if (core != found) {
                     return SeveralCores
                 }
             }
@@ -112,16 +131,17 @@ sealed interface AetherDependency {
         }
 
         /**
-         * Points the Aether outbound of the custom configuration [config] at [port], together with
-         * any other SOCKS outbound dialing the same core. A latency test does this when it opens a
-         * core of its own, which listens on a port of its own.
+         * Points the Aether outbounds of the custom configuration [config], the SOCKS outbounds
+         * dialing the core on [from], at [port] instead, and the command that names the listener
+         * with them. A latency test does this when it opens a core of its own, which listens on a
+         * port of its own.
          */
         fun rebindCustom(config: JsonObject, from: Int, port: Int) {
             for (settings in socksOutboundSettings(config)) {
-                if (settings.get("address")?.let(::textOf) == AppConfig.LOOPBACK && settings.get("port")?.let(::portOf) == from) {
-                    settings.addProperty("port", port)
-                }
+                if (dials(settings, from)) settings.addProperty("port", port)
             }
+            val core = config.get(COMMAND_KEY)?.let(::textOf)?.let(AetherCore::ofCommand) ?: return
+            if (core.port == from) config.addProperty(COMMAND_KEY, core.on(port).command)
         }
 
         /**
@@ -152,6 +172,10 @@ sealed interface AetherDependency {
                 if (bounds.size in 1..2) bounds.min()..bounds.max() else null
             }
         }
+
+        /** True when the SOCKS outbound with [settings] dials the core's listener on [port]. */
+        private fun dials(settings: JsonObject, port: Int): Boolean =
+            settings.get("address")?.let(::textOf) == AppConfig.LOOPBACK && settings.get("port")?.let(::portOf) == port
 
         /** The settings of every SOCKS outbound of [config] that carries aetherSettings; a JSON null counts as left out. */
         private fun aetherOutboundSettings(config: JsonObject): List<JsonObject> =

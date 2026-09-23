@@ -5,6 +5,10 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.enums.EConfigType
 
 data class V2rayConfig(
+    /*Aether: the command line of the core the app runs for this configuration, first so that it heads the
+      exported file, where a person reads it and a custom configuration is read from it; Xray ignores the key.
+      Untyped, so a hand-written value of any shape still loads and is checked when the core is needed.*/
+    var aetherCommand: Any? = null,
     var remarks: String? = null,
     var stats: Any? = null,
     val log: LogBean,
@@ -103,34 +107,11 @@ data class V2rayConfig(
             var mtu: Int? = null,
             var remoteDNS: List<String>? = null,
             var domainStrategy: String? = null,
-            /*Aether: read by the app, which runs the Aether core this SOCKS outbound dials; Xray ignores the key.
-              Untyped, so a hand-written value of any shape still loads and is checked when the core is needed.*/
-            var aetherSettings: Any? = null,
         ) {
             data class WireGuardBean(
                 var publicKey: String = "",
                 var preSharedKey: String? = null,
                 var endpoint: String = ""
-            )
-
-            /**
-             * The Aether core behind a SOCKS outbound, as written into aetherSettings. [address] and
-             * [port] name the endpoint of the masque and wg protocols and are left out to let the core
-             * scan for one; [outer] and [inner] do the same for the two hops of gool.
-             */
-            data class AetherSettingsBean(
-                var address: String? = null,
-                var port: String? = null,
-                var protocol: String? = null,
-                var transport: String? = null,
-                var scan: String? = null,
-                var noize: String? = null,
-                var ip: String? = null,
-                var fragment: Boolean? = null,
-                var fragmentSize: String? = null,
-                var fragmentDelay: String? = null,
-                var outer: String? = null,
-                var inner: String? = null,
             )
         }
 

@@ -1,7 +1,6 @@
 package com.v2ray.ang.service
 
 import android.content.Context
-import com.v2ray.ang.core.AetherCoreManager
 import com.v2ray.ang.core.AetherDelayTester
 import com.v2ray.ang.core.CoreConfigManager
 import com.v2ray.ang.core.CoreNativeManager
@@ -118,14 +117,14 @@ class RealPingWorkerService(
         if (!configResult.status) {
             return retFailure
         }
-        val aether = configResult.aetherProfile
+        val aether = configResult.aetherCore
         if (aether != null) {
             // The configuration reaches the internet through an Aether outbound, so it is measured behind
-            // a core serving that profile: the live session, or a test tunnel on its own port. It is
-            // rebuilt to point at that core unless it already dials its port. Its own server is not
-            // probed: it is only reachable through that core.
+            // that core: the live session, or a test tunnel on its own port. It is rebuilt to point at
+            // that core unless it already dials its port. Its own server is not probed: it is only
+            // reachable through that core.
             return AetherDelayTester.measureVia(context, guid, aether) { port, _ ->
-                val content = if (port == AetherCoreManager.listenPort(aether)) {
+                val content = if (port == aether.port) {
                     configResult.content
                 } else {
                     CoreConfigManager.getV2rayConfig4Speedtest(context, guid, port).takeIf { it.status }?.content

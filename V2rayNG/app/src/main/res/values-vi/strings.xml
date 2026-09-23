@@ -617,6 +617,8 @@
     <string name="aether_custom_single_core">Chỉ có thể chạy một lõi Aether: mọi outbound có aetherSettings phải dùng cùng thiết lập và cùng cổng</string>
     <string name="aether_custom_no_listener">Outbound SOCKS có aetherSettings phải kết nối tới %1$s và một cổng từ 1 đến 65535; lõi Aether lắng nghe ở đó</string>
     <string name="aether_custom_unknown_entry">aetherSettings có một mục mà lõi Aether không nhận biết: %1$s</string>
+    <string name="aether_custom_no_outbound">Không có outbound SOCKS nào của cấu hình kết nối tới %1$s:%2$d, nơi lệnh Aether lắng nghe</string>
+    <string name="aether_custom_invalid_command">aetherCommand phải là dòng lệnh của lõi Aether ở dạng văn bản, với địa chỉ lắng nghe đặt sau --bind: %1$s</string>
     <string name="title_aether_core">Lõi Aether</string>
     <string name="summary_aether_core">Trình khách WARP của CluvexStudio, đi kèm theo giấy phép AGPL-3.0. Nhấn để mở mã nguồn.</string>
     <string-array name="aether_scan_entries">

@@ -4,7 +4,6 @@ import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.AetherRange
-import com.v2ray.ang.dto.V2rayConfig.OutboundBean.OutSettingsBean.AetherSettingsBean
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
@@ -28,7 +27,7 @@ object AetherFmt : FmtBase() {
         LISTEN_PORT_TAKEN,
     }
 
-    /** Every key of aetherSettings, the fields of [AetherSettingsBean]. */
+    /** Every key of aetherSettings, the form a custom configuration named its core in before aetherCommand. */
     private val settingsKeys = setOf(
         "address", "port", "protocol", "transport", "scan", "noize", "ip",
         "fragment", "fragmentSize", "fragmentDelay", "outer", "inner",
@@ -120,39 +119,8 @@ object AetherFmt : FmtBase() {
     }
 
     /**
-     * The aetherSettings of a profile: what the full configuration of an Aether profile carries in
-     * its SOCKS outbound, so that it runs again as a custom configuration. Like [toUri], it leaves
-     * out what the protocol does not use.
-     */
-    fun toSettings(config: ProfileItem): AetherSettingsBean {
-        val protocol = AetherProtocol.fromString(config.aetherProtocol)
-        val settings = AetherSettingsBean(
-            protocol = protocol.type,
-            scan = AetherScanMode.fromString(config.aetherScanMode).type,
-            noize = AetherObfuscation.fromString(config.aetherObfuscation).type,
-            ip = AetherIpVersion.fromString(config.aetherIpVersion).type,
-        )
-        if (protocol == AetherProtocol.MASQUE) {
-            settings.transport = AetherTransport.fromString(config.aetherTransport).type
-            if (config.aetherFragment == true) {
-                settings.fragment = true
-                settings.fragmentSize = AetherRange.parse(config.aetherFragmentSize, AetherRange.FRAGMENT_SIZE)?.toString()
-                settings.fragmentDelay = AetherRange.parse(config.aetherFragmentDelay, AetherRange.FRAGMENT_DELAY)?.toString()
-            }
-        }
-        if (protocol == AetherProtocol.GOOL) {
-            settings.outer = AetherEndpoint.parse(config.aetherWiwOuter)?.toString()
-            settings.inner = AetherEndpoint.parse(config.aetherWiwInner)?.toString()
-        } else {
-            val endpoint = AetherEndpoint.of(config.server, config.serverPort)
-            settings.address = endpoint?.host
-            settings.port = endpoint?.port?.toString()
-        }
-        return settings
-    }
-
-    /**
-     * Reads hand-written aetherSettings. A share link falls back to the default for a mode it does
+     * Reads aetherSettings, the form a custom configuration named its core in before aetherCommand;
+     * one written that way still runs. A share link falls back to the default for a mode it does
      * not know; here that would start a tunnel other than the one written down, so an unknown key
      * or mode is reported instead. A value may be a string, a number or a boolean; a missing, null
      * or empty one is the default, and the endpoint left out is scanned for.

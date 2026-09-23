@@ -81,10 +81,10 @@ object CoreConfigManager {
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
             if (aetherPort != null && dependency is AetherDependency.Single) {
-                rebindAetherOutbounds(v2rayConfig.outbounds, from = AetherCoreManager.listenPort(dependency.profile), port = aetherPort)
+                rebindAetherOutbounds(v2rayConfig.outbounds, from = dependency.core.port, port = aetherPort)
             }
 
-            return toConfigResult(configContext, v2rayConfig, dependency)
+            return toConfigResult(configContext, v2rayConfig, dependency, listeningOn = aetherPort)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config for speedtest", e)
             return ConfigResult(
@@ -98,8 +98,9 @@ object CoreConfigManager {
     /**
      * Build configuration for custom profiles.
      *
-     * A custom configuration asks for an Aether core with aetherSettings in a SOCKS outbound; the
-     * result names that core, and [aetherPort] moves its outbounds to the core a latency test opened.
+     * A custom configuration asks for an Aether core with its command line as aetherCommand (or, as
+     * it was written before, with aetherSettings in a SOCKS outbound); the result names that core, and
+     * [aetherPort] moves its outbounds to the core a latency test opened.
      */
     private fun buildV2rayCustomConfig(configContext: CoreConfigContext, aetherPort: Int? = null): ConfigResult {
         val context = configContext.context
@@ -116,9 +117,9 @@ object CoreConfigManager {
         val dependency = AetherDependency.ofCustom(json)
         aetherFailure(context, configContext.guid, dependency)?.let { return it }
         if (dependency is AetherDependency.Single) {
-            result.aetherProfile = dependency.profile
+            result.aetherCore = dependency.core
             if (aetherPort != null) {
-                AetherDependency.rebindCustom(json, from = AetherCoreManager.listenPort(dependency.profile), port = aetherPort)
+                AetherDependency.rebindCustom(json, from = dependency.core.port, port = aetherPort)
             }
         }
 
@@ -494,14 +495,23 @@ object CoreConfigManager {
     }
 
     /**
-     * Serialize a runtime configuration into a standard result object.
+     * Serialize a runtime configuration into a standard result object. The Aether core it runs on
+     * is written into it as aetherCommand, so that the exported configuration runs again as a custom
+     * one; [listeningOn] is the port of the core a latency test opened, when its outbounds were moved there.
      */
-    private fun toConfigResult(configContext: CoreConfigContext, v2rayConfig: V2rayConfig, dependency: AetherDependency): ConfigResult {
+    private fun toConfigResult(
+        configContext: CoreConfigContext,
+        v2rayConfig: V2rayConfig,
+        dependency: AetherDependency,
+        listeningOn: Int? = null,
+    ): ConfigResult {
+        val core = (dependency as? AetherDependency.Single)?.core
+        v2rayConfig.aetherCommand = core?.let { if (listeningOn != null) it.on(listeningOn) else it }?.command
         return ConfigResult(
             status = true,
             guid = configContext.guid,
             content = JsonUtil.toJsonPretty(v2rayConfig) ?: "",
-            aetherProfile = (dependency as? AetherDependency.Single)?.profile,
+            aetherCore = core,
         )
     }
 
@@ -514,6 +524,8 @@ object CoreConfigManager {
             AetherDependency.None, is AetherDependency.Single -> return null
             AetherDependency.Conflicting -> context.getString(R.string.aether_config_single_profile)
             is AetherDependency.NotEntryHop -> context.getString(R.string.aether_chain_entry_only)
+            is AetherDependency.UnusableCommand -> context.getString(R.string.aether_custom_invalid_command, dependency.written)
+            is AetherDependency.NoOutbound -> context.getString(R.string.aether_custom_no_outbound, AppConfig.LOOPBACK, dependency.port)
             AetherDependency.SeveralCores -> context.getString(R.string.aether_custom_single_core)
             AetherDependency.NoListener -> context.getString(R.string.aether_custom_no_listener, AppConfig.LOOPBACK)
             is AetherDependency.UnusableSettings -> when (val reason = dependency.reason) {

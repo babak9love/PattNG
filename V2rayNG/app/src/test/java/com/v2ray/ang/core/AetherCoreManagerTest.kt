@@ -359,6 +359,44 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun theProtocolOfAHandWrittenCommandIsReadTheWayTheCoreReadsIt() {
+        val bin = "/data/app/lib/libaether.so"
+        assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--wg")))
+        assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--warp")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw")))
+        // Masque-in-masque uses the masque identity, which is all that is told apart here.
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "mim")))
+        // The last word wins, as it does for the core.
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "gool")))
+        assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "gool", "--wg")))
+        // A warp-in-warp hop named without a protocol selects gool; asking for a scan of the hops does not.
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw-outer", "162.159.192.1:2408")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw-peers", "162.159.192.1:2408,188.114.96.1:2408")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw-peers", "auto")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw-scan")))
+        assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--wiw-outer", "162.159.192.1:2408")))
+    }
+
+    @Test
+    fun theSessionTakesTheAppLogLevelUnlessItsCommandNamesOne() {
+        assertEquals(listOf("--wg", "--log-level", "warn"), AetherCoreManager.withLogLevel(listOf("--wg"), "warn"))
+        assertEquals(listOf("--wg", "--log-level", "debug"), AetherCoreManager.withLogLevel(listOf("--wg", "--log-level", "debug"), "warn"))
+        assertEquals(listOf("--wg", "--verbose"), AetherCoreManager.withLogLevel(listOf("--wg", "--verbose"), "warn"))
+    }
+
+    @Test
+    fun theListenerIsReplacedWhereverItStands() {
+        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withBind(listOf("--bind", "127.0.0.1:10819", "--wg"), 41234))
+        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withBind(listOf("--wg"), 41234))
+        assertEquals(
+            listOf("--wg", "--bind", "127.0.0.1:41234"),
+            AetherCoreManager.withBind(listOf("--wg", "--bind", "127.0.0.1:1", "--bind", "127.0.0.1:2"), 41234)
+        )
+        assertEquals(41234, AetherCoreManager.bindPortOf(AetherCoreManager.withBind(listOf("--bind", "127.0.0.1:10819", "--wg"), 41234)))
+    }
+
+    @Test
     fun theRunningProfileIsToldByTheArgumentsOfItsSession() {
         val pinned = profile(server = "162.159.198.1", port = "443")
         val session = AetherCoreManager.buildArguments(pinned, 10819, logLevel = "warn")

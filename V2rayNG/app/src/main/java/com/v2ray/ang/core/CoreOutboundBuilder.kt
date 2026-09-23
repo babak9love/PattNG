@@ -9,7 +9,6 @@ import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.isNotNullEmpty
 import com.v2ray.ang.extension.nullIfBlank
-import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.HttpUtil
 import com.v2ray.ang.util.JsonUtil
@@ -245,9 +244,8 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * A SOCKS outbound to the Aether core. It carries the profile as aetherSettings, which Xray
-     * ignores: the full configuration of an Aether profile then runs as a custom configuration as
-     * well, where the app reads them to start the same core.
+     * A SOCKS outbound to the Aether core, on the port the core of the profile listens on. The core
+     * itself is named at the top of the configuration, as aetherCommand, once the configuration is built.
      */
     private fun toOutboundAether(profileItem: ProfileItem): OutboundBean? {
         val outboundBean = createInitOutbound(EConfigType.SOCKS)
@@ -255,7 +253,6 @@ object CoreOutboundBuilder {
         outboundBean?.settings?.let { settings ->
             settings.address = AppConfig.LOOPBACK
             settings.port = AetherCoreManager.listenPort(profileItem)
-            settings.aetherSettings = AetherFmt.toSettings(profileItem)
         }
 
         return outboundBean

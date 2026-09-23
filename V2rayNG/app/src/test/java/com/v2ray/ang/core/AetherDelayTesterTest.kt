@@ -30,22 +30,22 @@ class AetherDelayTesterTest {
     @Test
     fun withoutAnAetherSessionEachTestGetsItsOwnTunnel() {
         val masque = aether(AetherProtocol.MASQUE)
-        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("a", masque, "a", session = null))
-        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("a", masque, null, session = null))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("a", AetherCore.of(masque), "a", session = null))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("a", AetherCore.of(masque), null, session = null))
     }
 
     @Test
     fun theRunningProfileIsMeasuredThroughTheLiveSession() {
         val wireguard = aether(AetherProtocol.WIREGUARD).apply { server = "162.159.192.1"; serverPort = "2408" }
         // Told by the session's arguments, whichever profile is selected.
-        assertEquals(Route.ACTIVE_SESSION, AetherDelayTester.route("a", wireguard, "b", session(AetherProtocol.WIREGUARD, wireguard)))
+        assertEquals(Route.ACTIVE_SESSION, AetherDelayTester.route("a", AetherCore.of(wireguard), "b", session(AetherProtocol.WIREGUARD, wireguard)))
         // Without the process, the selected profile stands in for the running one.
-        assertEquals(Route.ACTIVE_SESSION, AetherDelayTester.route("a", wireguard, "a", session(AetherProtocol.WIREGUARD)))
-        assertEquals(Route.SKIP, AetherDelayTester.route("a", wireguard, "b", session(AetherProtocol.WIREGUARD)))
+        assertEquals(Route.ACTIVE_SESSION, AetherDelayTester.route("a", AetherCore.of(wireguard), "a", session(AetherProtocol.WIREGUARD)))
+        assertEquals(Route.SKIP, AetherDelayTester.route("a", AetherCore.of(wireguard), "b", session(AetherProtocol.WIREGUARD)))
         // The same tunnel behind another port, as a custom configuration or another listen port runs it, is the same session.
         assertEquals(
             Route.ACTIVE_SESSION,
-            AetherDelayTester.route("a", wireguard, "b", session(AetherProtocol.WIREGUARD, wireguard, port = 20808))
+            AetherDelayTester.route("a", AetherCore.of(wireguard), "b", session(AetherProtocol.WIREGUARD, wireguard, port = 20808))
         )
     }
 
@@ -54,27 +54,27 @@ class AetherDelayTesterTest {
         val wireguard = aether(AetherProtocol.WIREGUARD).apply { server = "162.159.192.1"; serverPort = "2408" }
         val connecting = session(AetherProtocol.WIREGUARD, wireguard, listening = false)
         // A request through a listener that is not up yet would fail, and that is not a failure of the profile.
-        assertEquals(Route.NOT_READY, AetherDelayTester.route("a", wireguard, "a", connecting))
+        assertEquals(Route.NOT_READY, AetherDelayTester.route("a", AetherCore.of(wireguard), "a", connecting))
         // The other routes do not depend on the listener.
-        assertEquals(Route.SKIP, AetherDelayTester.route("b", aether(AetherProtocol.GOOL), "a", connecting))
-        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", aether(AetherProtocol.MASQUE), "a", connecting))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", connecting))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "a", connecting))
     }
 
     @Test
     fun aProfileSharingTheLiveSessionsKeyIsLeftAlone() {
         val running = aether(AetherProtocol.MASQUE).apply { server = "162.159.198.1"; serverPort = "443" }
         val live = session(AetherProtocol.MASQUE, running)
-        assertEquals(Route.SKIP, AetherDelayTester.route("b", aether(AetherProtocol.MASQUE), "a", live))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "a", live))
         // Selected, but not what the session runs: it is not measured through that session.
-        assertEquals(Route.SKIP, AetherDelayTester.route("b", aether(AetherProtocol.MASQUE), "b", live))
-        assertEquals(Route.SKIP, AetherDelayTester.route("b", aether(AetherProtocol.GOOL), "a", session(AetherProtocol.WIREGUARD)))
-        assertEquals(Route.SKIP, AetherDelayTester.route("b", aether(AetherProtocol.WIREGUARD), "a", session(AetherProtocol.GOOL)))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "b", live))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.WIREGUARD)))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.WIREGUARD)), "a", session(AetherProtocol.GOOL)))
     }
 
     @Test
     fun aProfileWithADifferentKeyGetsItsOwnTunnel() {
-        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", aether(AetherProtocol.MASQUE), "a", session(AetherProtocol.WIREGUARD)))
-        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", aether(AetherProtocol.GOOL), "a", session(AetherProtocol.MASQUE)))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "a", session(AetherProtocol.WIREGUARD)))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.MASQUE)))
     }
 
     @Test

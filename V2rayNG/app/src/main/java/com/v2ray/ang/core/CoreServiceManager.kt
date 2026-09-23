@@ -55,8 +55,8 @@ object CoreServiceManager {
     private val mMsgReceive = ReceiveMessageHandler()
     private var currentConfig: ProfileItem? = null
 
-    /** The Aether profile the running configuration depends on, null when it has no Aether outbound. */
-    private var currentAether: ProfileItem? = null
+    /** The Aether core the running configuration depends on, null when it has no Aether outbound. */
+    private var currentAether: AetherCore? = null
     private var processFinder: XrayProcessFinder? = null
     private var browserDialer: IDialerService? = null
 
@@ -179,15 +179,15 @@ object CoreServiceManager {
 
         cancelAetherWarmUp()
         // One core serves every Aether outbound of the configuration: the selected profile itself, the
-        // entry hop of its chain, a routing target, a policy-group member, or the SOCKS outbound of a
-        // custom configuration that asks for it with aetherSettings. It listens on the profile's port.
-        val aether = result.aetherProfile
+        // entry hop of its chain, a routing target, a policy-group member, or the SOCKS outbounds of a
+        // custom configuration that asks for it with aetherCommand. It listens on the port its arguments name.
+        val aether = result.aetherCore
         if (aether != null) {
             if (!AetherCoreManager.isSupported(service)) {
                 throw StartFailure(service.getString(R.string.aether_unsupported_abi))
             }
             // Xray would take the port first, and the Aether outbound would dial the configuration's own inbound.
-            val aetherPort = AetherCoreManager.listenPort(aether)
+            val aetherPort = aether.port
             if (AetherDependency.inboundListensOn(result.content, aetherPort)) {
                 LogUtil.w(
                     AppConfig.TAG,
@@ -218,7 +218,7 @@ object CoreServiceManager {
         service: Service,
         guid: String,
         config: ProfileItem,
-        aether: ProfileItem?,
+        aether: AetherCore?,
         content: String,
         vpnInterface: ParcelFileDescriptor?,
         isReload: Boolean,

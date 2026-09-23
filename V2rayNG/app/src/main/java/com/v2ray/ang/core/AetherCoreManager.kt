@@ -138,6 +138,10 @@ object AetherCoreManager {
         else -> DEFAULT_LOG_LEVEL
     }
 
+    /** [arguments] at [logLevel], unless they name a level of their own, as a hand-written command may. */
+    internal fun withLogLevel(arguments: List<String>, logLevel: String): List<String> =
+        if ("--log-level" in arguments || "--verbose" in arguments) arguments else arguments + listOf("--log-level", logLevel)
+
     internal fun startProcess(context: Context, arguments: List<String>, markSession: Boolean = false): Process {
         val workDir = AetherIdentityManager.workDir(context).apply { mkdirs() }
         val builder = ProcessBuilder(listOf(binary(context).absolutePath) + arguments)
@@ -202,16 +206,15 @@ object AetherCoreManager {
         withTimeoutOrNull(timeoutMs) { output.receiveAsFlow().mapNotNull(match).firstOrNull() }
     }
 
-    /** Starts the session core for [profile], listening on [listenPort]. */
+    /** Starts the session core [core], at the log level of the app setting unless its arguments name one. */
     @Synchronized
-    fun start(context: Context, profile: ProfileItem, onExit: () -> Unit) {
+    fun start(context: Context, core: AetherCore, onExit: () -> Unit) {
         stop()
-        val port = listenPort(profile)
-        val next = Session(port, onExit)
+        val next = Session(core.port, onExit)
         session = next
         val appContext = context.applicationContext
         val logLevel = coreLogLevel(MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL))
-        val arguments = buildArguments(profile, port, logLevel = logLevel)
+        val arguments = withLogLevel(core.arguments, logLevel)
         lifecycle.execute { open(next, appContext, arguments) }
     }
 
@@ -339,16 +342,25 @@ object AetherCoreManager {
      * serves the profile just as well. This is how another process tells the running profile from
      * a merely selected one.
      */
-    fun runsProfile(arguments: List<String>, profile: ProfileItem): Boolean =
-        tunnelArguments(arguments) == tunnelArguments(buildArguments(profile, socksPort))
+    fun runsProfile(arguments: List<String>, profile: ProfileItem): Boolean = AetherCore.of(profile).runsAs(arguments)
 
-    private fun tunnelArguments(arguments: List<String>): List<String> =
+    /** [arguments] without the listener and the log level: what tells one tunnel from another. */
+    internal fun tunnelArguments(arguments: List<String>): List<String> =
         withoutOption(withoutOption(arguments, "--log-level"), "--bind")
 
-    private fun withoutOption(arguments: List<String>, flag: String): List<String> {
-        val index = arguments.indexOf(flag)
-        return if (index < 0) arguments else arguments.filterIndexed { i, _ -> i != index && i != index + 1 }
+    /** [arguments] without every [flag] and the value after it. */
+    internal fun withoutOption(arguments: List<String>, flag: String): List<String> {
+        val kept = mutableListOf<String>()
+        var index = 0
+        while (index < arguments.size) {
+            if (arguments[index] == flag) index += 2 else kept.add(arguments[index++])
+        }
+        return kept
     }
+
+    /** [arguments] listening on the loopback port [port], in place of whatever listener they named. */
+    internal fun withBind(arguments: List<String>, port: Int): List<String> =
+        withoutOption(arguments, "--bind") + listOf("--bind", "${AppConfig.LOOPBACK}:$port")
 
     /** A core process is stale when its owner is known to be dead or it holds the address we are about to bind. */
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =
@@ -389,10 +401,37 @@ object AetherCoreManager {
     internal fun bindPortOf(argv: List<String>): Int? =
         bindAddressOf(argv)?.substringAfterLast(':', "")?.toIntOrNull()
 
-    internal fun protocolOf(argv: List<String>): AetherProtocol = AetherProtocol.fromString(valueAfter(argv, "--protocol"))
+    /**
+     * The protocol [argv] selects, read the way the core reads it: the last of --protocol and the
+     * protocol flags wins, a warp-in-warp hop named without any of them selects gool, and nothing at
+     * all is masque. Only what the identity files depend on is told apart, so the core's other
+     * protocols count as masque, whose identity they use.
+     */
+    internal fun protocolOf(argv: List<String>): AetherProtocol {
+        var chosen: AetherProtocol? = null
+        var hopNamed = false
+        for ((index, word) in argv.withIndex()) {
+            when (word) {
+                "--protocol" -> chosen = argv.getOrNull(index + 1)?.let(AetherProtocol::fromString) ?: chosen
+                "--masque", "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MASQUE
+                "--wg", "--wireguard", "--warp" -> chosen = AetherProtocol.WIREGUARD
+                "--gool", "--wiw" -> chosen = AetherProtocol.GOOL
+                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> hopNamed = true
+                "--wiw-peers", "--gool-peers" -> {
+                    val peers = argv.getOrNull(index + 1)?.lowercase(Locale.US)
+                    if (peers != null && peers !in scanKeywords) hopNamed = true
+                }
+            }
+        }
+        return chosen ?: if (hopNamed) AetherProtocol.GOOL else AetherProtocol.MASQUE
+    }
 
+    /** The values of --wiw-peers that ask for a scan instead of naming hops, as the core reads them. */
+    private val scanKeywords = setOf("auto", "scan", "none", "off", "0")
+
+    /** The value after the last [flag] in [argv]; the last one is the one the core keeps. */
     private fun valueAfter(argv: List<String>, flag: String): String? =
-        argv.indexOf(flag).takeIf { it >= 0 }?.let { argv.getOrNull(it + 1) }
+        argv.lastIndexOf(flag).takeIf { it >= 0 }?.let { argv.getOrNull(it + 1) }
 
     internal fun ownerPid(environ: List<String>?): Int? =
         environ?.firstOrNull { it.startsWith("$OWNER_ENV=") }?.substringAfter('=')?.toIntOrNull()

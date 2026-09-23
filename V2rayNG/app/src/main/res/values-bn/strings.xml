@@ -619,6 +619,8 @@
     <string name="aether_custom_single_core">শুধুমাত্র একটি Aether কোর চলতে পারে: aetherSettings থাকা সব আউটবাউন্ডকে একই সেটিংস ও একই পোর্ট ব্যবহার করতে হবে</string>
     <string name="aether_custom_no_listener">aetherSettings থাকা SOCKS আউটবাউন্ডকে %1$s এবং 1 থেকে 65535 এর মধ্যে একটি পোর্টে সংযোগ করতে হবে; Aether কোর সেখানেই শোনে</string>
     <string name="aether_custom_unknown_entry">aetherSettings-এ এমন একটি এন্ট্রি আছে যা Aether কোর চেনে না: %1$s</string>
+    <string name="aether_custom_no_outbound">কনফিগারেশনের কোনো SOCKS আউটবাউন্ড %1$s:%2$d-এ সংযোগ করে না, যেখানে Aether কমান্ড শোনে</string>
+    <string name="aether_custom_invalid_command">aetherCommand অবশ্যই Aether কোরের কমান্ড লাইন টেক্সট হিসেবে হতে হবে, --bind এর পরে যে ঠিকানায় এটি শোনে সেটিসহ: %1$s</string>
     <string name="title_aether_core">Aether কোর</string>
     <string name="summary_aether_core">CluvexStudio-এর WARP ক্লায়েন্ট, AGPL-3.0 লাইসেন্সে অন্তর্ভুক্ত। সোর্স কোড খুলতে ট্যাপ করুন।</string>
     <string-array name="aether_scan_entries">

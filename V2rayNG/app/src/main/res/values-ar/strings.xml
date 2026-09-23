@@ -627,6 +627,8 @@
     <string name="aether_custom_single_core">لا يمكن تشغيل أكثر من نواة Aether واحدة: يجب أن تستخدم جميع المخارج التي تحمل aetherSettings الإعدادات نفسها والمنفذ نفسه</string>
     <string name="aether_custom_no_listener">يجب أن يتصل مخرج SOCKS الذي يحمل aetherSettings بالعنوان %1$s وبمنفذ من 1 إلى 65535؛ فهناك تستمع نواة Aether</string>
     <string name="aether_custom_unknown_entry">يحتوي aetherSettings على إدخال لا تعرفه نواة Aether: %1$s</string>
+    <string name="aether_custom_no_outbound">لا يتصل أي مخرج SOCKS في الإعدادات بالعنوان %1$s:%2$d، حيث يستمع أمر Aether</string>
+    <string name="aether_custom_invalid_command">يجب أن يكون aetherCommand سطر أوامر نواة Aether كنص، مع عنوان الاستماع بعد --bind: %1$s</string>
     <string name="title_aether_core">نواة Aether</string>
     <string name="summary_aether_core">عميل WARP من CluvexStudio مضمّن بموجب رخصة AGPL-3.0. انقر لفتح الشيفرة المصدرية.</string>
     <string-array name="aether_scan_entries">
