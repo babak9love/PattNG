@@ -40,8 +40,13 @@ sealed interface AetherDependency {
     /** An Aether profile in a chain position other than the entry hop. */
     data class NotEntryHop(val chainTag: String) : AetherDependency
 
-    /** A custom configuration whose aetherCommand is no command line the app can run; [written] quotes it. */
-    data class UnusableCommand(val written: String) : AetherDependency
+    /**
+     * A custom configuration whose aetherCommand is no command line the app can run; [written] quotes
+     * it for the screen. It stays out of the log, where what was written could carry a secret.
+     */
+    data class UnusableCommand(val written: String) : AetherDependency {
+        override fun toString(): String = "UnusableCommand"
+    }
 
     /** A custom configuration whose aetherCommand listens on [port] of [AppConfig.LOOPBACK], which none of its SOCKS outbounds dials. */
     data class NoOutbound(val port: Int) : AetherDependency

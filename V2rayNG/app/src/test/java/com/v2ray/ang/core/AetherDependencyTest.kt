@@ -176,6 +176,8 @@ class AetherDependencyTest {
         assertEquals(AetherDependency.UnusableCommand("aether"), written(quoted("aether")))
         // A listener whose port cannot be read: the port is what ties the outbounds to the core.
         assertEquals(AetherDependency.UnusableCommand("aether --wg --bind 10819"), written(quoted("aether --wg --bind 10819")))
+        // What was written reaches the screen, not the log: a mistyped command can carry a secret.
+        assertFalse(written(quoted("aether --access-secret s3cret --bind 10819")).toString().contains("s3cret"))
     }
 
     @Test
