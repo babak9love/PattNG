@@ -341,6 +341,9 @@ object CoreServiceManager {
         networkMonitor?.unregister()
         networkMonitor = null
         currentVpnInterface = null
+        // First, so that nothing further down posts the notification again: the proxy-only and the
+        // root service tear down in onDestroy, out of the foreground already, where a post outlives them.
+        NotificationManager.cancelNotification()
         cancelAetherWarmUp()
         AetherCoreManager.stop()
 
@@ -362,7 +365,6 @@ object CoreServiceManager {
         }
 
         MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")
-        NotificationManager.cancelNotification()
 
         try {
             service.unregisterReceiver(mMsgReceive)
@@ -479,6 +481,7 @@ object CoreServiceManager {
                 "StartCore-Manager: ${service.javaClass.simpleName} was stopped during a reload, releasing the cores the reload started, " +
                     "guid=${MmkvManager.getSelectServer()}"
             )
+            NotificationManager.cancelNotification()
             cancelAetherWarmUp()
             AetherCoreManager.stop()
             try {
@@ -489,7 +492,6 @@ object CoreServiceManager {
             CoreNativeManager.reconcileBrowserDialer("")
             browserDialer?.stop()
             browserDialer = null
-            NotificationManager.cancelNotification()
             // The reload may have announced a running or connecting service after the stop was reported.
             MessageHelper.sendMsg2UI(service, AppConfig.MSG_STATE_STOP_SUCCESS, "")
         }
