@@ -108,6 +108,33 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun torIsOffByDefaultAndItsSettingsAreStoredOnlyWhileItIsOn() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals("off", state.aetherTor)
+        assertEquals("auto", state.aetherTorBridges)
+        assertEquals("", state.aetherTorBridgeLines)
+        assertNull(state.toProfileItem(profile).aetherTor)
+
+        state.aetherTorBridges = "own"
+        state.aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0"
+        // Settings of a Tor that is off are not kept.
+        assertNull(state.toProfileItem(profile).aetherTorBridges)
+        assertNull(state.toProfileItem(profile).aetherTorBridgeLines)
+
+        state.aetherTor = "reverse"
+        val stored = state.toProfileItem(profile)
+        assertEquals("reverse", stored.aetherTor)
+        assertEquals("own", stored.aetherTorBridges)
+        assertEquals("obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0", stored.aetherTorBridgeLines)
+
+        val reloaded = ServerUiState.from(stored)
+        assertEquals("reverse", reloaded.aetherTor)
+        assertEquals("own", reloaded.aetherTorBridges)
+        assertEquals("obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0", reloaded.aetherTorBridgeLines)
+    }
+
+    @Test
     fun aCommandIsStoredOnlyWhenItSaysMoreThanTheSettings() {
         val profile = ProfileItem.create(EConfigType.AETHER)
         val state = ServerUiState.from(profile)

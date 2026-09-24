@@ -541,6 +541,9 @@ object CoreConfigManager {
                         AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
                         AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque
                         AetherFmt.Problem.NEXT_PORT_TAKEN -> R.string.aether_next_port_taken
+                        AetherFmt.Problem.TOR_NEEDS_MASQUE -> R.string.aether_tor_needs_masque
+                        AetherFmt.Problem.TOR_PSIPHON_CONFLICT -> R.string.aether_tor_psiphon_conflict
+                        AetherFmt.Problem.TOR_BRIDGES_MISSING -> R.string.aether_tor_bridges_missing
                         AetherFmt.Problem.INVALID_COMMAND -> R.string.aether_invalid_command
                     }
                 )

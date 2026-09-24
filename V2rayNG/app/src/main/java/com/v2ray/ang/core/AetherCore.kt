@@ -14,14 +14,14 @@ import com.v2ray.ang.enums.AetherProtocol
 data class AetherCore(val arguments: List<String>) {
 
     /**
-     * The loopback port the app dials: Psiphon's listener when Psiphon runs inside the tunnel and is
-     * what the app reaches, the core's own listener otherwise.
+     * The loopback port the app dials: Psiphon's or Tor's listener when one of them runs inside the
+     * tunnel and is what the app reaches, the core's own listener otherwise.
      */
     val port: Int get() = AetherCoreManager.listenerPortOf(arguments) ?: AetherCoreManager.socksPort
 
     /** Every loopback port the core is told to listen on; an inbound of the configuration cannot share one. */
     val ports: List<Int>
-        get() = listOf("--bind", AetherCoreManager.PSIPHON_BIND)
+        get() = LISTENERS
             .mapNotNull { AetherCoreManager.portAfter(arguments, it) }
             .filter { it != 0 }
             .distinct()
@@ -33,21 +33,22 @@ data class AetherCore(val arguments: List<String>) {
     val command: String get() = (listOf(COMMAND_NAME) + arguments).joinToString(" ", transform = ::quoted)
 
     /**
-     * This core dialled on [port] instead, as a latency test opens it on a port of its own. With
-     * Psiphon inside the tunnel, the tunnel's own listener, which Psiphon leaves through, moves to
-     * the port after it, where [AetherCoreManager.buildArguments] puts it.
+     * This core dialled on [port] instead, as a latency test opens it on a port of its own. The other
+     * listeners it names move to the ports after it, in the order of [LISTENERS], where
+     * [AetherCoreManager.buildArguments] puts them; one on an ephemeral port stays there.
      */
-    fun on(port: Int): AetherCore = AetherCore(
-        if (AetherCoreManager.dialsPsiphon(arguments)) {
-            AetherCoreManager.withListener(
-                AetherCoreManager.withListener(arguments, "--bind", port + 1),
-                AetherCoreManager.PSIPHON_BIND,
-                port,
-            )
-        } else {
-            AetherCoreManager.withListener(arguments, "--bind", port)
+    fun on(port: Int): AetherCore {
+        val dialed = AetherCoreManager.listenerFlagOf(arguments)
+        var moved = AetherCoreManager.withListener(arguments, dialed, port)
+        var next = port + 1
+        for (listener in LISTENERS) {
+            if (listener == dialed) continue
+            val current = AetherCoreManager.portAfter(arguments, listener) ?: continue
+            if (current == 0) continue
+            moved = AetherCoreManager.withListener(moved, listener, next++)
         }
-    )
+        return AetherCore(moved)
+    }
 
     /** True when a process started with [processArguments] runs this core, on whatever ports and at whatever log level. */
     fun runsAs(processArguments: List<String>): Boolean =
@@ -57,6 +58,9 @@ data class AetherCore(val arguments: List<String>) {
 
         /** The name a command line starts with; the app runs its own copy of the core whatever the name says. */
         const val COMMAND_NAME = "aether"
+
+        /** The listeners a core may be told to bind, in the order [on] hands ports out: the core's own, Tor's, Psiphon's. */
+        private val LISTENERS = listOf("--bind", AetherCoreManager.TOR_BIND, AetherCoreManager.PSIPHON_BIND)
 
         /**
          * The core of [profile]: the command line it carries, or its settings as arguments on its
@@ -84,7 +88,7 @@ data class AetherCore(val arguments: List<String>) {
             val words = words(command)
             val arguments = if (words.firstOrNull()?.startsWith("-") == false) words.drop(1) else words
             if (arguments.isEmpty()) return null
-            val listener = if (AetherCoreManager.dialsPsiphon(arguments)) AetherCoreManager.PSIPHON_BIND else "--bind"
+            val listener = AetherCoreManager.listenerFlagOf(arguments)
             if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, AetherCoreManager.socksPort))
             return AetherCore(arguments).takeIf { AetherCoreManager.portAfter(arguments, listener) != null }
         }

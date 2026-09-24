@@ -96,9 +96,9 @@ class AetherCoreTest {
     @Test
     fun quotesKeepAWordTogether() {
         val bridge = "obfs4 1.2.3.4:443 FINGERPRINT cert=abc iat-mode=0"
-        val core = AetherCore.ofCommand("aether --tor --tor-bridge \"$bridge\" --bind 127.0.0.1:10819")!!
-        assertEquals(listOf("--tor", "--tor-bridge", bridge, "--bind", "127.0.0.1:10819"), core.arguments)
-        assertEquals("aether --tor --tor-bridge \"$bridge\" --bind 127.0.0.1:10819", core.command)
+        val core = AetherCore.ofCommand("aether --tor-only --tor-bridge \"$bridge\" --bind 127.0.0.1:10819")!!
+        assertEquals(listOf("--tor-only", "--tor-bridge", bridge, "--bind", "127.0.0.1:10819"), core.arguments)
+        assertEquals("aether --tor-only --tor-bridge \"$bridge\" --bind 127.0.0.1:10819", core.command)
 
         assertEquals(listOf("--x", "a b"), AetherCore.words("--x 'a b'"))
         assertEquals(listOf("--x", ""), AetherCore.words("--x \"\""))
@@ -161,6 +161,51 @@ class AetherCoreTest {
         val only = AetherCore.of(pinned.copy(aetherPsiphon = "only"))
         assertEquals(20808, only.port)
         assertEquals(listOf(20808), only.ports)
+    }
+
+    @Test
+    fun withTorInsideTheTunnelTheAppDialsTor() {
+        val chain = AetherCore.of(pinned.copy(aetherTor = "chain"))
+        assertEquals(20808, chain.port)
+        assertEquals(listOf(20809, 20808), chain.ports)
+
+        val moved = chain.on(41234)
+        assertEquals(41234, moved.port)
+        assertEquals("127.0.0.1:41234", valueAfter(moved.arguments, "--tor-bind"))
+        assertEquals("127.0.0.1:41235", valueAfter(moved.arguments, "--bind"))
+        assertTrue(chain.runsAs(moved.arguments))
+
+        // A hand-written command with Tor inside gets the app's port for Tor when it names none, and keeps its own otherwise.
+        assertEquals(listOf("--tor", "--wg", "--tor-bind", "127.0.0.1:10819"), AetherCore.ofCommand("aether --tor --wg")!!.arguments)
+        assertEquals(1820, AetherCore.ofCommand("aether --tor --bind 127.0.0.1:10819 --tor-bind 127.0.0.1:1820")!!.port)
+    }
+
+    @Test
+    fun withTorAroundTheTunnelTorsOwnListenerFollowsTheTunnel() {
+        val reverse = AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherTor = "reverse"))
+        assertEquals(20808, reverse.port)
+        assertEquals(listOf(20808, 20809), reverse.ports)
+        val moved = reverse.on(41234)
+        assertEquals("127.0.0.1:41234", valueAfter(moved.arguments, "--bind"))
+        assertEquals("127.0.0.1:41235", valueAfter(moved.arguments, "--tor-bind"))
+
+        // Nested carriers move together, in the order the profile hands the ports out; Psiphon's ephemeral port stays.
+        val nested = AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherPsiphon = "chain", aetherTor = "reverse"))
+        assertEquals(listOf(20809, 20810, 20808), nested.ports)
+        val movedNested = nested.on(41234)
+        assertEquals(41234, movedNested.port)
+        assertEquals("127.0.0.1:41234", valueAfter(movedNested.arguments, "--psiphon-bind"))
+        assertEquals("127.0.0.1:41235", valueAfter(movedNested.arguments, "--bind"))
+        assertEquals("127.0.0.1:41236", valueAfter(movedNested.arguments, "--tor-bind"))
+        assertTrue(nested.runsAs(movedNested.arguments))
+        val onThatPort = AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherPsiphon = "chain", aetherTor = "reverse", aetherListenPort = "41234"))
+        assertTrue(nested.runsAs(onThatPort.arguments))
+        assertEquals(movedNested.ports.sorted(), onThatPort.ports.sorted())
+
+        val torInside = AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherPsiphon = "reverse", aetherTor = "chain")).on(41234)
+        assertEquals("127.0.0.1:41234", valueAfter(torInside.arguments, "--tor-bind"))
+        assertEquals("127.0.0.1:41235", valueAfter(torInside.arguments, "--bind"))
+        assertEquals("127.0.0.1:0", valueAfter(torInside.arguments, "--psiphon-bind"))
     }
 
     @Test

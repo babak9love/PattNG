@@ -605,7 +605,15 @@
     <string name="aether_hint_psiphon_region">رمز البلد مثل DE؛ اتركه فارغًا لأي بلد</string>
     <string name="aether_psiphon_unavailable">هذا الإصدار لا يتضمن عميل سايفون، لذا لا يمكن لملف تعريف يستخدم سايفون الاتصال</string>
     <string name="aether_psiphon_needs_masque">وضع «عبر سايفون إلى WARP» يعمل مع بروتوكول MASQUE فقط</string>
-    <string name="aether_next_port_taken">في وضع «عبر WARP إلى سايفون» تستخدم النواة أيضًا المنفذ التالي لمنفذ الاستماع؛ ولا يمكن أن يكون منفذ الوكيل المحلي للتطبيق</string>
+    <string name="aether_next_port_taken">مع وجود تور أو سايفون في المسار تستخدم النواة أيضًا المنافذ التالية لمنفذ الاستماع؛ ولا يمكن أن يكون أي منها منفذ الوكيل المحلي للتطبيق</string>
+    <string name="aether_lab_tor">تور (Tor)</string>
+    <string name="aether_lab_tor_bridges">الجسور</string>
+    <string name="aether_lab_tor_bridge_lines">أسطر الجسور</string>
+    <string name="aether_hint_tor_bridge_lines">سطر لكل جسر، كما في torrc: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">هذا الإصدار لا يتضمن وسائل النقل القابلة للتوصيل، لذا لا يمكن استخدام جسور تور؛ يتصل تور فقط حيث لا يكون محجوبًا</string>
+    <string name="aether_tor_needs_masque">وضع «عبر تور إلى WARP» يعمل مع بروتوكول MASQUE فقط</string>
+    <string name="aether_tor_psiphon_conflict">لا يمكن الجمع بين تور وسايفون إلا بأن يكون أحدهما داخل النفق والآخر حوله</string>
+    <string name="aether_tor_bridges_missing">اكتب سطر جسر واحدًا على الأقل، أو اختر إعدادًا آخر للجسور</string>
     <string name="aether_lab_command">أمر Aether</string>
     <string name="aether_command_custom">مُعدَّل يدويًا: يُنفَّذ هذا الأمر كما هو مكتوب، ولا تُطبَّق الإعدادات أعلاه</string>
     <string name="aether_action_use_settings">استخدام الإعدادات</string>
@@ -662,6 +670,18 @@
         <item>تلقائي</item>
         <item>عبر CDN فقط</item>
         <item>مباشر فقط</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>إيقاف</item>
+        <item>عبر WARP إلى تور</item>
+        <item>عبر تور إلى WARP</item>
+        <item>تور فقط</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>عندما يكون تور محجوبًا</item>
+        <item>منذ البداية</item>
+        <item>أبدًا</item>
+        <item>أسطر الجسور الخاصة بي</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>إيقاف</item>

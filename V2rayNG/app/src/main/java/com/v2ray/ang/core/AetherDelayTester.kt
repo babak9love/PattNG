@@ -103,11 +103,11 @@ object AetherDelayTester {
     private fun liveSession(context: Context, activeGuid: String?): LiveSession? {
         AetherCoreManager.sessionArguments(context)?.let { arguments ->
             val port = AetherCoreManager.listenerPortOf(arguments) ?: AetherCoreManager.socksPort
-            return LiveSession(AetherCoreManager.protocolOf(arguments), arguments, port, AetherCoreManager.acceptsConnections(port))
+            return LiveSession(AetherCoreManager.protocolOf(arguments), arguments, port, AetherCoreManager.answersSocks(port))
         }
         val active = activeGuid?.let(MmkvManager::decodeServerConfig)?.takeIf { it.configType == EConfigType.AETHER } ?: return null
         val port = AetherCore.of(active).port
-        if (!AetherCoreManager.acceptsConnections(port)) return null
+        if (!AetherCoreManager.answersSocks(port)) return null
         return LiveSession(AetherProtocol.fromString(active.aetherProtocol), arguments = null, port = port, listening = true)
     }
 
@@ -174,7 +174,7 @@ object AetherDelayTester {
         while (System.nanoTime() < deadline) {
             while (output.tryReceive().isSuccess) Unit
             if (output.isClosedForReceive) return false
-            if (withContext(Dispatchers.IO) { AetherCoreManager.acceptsConnections(port) }) return true
+            if (withContext(Dispatchers.IO) { AetherCoreManager.answersSocks(port) }) return true
             delay(POLL_INTERVAL_MS)
         }
         return false

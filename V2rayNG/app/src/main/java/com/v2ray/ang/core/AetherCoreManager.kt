@@ -12,6 +12,8 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
+import com.v2ray.ang.enums.AetherTorBridges
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
@@ -53,6 +55,16 @@ object AetherCoreManager {
 
     /** The option that names Psiphon's own listener. */
     internal const val PSIPHON_BIND = "--psiphon-bind"
+
+    /** The option that names Tor's own listener. */
+    internal const val TOR_BIND = "--tor-bind"
+
+    /**
+     * The pluggable transport Tor's bridges run through, shipped beside the core as a library. It is
+     * lyrebird, which speaks every transport the core asks bridges for; the core is told so by name,
+     * since it recognises the program by a file name a library cannot have.
+     */
+    private const val TRANSPORT_BINARY_NAME = "liblyrebird.so"
     private const val PROBE_TIMEOUT_MS = 1000
     private const val READY_POLL_MS = 500L
     private const val DEFAULT_LOG_LEVEL = "info"
@@ -74,6 +86,16 @@ object AetherCoreManager {
 
     /** Environment variable that tells the core where the Psiphon client is; it looks for it under other names otherwise. */
     internal const val PSIPHON_BIN_ENV = "AETHER_PSIPHON_BIN"
+
+    /** Environment variable that names the pluggable transports and their program for the core, as protocol=path entries. */
+    internal const val TOR_PT_ENV = "AETHER_TOR_PT"
+
+    /** The transports lyrebird speaks, as the core names them: the list the core itself assumes for a lyrebird it finds by name. */
+    private val torTransports = listOf("obfs4", "snowflake", "webtunnel", "meek_lite", "obfs3", "scramblesuit")
+
+    /** The SOCKS5 greeting, no authentication offered, and the version byte a server answers it with. */
+    private val socksGreeting = byteArrayOf(5, 1, 0)
+    private const val SOCKS_VERSION = 5
 
     private val logLevels = setOf("ERROR", "WARN", "INFO", "DEBUG", "TRACE")
     private val procDir = File("/proc")
@@ -98,6 +120,9 @@ object AetherCoreManager {
     /** Whether this build ships the Psiphon client; without it a profile with Psiphon cannot connect. */
     fun isPsiphonSupported(context: Context): Boolean = psiphonBinary(context).canExecute()
 
+    /** Whether this build ships the pluggable transport; without it Tor has no bridges where it is blocked. */
+    fun isTorTransportsSupported(context: Context): Boolean = transportBinary(context).canExecute()
+
     fun buildArguments(
         profile: ProfileItem,
         port: Int,
@@ -105,14 +130,33 @@ object AetherCoreManager {
         logLevel: String = DEFAULT_LOG_LEVEL,
     ): List<String> {
         val protocol = AetherProtocol.fromString(profile.aetherProtocol)
-        // A scan looks for WARP endpoints, which Psiphon has no part in.
+        // A scan looks for WARP endpoints, which Tor and Psiphon have no part in.
+        val tor = if (scan) AetherTor.OFF else AetherTor.fromString(profile.aetherTor)
         val psiphon = if (scan) AetherPsiphon.OFF else AetherPsiphon.fromString(profile.aetherPsiphon)
+        // The listener the app dials takes [port]: Psiphon's or Tor's when one of them runs inside the
+        // tunnel and is what the app reaches, the tunnel's own otherwise. Every other listener takes the
+        // ports after it, in the order [AetherCore.on] hands them out: the tunnel's own, then Tor's, then
+        // Psiphon's. Psiphon around the tunnel is the exception: nothing of the app dials its listener
+        // and the core takes the port Psiphon reports, so an ephemeral port keeps a test core from
+        // colliding with the session's. Tor around the tunnel gets a real port, since the core dials
+        // the address Tor was told to listen on.
+        val dialsPsiphon = psiphon == AetherPsiphon.CHAIN
+        val dialsTor = tor == AetherTor.CHAIN && !dialsPsiphon
+        var next = port + 1
+        val own = if (dialsPsiphon || dialsTor) next++ else port
+        val torBind = when (tor) {
+            AetherTor.CHAIN -> if (dialsTor) port else next++
+            AetherTor.REVERSE -> next++
+            AetherTor.OFF, AetherTor.ONLY -> null
+        }
+        val psiphonBind = when (psiphon) {
+            AetherPsiphon.CHAIN -> if (dialsPsiphon) port else next++
+            AetherPsiphon.REVERSE -> 0
+            AetherPsiphon.OFF, AetherPsiphon.ONLY -> null
+        }
         return buildList {
-            // With Psiphon inside the tunnel the app dials Psiphon on [port], and the tunnel's own
-            // listener, which Psiphon leaves through, takes the port after it.
-            val own = if (psiphon == AetherPsiphon.CHAIN) port + 1 else port
             addAll(listOf("--bind", "${AppConfig.LOOPBACK}:$own"))
-            if (psiphon != AetherPsiphon.ONLY) {
+            if (psiphon != AetherPsiphon.ONLY && tor != AetherTor.ONLY) {
                 addAll(listOf("--protocol", protocol.type))
                 addAll(listOf("--scan", AetherScanMode.fromString(profile.aetherScanMode).type))
                 addAll(listOf("--noize", AetherObfuscation.fromString(profile.aetherObfuscation).type))
@@ -145,22 +189,30 @@ object AetherCoreManager {
                 add(if (scan) "--no-quick-reconnect" else "--quick-reconnect")
             }
 
+            when (tor) {
+                AetherTor.OFF -> Unit
+                AetherTor.CHAIN -> add("--tor")
+                AetherTor.REVERSE -> add("--tor-reverse")
+                AetherTor.ONLY -> add("--tor-only")
+            }
+            torBind?.let { addAll(listOf(TOR_BIND, "${AppConfig.LOOPBACK}:$it")) }
+            if (tor != AetherTor.OFF) {
+                // Told nothing, the core tries Tor plainly and turns to fetched bridges where Tor is blocked.
+                when (AetherTorBridges.fromString(profile.aetherTorBridges)) {
+                    AetherTorBridges.AUTO -> Unit
+                    AetherTorBridges.FIRST -> add("--tor-bridges")
+                    AetherTorBridges.NEVER -> add("--no-tor-bridges")
+                    AetherTorBridges.OWN -> AetherFmt.bridgeLines(profile.aetherTorBridgeLines).forEach { addAll(listOf("--tor-bridge", it)) }
+                }
+            }
+
             when (psiphon) {
                 AetherPsiphon.OFF -> Unit
-                AetherPsiphon.CHAIN -> {
-                    add("--psiphon")
-                    addAll(listOf(PSIPHON_BIND, "${AppConfig.LOOPBACK}:$port"))
-                }
-
-                AetherPsiphon.REVERSE -> {
-                    add("--psiphon-reverse")
-                    // Nothing of the app dials Psiphon's own listener here, and the core takes the port Psiphon
-                    // reports; an ephemeral port keeps a test core from colliding with the session's.
-                    addAll(listOf(PSIPHON_BIND, "${AppConfig.LOOPBACK}:0"))
-                }
-
+                AetherPsiphon.CHAIN -> add("--psiphon")
+                AetherPsiphon.REVERSE -> add("--psiphon-reverse")
                 AetherPsiphon.ONLY -> add("--psiphon-only")
             }
+            psiphonBind?.let { addAll(listOf(PSIPHON_BIND, "${AppConfig.LOOPBACK}:$it")) }
             if (psiphon != AetherPsiphon.OFF) {
                 addAll(listOf("--psiphon-mode", AetherPsiphonMode.fromString(profile.aetherPsiphonMode).type))
                 profile.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-ips", it)) }
@@ -196,6 +248,9 @@ object AetherCoreManager {
             put(OWNER_ENV, android.os.Process.myPid().toString())
             if (markSession) put(SESSION_ENV, "1")
             psiphonBinary(context).takeIf { it.canExecute() }?.let { put(PSIPHON_BIN_ENV, it.absolutePath) }
+            transportBinary(context).takeIf { it.canExecute() }?.let { transport ->
+                put(TOR_PT_ENV, torTransports.joinToString(";") { "$it=${transport.absolutePath}" })
+            }
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)
@@ -272,7 +327,7 @@ object AetherCoreManager {
     }
 
     suspend fun awaitListening(timeoutMs: Long): Boolean =
-        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { session?.port?.let(::acceptsConnections) == true })
+        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { session?.port?.let(::answersSocks) == true })
 
     internal suspend fun awaitReady(
         timeoutMs: Long,
@@ -309,9 +364,19 @@ object AetherCoreManager {
         else -> WarmUpOutcome.CORE_EXITED
     }
 
-    internal fun acceptsConnections(port: Int): Boolean = try {
-        Socket().use { it.connect(InetSocketAddress(AppConfig.LOOPBACK, port), PROBE_TIMEOUT_MS) }
-        true
+    /**
+     * True when a SOCKS server answers on the loopback [port]: the connection is taken and the
+     * greeting gets its reply. A listener bound before anything serves it, as Tor's is bound before
+     * Tor has bootstrapped, takes the connection into its backlog and says nothing, so it does not
+     * count until it does.
+     */
+    internal fun answersSocks(port: Int): Boolean = try {
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(AppConfig.LOOPBACK, port), PROBE_TIMEOUT_MS)
+            socket.soTimeout = PROBE_TIMEOUT_MS
+            socket.getOutputStream().write(socksGreeting)
+            socket.getInputStream().read() == SOCKS_VERSION
+        }
     } catch (_: IOException) {
         false
     }
@@ -392,7 +457,7 @@ object AetherCoreManager {
 
     /** [arguments] without the listeners and the log level: what tells one tunnel from another. */
     internal fun tunnelArguments(arguments: List<String>): List<String> =
-        withoutOption(withoutOption(withoutOption(arguments, "--log-level"), "--bind"), PSIPHON_BIND)
+        listOf("--log-level", "--bind", TOR_BIND, PSIPHON_BIND).fold(arguments, ::withoutOption)
 
     /** [arguments] without every [flag] and the value after it. */
     internal fun withoutOption(arguments: List<String>, flag: String): List<String> {
@@ -408,8 +473,16 @@ object AetherCoreManager {
     internal fun withListener(arguments: List<String>, flag: String, port: Int): List<String> =
         withoutOption(arguments, flag) + listOf(flag, "${AppConfig.LOOPBACK}:$port")
 
-    /** True when [arguments] run Psiphon inside the tunnel, where Psiphon's listener is the one the app dials. */
-    internal fun dialsPsiphon(arguments: List<String>): Boolean = "--psiphon" in arguments
+    /**
+     * The option naming the listener the app dials: Psiphon's when Psiphon runs inside the tunnel,
+     * Tor's when Tor does, the core's own otherwise. Both inside at once is refused by the editor; a
+     * command written that way is dialled on Psiphon's.
+     */
+    internal fun listenerFlagOf(arguments: List<String>): String = when {
+        "--psiphon" in arguments -> PSIPHON_BIND
+        "--tor" in arguments -> TOR_BIND
+        else -> "--bind"
+    }
 
     /** A core process is stale when its owner is known to be dead or it holds the address we are about to bind. */
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =
@@ -449,9 +522,8 @@ object AetherCoreManager {
     /** The port of the core's own listener, null when [argv] names none. */
     internal fun bindPortOf(argv: List<String>): Int? = portAfter(argv, "--bind")
 
-    /** The address of the listener the app dials: Psiphon's when Psiphon runs inside the tunnel, the core's own otherwise. */
-    internal fun listenerAddressOf(argv: List<String>): String? =
-        valueAfter(argv, if (dialsPsiphon(argv)) PSIPHON_BIND else "--bind")
+    /** The address of the listener the app dials, see [listenerFlagOf]; null when [argv] names none. */
+    internal fun listenerAddressOf(argv: List<String>): String? = valueAfter(argv, listenerFlagOf(argv))
 
     /** The port of the listener the app dials, null when [argv] names none. */
     internal fun listenerPortOf(argv: List<String>): Int? =
@@ -526,6 +598,9 @@ object AetherCoreManager {
 
     private fun psiphonBinary(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, PSIPHON_BINARY_NAME)
+
+    private fun transportBinary(context: Context): File =
+        File(context.applicationInfo.nativeLibraryDir, TRANSPORT_BINARY_NAME)
 
     private fun open(target: Session, context: Context, arguments: List<String>) {
         if (session !== target) return

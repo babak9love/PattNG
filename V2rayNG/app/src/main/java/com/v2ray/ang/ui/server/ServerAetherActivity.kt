@@ -53,6 +53,8 @@ import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherTor
+import com.v2ray.ang.enums.AetherTorBridges
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toast
@@ -97,6 +99,7 @@ class ServerAetherActivity : BaseServerActivity() {
         }
         val isCoreAvailable by viewModel.isCoreAvailable.collectAsStateWithLifecycle()
         val isPsiphonAvailable by viewModel.isPsiphonAvailable.collectAsStateWithLifecycle()
+        val isTorTransportsAvailable by viewModel.isTorTransportsAvailable.collectAsStateWithLifecycle()
         val scanState by viewModel.scanState.collectAsStateWithLifecycle()
         val isRenewingIdentity by viewModel.isRenewingIdentity.collectAsStateWithLifecycle()
         val session by viewModel.session.collectAsStateWithLifecycle()
@@ -110,8 +113,10 @@ class ServerAetherActivity : BaseServerActivity() {
 
         val protocol = AetherProtocol.fromString(uiState.aetherProtocol)
         val psiphon = AetherPsiphon.fromString(uiState.aetherPsiphon)
-        // With Psiphon alone there is no WARP tunnel, and nothing about one to set.
-        val warpUsed = psiphon != AetherPsiphon.ONLY
+        val tor = AetherTor.fromString(uiState.aetherTor)
+        val torBridges = AetherTorBridges.fromString(uiState.aetherTorBridges)
+        // With Psiphon or Tor alone there is no WARP tunnel, and nothing about one to set.
+        val warpUsed = psiphon != AetherPsiphon.ONLY && tor != AetherTor.ONLY
         val usesHttp2 = protocol.overMasque &&
             AetherTransport.fromString(uiState.aetherTransport) == AetherTransport.HTTP2
         // A scan opens a second tunnel on this protocol's key; a live session on that key must not be disturbed.
@@ -259,6 +264,43 @@ class ServerAetherActivity : BaseServerActivity() {
                     placeholder = stringResource(R.string.aether_hint_psiphon_region)
                 )
             }
+            AetherDropdownField(
+                label = R.string.aether_lab_tor,
+                value = uiState.aetherTor,
+                entries = R.array.aether_tor_entries,
+                values = R.array.aether_tor_values,
+                enabled = !isBusy,
+                onValueChange = { uiState.aetherTor = it }
+            )
+            if (tor != AetherTor.OFF) {
+                // Inside the tunnel Tor is never blocked and asks for no bridges unless told to; around it or
+                // alone it has to reach Tor first, and where Tor is blocked that takes the transport program.
+                val bridgesUsed = torBridges != AetherTorBridges.NEVER && !(tor == AetherTor.CHAIN && torBridges == AetherTorBridges.AUTO)
+                if (bridgesUsed && !isTorTransportsAvailable) {
+                    Text(
+                        text = stringResource(R.string.aether_tor_transports_unavailable),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                AetherDropdownField(
+                    label = R.string.aether_lab_tor_bridges,
+                    value = uiState.aetherTorBridges,
+                    entries = R.array.aether_tor_bridges_entries,
+                    values = R.array.aether_tor_bridges_values,
+                    onValueChange = { uiState.aetherTorBridges = it }
+                )
+                if (torBridges == AetherTorBridges.OWN) {
+                    FormTextField(
+                        stringResource(R.string.aether_lab_tor_bridge_lines),
+                        uiState.aetherTorBridgeLines,
+                        { uiState.aetherTorBridgeLines = it },
+                        placeholder = stringResource(R.string.aether_hint_tor_bridge_lines),
+                        maxLines = 6
+                    )
+                }
+            }
             if (warpUsed) {
                 if (protocol.twoHops) {
                     FormTextField(
@@ -400,6 +442,9 @@ class ServerAetherActivity : BaseServerActivity() {
                 AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
                 AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque
                 AetherFmt.Problem.NEXT_PORT_TAKEN -> R.string.aether_next_port_taken
+                AetherFmt.Problem.TOR_NEEDS_MASQUE -> R.string.aether_tor_needs_masque
+                AetherFmt.Problem.TOR_PSIPHON_CONFLICT -> R.string.aether_tor_psiphon_conflict
+                AetherFmt.Problem.TOR_BRIDGES_MISSING -> R.string.aether_tor_bridges_missing
                 AetherFmt.Problem.INVALID_COMMAND -> R.string.aether_invalid_command
             }
         )

@@ -595,7 +595,15 @@
     <string name="aether_hint_psiphon_region">Mã quốc gia như DE; để trống nếu không cần</string>
     <string name="aether_psiphon_unavailable">Bản dựng này không có ứng dụng Psiphon, nên cấu hình dùng Psiphon không thể kết nối</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP chỉ hoạt động với giao thức MASQUE</string>
-    <string name="aether_next_port_taken">Với WARP → Psiphon, lõi còn dùng cổng ngay sau cổng lắng nghe; cổng đó không được là cổng proxy cục bộ của ứng dụng</string>
+    <string name="aether_next_port_taken">Khi có Tor hoặc Psiphon trên đường đi, lõi còn dùng các cổng ngay sau cổng lắng nghe; không cổng nào trong số đó được là cổng proxy cục bộ của ứng dụng</string>
+    <string name="aether_lab_tor">Tor</string>
+    <string name="aether_lab_tor_bridges">Cầu nối (bridge)</string>
+    <string name="aether_lab_tor_bridge_lines">Các dòng bridge</string>
+    <string name="aether_hint_tor_bridge_lines">Mỗi dòng một bridge, như trong torrc: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">Bản dựng này không có pluggable transport, nên không dùng được bridge của Tor; Tor chỉ kết nối được ở nơi không bị chặn</string>
+    <string name="aether_tor_needs_masque">Tor → WARP chỉ hoạt động với giao thức MASQUE</string>
+    <string name="aether_tor_psiphon_conflict">Tor và Psiphon chỉ kết hợp được khi một cái nằm trong đường hầm và cái kia bao quanh nó</string>
+    <string name="aether_tor_bridges_missing">Hãy nhập ít nhất một dòng bridge, hoặc chọn thiết lập bridge khác</string>
     <string name="aether_lab_command">Lệnh Aether</string>
     <string name="aether_command_custom">Đã sửa tay: lệnh này chạy đúng như đã viết, các thiết lập bên trên không được áp dụng</string>
     <string name="aether_action_use_settings">Dùng thiết lập</string>
@@ -652,6 +660,18 @@
         <item>Tự động</item>
         <item>Chỉ qua CDN</item>
         <item>Chỉ trực tiếp</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>Tắt</item>
+        <item>WARP → Tor</item>
+        <item>Tor → WARP</item>
+        <item>Chỉ Tor</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>Khi Tor bị chặn</item>
+        <item>Ngay từ đầu</item>
+        <item>Không bao giờ</item>
+        <item>Dòng bridge của riêng tôi</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>Tắt</item>

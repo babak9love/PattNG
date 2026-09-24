@@ -14,6 +14,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.DataInputStream
+import java.io.IOException
+import java.net.InetAddress
+import java.net.ServerSocket
+import kotlin.concurrent.thread
 
 class AetherCoreManagerTest {
 
@@ -496,6 +501,143 @@ class AetherCoreManagerTest {
         assertFalse("--peer" in only)
         assertFalse("--quick-reconnect" in only)
         assertEquals("info", valueAfter(only, "--log-level"))
+    }
+
+    @Test
+    fun torInsideTheTunnelIsWhatTheAppDialsAndTheTunnelTakesThePortAfterIt() {
+        val chain = AetherCoreManager.buildArguments(profile().copy(aetherTor = "chain"), 10819)
+        assertTrue("--tor" in chain)
+        assertEquals("127.0.0.1:10819", valueAfter(chain, "--tor-bind"))
+        assertEquals("127.0.0.1:10820", valueAfter(chain, "--bind"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(chain))
+        assertEquals("127.0.0.1:10819", AetherCoreManager.listenerAddressOf(chain))
+        // WARP is still set up underneath, and without a word about bridges Tor tries plainly first.
+        assertEquals("masque", valueAfter(chain, "--protocol"))
+        assertTrue("--quick-reconnect" in chain)
+        assertFalse("--tor-bridges" in chain)
+        assertFalse("--no-tor-bridges" in chain)
+        assertFalse("--tor-bridge" in chain)
+    }
+
+    @Test
+    fun torAroundTheTunnelKeepsTheTunnelOnTheListenPortAndGivesTorThePortAfterIt() {
+        val reverse = AetherCoreManager.buildArguments(profile().copy(aetherTor = "reverse"), 10819)
+        assertTrue("--tor-reverse" in reverse)
+        assertEquals("127.0.0.1:10819", valueAfter(reverse, "--bind"))
+        // Unlike Psiphon's, Tor's listener gets a real port: the core dials the address Tor was told to listen on.
+        assertEquals("127.0.0.1:10820", valueAfter(reverse, "--tor-bind"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(reverse))
+    }
+
+    @Test
+    fun torAloneLeavesWarpOut() {
+        val only = AetherCoreManager.buildArguments(profile(server = "162.159.198.1", port = "443").copy(aetherTor = "only"), 10819)
+        assertTrue("--tor-only" in only)
+        assertEquals("127.0.0.1:10819", valueAfter(only, "--bind"))
+        assertNull(valueAfter(only, "--tor-bind"))
+        assertNull(valueAfter(only, "--protocol"))
+        assertNull(valueAfter(only, "--peer"))
+        assertFalse("--quick-reconnect" in only)
+        assertEquals(10819, AetherCoreManager.listenerPortOf(only))
+    }
+
+    @Test
+    fun theBridgeSettingReachesTheCoreAsItsFlags() {
+        assertTrue("--tor-bridges" in AetherCoreManager.buildArguments(profile().copy(aetherTor = "chain", aetherTorBridges = "first"), 10819))
+        assertTrue("--no-tor-bridges" in AetherCoreManager.buildArguments(profile().copy(aetherTor = "only", aetherTorBridges = "never"), 10819))
+
+        val lines = "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0\n\n# mine\nBridge webtunnel [2001:db8::1]:443 7DD627 url=https://example.com/x ver=0.0.1\n"
+        val own = AetherCoreManager.buildArguments(profile().copy(aetherTor = "only", aetherTorBridges = "own", aetherTorBridgeLines = lines), 10819)
+        assertEquals(
+            listOf(
+                "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0",
+                "webtunnel [2001:db8::1]:443 7DD627 url=https://example.com/x ver=0.0.1",
+            ),
+            valuesAfter(own, "--tor-bridge")
+        )
+        assertFalse("--tor-bridges" in own)
+        // With Tor off, the bridge setting says nothing.
+        assertFalse("--tor-bridges" in AetherCoreManager.buildArguments(profile().copy(aetherTorBridges = "first"), 10819))
+    }
+
+    @Test
+    fun torAndPsiphonNestWithTheInnerOneOnTheListenPort() {
+        // Psiphon inside, Tor around: the app dials Psiphon, the tunnel takes the next port, Tor the one after.
+        val psiphonInside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherTor = "reverse"), 10819)
+        assertEquals("127.0.0.1:10819", valueAfter(psiphonInside, "--psiphon-bind"))
+        assertEquals("127.0.0.1:10820", valueAfter(psiphonInside, "--bind"))
+        assertEquals("127.0.0.1:10821", valueAfter(psiphonInside, "--tor-bind"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(psiphonInside))
+        assertTrue("--psiphon" in psiphonInside)
+        assertTrue("--tor-reverse" in psiphonInside)
+
+        // Tor inside, Psiphon around: the app dials Tor, and Psiphon picks its own port as the core reads it.
+        val torInside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "reverse", aetherTor = "chain"), 10819)
+        assertEquals("127.0.0.1:10819", valueAfter(torInside, "--tor-bind"))
+        assertEquals("127.0.0.1:10820", valueAfter(torInside, "--bind"))
+        assertEquals("127.0.0.1:0", valueAfter(torInside, "--psiphon-bind"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(torInside))
+    }
+
+    @Test
+    fun aScanLooksForWarpEndpointsWithoutTor() {
+        val scan = AetherCoreManager.buildArguments(profile().copy(aetherTor = "only", aetherTorBridges = "first"), 0, scan = true)
+        assertFalse("--tor-only" in scan)
+        assertFalse("--tor-bridges" in scan)
+        assertNull(valueAfter(scan, "--tor-bind"))
+        assertEquals("masque", valueAfter(scan, "--protocol"))
+    }
+
+    @Test
+    fun theTunnelIsToldApartWithoutItsListenersOrLogLevel() {
+        assertEquals(
+            listOf("--tor", "--wg"),
+            AetherCoreManager.tunnelArguments(listOf("--tor", "--tor-bind", "127.0.0.1:1820", "--wg", "--bind", "127.0.0.1:1819", "--log-level", "info"))
+        )
+    }
+
+    @Test
+    fun aListenerCountsOnceItAnswersTheSocksGreeting() {
+        // Bound but not served yet, as Tor's listener is before Tor has bootstrapped: the connection is taken, nothing is said.
+        ServerSocket(0, 50, InetAddress.getLoopbackAddress()).use { silent ->
+            assertFalse(AetherCoreManager.answersSocks(silent.localPort))
+        }
+        val closedPort = ServerSocket(0).use { it.localPort }
+        assertFalse(AetherCoreManager.answersSocks(closedPort))
+        SocksGreeter().use { assertTrue(AetherCoreManager.answersSocks(it.port)) }
+    }
+
+    private fun valuesAfter(arguments: List<String>, flag: String): List<String> =
+        arguments.indices.filter { arguments[it] == flag }.mapNotNull { arguments.getOrNull(it + 1) }
+
+    /** Answers the SOCKS5 greeting and nothing more, as a served listener does. */
+    private class SocksGreeter : AutoCloseable {
+        private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+        val port: Int get() = server.localPort
+
+        init {
+            thread(isDaemon = true) {
+                while (true) {
+                    val client = try {
+                        server.accept()
+                    } catch (_: IOException) {
+                        return@thread
+                    }
+                    thread(isDaemon = true) {
+                        runCatching {
+                            client.use {
+                                val input = DataInputStream(it.getInputStream())
+                                input.readByte()
+                                repeat(input.readUnsignedByte()) { input.readByte() }
+                                it.getOutputStream().write(byteArrayOf(5, 0))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun close() = server.close()
     }
 
     @Test

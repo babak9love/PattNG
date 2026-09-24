@@ -21,8 +21,9 @@ jobs:
       # release cannot change or break the release build on its own. Bump it together with
       # the aether submodule.
       RUST_TOOLCHAIN: "1.98.1"
-      # The Go line the Psiphon client's go.mod asks for; aether/psiphon-build.sh pins the client
-      # itself. Bump it when a bumped aether submodule pins a client that asks for a newer line.
+      # The Go line the Psiphon client's go.mod asks for, which also covers lyrebird's older one;
+      # aether/psiphon-build.sh and aether/pt-build.sh pin the programs themselves. Bump it when a
+      # bumped aether submodule pins a program that asks for a newer line.
       GO_VERSION: "1.26"
 
     steps:
@@ -121,11 +122,33 @@ jobs:
         path: ${{ github.workspace }}/libs-psiphon
         key: psiphon-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('aether/psiphon-build.sh') }}-${{ hashFiles('compile-psiphon.sh') }}
 
+    # Tor's bridges run through a pluggable transport, a program of its own: lyrebird, which aether
+    # builds and the app ships beside the core as liblyrebird.so; see compile-pt.sh.
+    - name: Restore cached pluggable transport
+      id: cache-pt-restore
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ github.workspace }}/libs-pt
+        key: pt-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('aether/pt-build.sh') }}-${{ hashFiles('compile-pt.sh') }}
+
+    - name: Build the pluggable transport
+      if: steps.cache-pt-restore.outputs.cache-hit != 'true'
+      run: |
+        bash compile-pt.sh
+
+    - name: Save the pluggable transport
+      if: steps.cache-pt-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ github.workspace }}/libs-pt
+        key: pt-${{ runner.os }}-${{ env.GO_VERSION }}-${{ hashFiles('aether/pt-build.sh') }}-${{ hashFiles('compile-pt.sh') }}
+
     - name: Stage the native libraries
       run: |
         cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
         cp -r ${{ github.workspace }}/libs-aether/. ${{ github.workspace }}/V2rayNG/app/libs/
         cp -r ${{ github.workspace }}/libs-psiphon/. ${{ github.workspace }}/V2rayNG/app/libs/
+        cp -r ${{ github.workspace }}/libs-pt/. ${{ github.workspace }}/V2rayNG/app/libs/
 
     - name: Fetch AndroidLibXrayLite tag
       run: |
@@ -169,8 +192,8 @@ jobs:
     
     - name: Check the native libraries in the APKs
       run: |
-        # Looked into as ZIP files: every ABI the Aether core is built for has to carry the core and
-        # its Psiphon client, and each APK's native files are listed for the record.
+        # Looked into as ZIP files: every ABI the Aether core is built for has to carry the core, its
+        # Psiphon client and its pluggable transport, and each APK's native files are listed for the record.
         status=0
         for apk in ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk; do
           entries=$(unzip -Z1 "$apk" | grep '^lib/' || true)
@@ -178,7 +201,7 @@ jobs:
           echo "$entries" | sed 's/^/  /'
           for abi in arm64-v8a armeabi-v7a x86_64; do
             echo "$entries" | grep -q "^lib/$abi/" || continue
-            for lib in libaether.so libpsiphon-tunnel-core.so; do
+            for lib in libaether.so libpsiphon-tunnel-core.so liblyrebird.so; do
               if ! echo "$entries" | grep -qx "lib/$abi/$lib"; then
                 echo "::error::$(basename "$apk") lacks lib/$abi/$lib"
                 status=1

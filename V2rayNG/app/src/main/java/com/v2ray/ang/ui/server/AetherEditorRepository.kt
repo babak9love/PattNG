@@ -25,6 +25,9 @@ interface AetherEditorSource {
     /** Whether the Psiphon client is shipped with this build; a profile with Psiphon cannot connect without it. */
     suspend fun isPsiphonAvailable(): Boolean
 
+    /** Whether the pluggable transport is shipped with this build; without it Tor has no bridges where it is blocked. */
+    suspend fun isTorTransportsAvailable(): Boolean
+
     /** The daemon's live Aether session, scanning or connected, or null; every Aether profile shares its key files. */
     suspend fun activeSession(): AetherSession?
     suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit): AetherScanResult?
@@ -40,13 +43,16 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
     override suspend fun isPsiphonAvailable(): Boolean =
         withContext(Dispatchers.IO) { AetherCoreManager.isPsiphonSupported(context) }
 
+    override suspend fun isTorTransportsAvailable(): Boolean =
+        withContext(Dispatchers.IO) { AetherCoreManager.isTorTransportsSupported(context) }
+
     // The daemon is the only authority on its state, so this looks for its core process and its
     // listener instead of a UI-side flag. The process check covers the scanning phase, before the
     // listener exists, and names the protocol; the listener probe is the fallback when /proc
     // cannot be read, and then the protocol stays unknown.
     override suspend fun activeSession(): AetherSession? = withContext(Dispatchers.IO) {
         AetherCoreManager.sessionProtocol(context)?.let { AetherSession(it) }
-            ?: AetherSession(protocol = null).takeIf { AetherCoreManager.acceptsConnections(AetherCoreManager.socksPort) }
+            ?: AetherSession(protocol = null).takeIf { AetherCoreManager.answersSocks(AetherCoreManager.socksPort) }
     }
 
     override suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit): AetherScanResult? =

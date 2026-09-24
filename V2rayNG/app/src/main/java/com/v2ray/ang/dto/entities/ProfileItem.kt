@@ -102,6 +102,15 @@ data class ProfileItem(
     var aetherPsiphonCdnSni: String? = null,
     var aetherPsiphonRegion: String? = null,
 
+    /** Where Tor stands in the tunnel, an AetherTor type; null means it is not used. */
+    var aetherTor: String? = null,
+
+    /** When Tor turns to bridges, an AetherTorBridges type; null means when Tor is blocked. */
+    var aetherTorBridges: String? = null,
+
+    /** The profile's own bridge lines, one per line as torrc writes them, used when aetherTorBridges says so. */
+    var aetherTorBridgeLines: String? = null,
+
     /** The command line of this profile's core, written by hand in place of the one built from the settings; null follows the settings. */
     var aetherCommand: String? = null,
 ) {

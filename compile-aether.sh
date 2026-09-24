@@ -99,6 +99,8 @@ for abi in $ABIS; do
     rm -rf "$release_dir"/build/boring-sys-* "$release_dir"/.fingerprint/boring-sys-*
   fi
 
+  # The tor feature embeds arti, which is what lets a profile put Tor inside or around the tunnel;
+  # aether's own Android release is built with it as well.
   echo "[aether] building the core for $abi ($triple)"
   env \
     ANDROID_NDK_HOME="$NDK_HOME" \
@@ -111,7 +113,7 @@ for abi in $ABIS; do
     "CXXFLAGS_${under_triple}=--target=$clang_target" \
     "AR_${under_triple}=$TOOLCHAIN/llvm-ar" \
     "BINDGEN_EXTRA_CLANG_ARGS_${under_triple}=--target=$triple --sysroot=$SYSROOT" \
-    cargo build --release --locked --manifest-path "$CORE_DIR/Cargo.toml" --target "$triple" --bin aether
+    cargo build --release --locked --features tor --manifest-path "$CORE_DIR/Cargo.toml" --target "$triple" --bin aether
 
   produced="$CORE_DIR/target/$triple/release/aether"
   if [[ ! -f "$produced" ]]; then

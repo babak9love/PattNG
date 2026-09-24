@@ -276,6 +276,18 @@
         <item>cdn</item>
         <item>direct</item>
     </string-array>
+    <string-array name="aether_tor_values" translatable="false">
+        <item>off</item>
+        <item>chain</item>
+        <item>reverse</item>
+        <item>only</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_values" translatable="false">
+        <item>auto</item>
+        <item>first</item>
+        <item>never</item>
+        <item>own</item>
+    </string-array>
     <string-array name="target_strategy_values" translatable="false">
         <item>AsIs</item>
         <item>UseIP</item>

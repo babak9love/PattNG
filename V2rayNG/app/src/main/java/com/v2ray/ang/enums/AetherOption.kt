@@ -90,3 +90,40 @@ enum class AetherPsiphonMode(val type: String) {
         fun fromString(type: String?) = entries.find { it.type == type } ?: AUTO
     }
 }
+
+/** Where Tor stands in the tunnel of a profile, named the way the core names it: the same three places as [AetherPsiphon]. */
+enum class AetherTor(val type: String) {
+    OFF("off"),
+
+    /** The tunnel carries Tor: the app dials Tor, which leaves through WARP, so the network never sees Tor. */
+    CHAIN("chain"),
+
+    /** Tor carries the tunnel: WARP is reached from a Tor exit, and the app dials WARP. */
+    REVERSE("reverse"),
+
+    /** No WARP at all: the app dials Tor itself. */
+    ONLY("only");
+
+    companion object {
+        fun fromString(type: String?) = entries.find { it.type == type } ?: OFF
+    }
+}
+
+/** When Tor turns to bridges. */
+enum class AetherTorBridges(val type: String) {
+    /** Tor is tried plainly first, and bridges are fetched when that gets nowhere. */
+    AUTO("auto"),
+
+    /** Bridges from the start, without trying Tor plainly. */
+    FIRST("first"),
+
+    /** Never, however blocked the network looks. */
+    NEVER("never"),
+
+    /** The bridge lines of the profile, and no other. */
+    OWN("own");
+
+    companion object {
+        fun fromString(type: String?) = entries.find { it.type == type } ?: AUTO
+    }
+}

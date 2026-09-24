@@ -600,7 +600,15 @@
     <string name="aether_hint_psiphon_region">Country code such as DE; leave blank for any</string>
     <string name="aether_psiphon_unavailable">This build does not include the Psiphon client, so a profile with Psiphon cannot connect</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP works with the MASQUE protocol only</string>
-    <string name="aether_next_port_taken">With WARP → Psiphon the core also uses the port after the listen port; it cannot be the local proxy port of the app</string>
+    <string name="aether_next_port_taken">With Tor or Psiphon in the path the core also uses the ports after the listen port; none of them can be the local proxy port of the app</string>
+    <string name="aether_lab_tor">Tor</string>
+    <string name="aether_lab_tor_bridges">Bridges</string>
+    <string name="aether_lab_tor_bridge_lines">Bridge lines</string>
+    <string name="aether_hint_tor_bridge_lines">One per line, as in torrc: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">This build has no pluggable transports, so Tor bridges cannot be used; Tor connects only where it is not blocked</string>
+    <string name="aether_tor_needs_masque">Tor → WARP works with the MASQUE protocol only</string>
+    <string name="aether_tor_psiphon_conflict">Tor and Psiphon go together only with one inside the tunnel and the other around it</string>
+    <string name="aether_tor_bridges_missing">Write at least one bridge line, or choose another bridge setting</string>
     <string name="aether_lab_command">Aether command</string>
     <string name="aether_command_custom">Edited by hand: this command runs as written, and the settings above are not applied</string>
     <string name="aether_action_use_settings">Use the settings</string>
@@ -657,6 +665,18 @@
         <item>Automatic</item>
         <item>CDN fronting only</item>
         <item>Direct only</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>Off</item>
+        <item>WARP → Tor</item>
+        <item>Tor → WARP</item>
+        <item>Tor only</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>When Tor is blocked</item>
+        <item>From the start</item>
+        <item>Never</item>
+        <item>My own bridge lines</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>Off</item>

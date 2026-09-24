@@ -601,7 +601,15 @@
     <string name="aether_hint_psiphon_region">Код страны, например DE; пусто — любая</string>
     <string name="aether_psiphon_unavailable">В этой сборке нет клиента Psiphon, поэтому профиль с Psiphon не сможет подключиться</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP работает только с протоколом MASQUE</string>
-    <string name="aether_next_port_taken">В режиме WARP → Psiphon ядро использует и следующий за портом прослушивания порт; он не может совпадать с портом локального прокси приложения</string>
+    <string name="aether_next_port_taken">С Tor или Psiphon на пути ядро использует и порты, следующие за портом прослушивания; ни один из них не может совпадать с портом локального прокси приложения</string>
+    <string name="aether_lab_tor">Tor</string>
+    <string name="aether_lab_tor_bridges">Мосты</string>
+    <string name="aether_lab_tor_bridge_lines">Строки мостов</string>
+    <string name="aether_hint_tor_bridge_lines">По одной в строке, как в torrc: obfs4 1.2.3.4:443 ОТПЕЧАТОК cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">В этой сборке нет подключаемых транспортов, поэтому мосты Tor недоступны; Tor подключится только там, где он не заблокирован</string>
+    <string name="aether_tor_needs_masque">Режим Tor → WARP работает только с протоколом MASQUE</string>
+    <string name="aether_tor_psiphon_conflict">Tor и Psiphon сочетаются только так: один внутри туннеля, другой снаружи</string>
+    <string name="aether_tor_bridges_missing">Введите хотя бы одну строку моста или выберите другую настройку мостов</string>
     <string name="aether_lab_command">Команда Aether</string>
     <string name="aether_command_custom">Изменено вручную: эта команда выполняется как написана, настройки выше не применяются</string>
     <string name="aether_action_use_settings">Использовать настройки</string>
@@ -658,6 +666,18 @@
         <item>Автоматически</item>
         <item>Только через CDN</item>
         <item>Только напрямую</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>Выключено</item>
+        <item>WARP → Tor</item>
+        <item>Tor → WARP</item>
+        <item>Только Tor</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>Когда Tor заблокирован</item>
+        <item>С самого начала</item>
+        <item>Никогда</item>
+        <item>Мои строки мостов</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>Выкл.</item>

@@ -19,6 +19,8 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
+import com.v2ray.ang.enums.AetherTorBridges
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
@@ -93,6 +95,9 @@ class ServerUiState(
     aetherPsiphonCdnIps: String = "",
     aetherPsiphonCdnSni: String = "",
     aetherPsiphonRegion: String = "",
+    aetherTor: String = AetherTor.OFF.type,
+    aetherTorBridges: String = AetherTorBridges.AUTO.type,
+    aetherTorBridgeLines: String = "",
     aetherCommand: String = ""
 ) {
     var configType by mutableStateOf(configType)
@@ -162,6 +167,9 @@ class ServerUiState(
     var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
     var aetherPsiphonCdnSni by mutableStateOf(aetherPsiphonCdnSni)
     var aetherPsiphonRegion by mutableStateOf(aetherPsiphonRegion)
+    var aetherTor by mutableStateOf(aetherTor)
+    var aetherTorBridges by mutableStateOf(aetherTorBridges)
+    var aetherTorBridgeLines by mutableStateOf(aetherTorBridgeLines)
     var aetherCommand by mutableStateOf(aetherCommand)
 
     var isRemarksError by mutableStateOf(false)
@@ -178,6 +186,7 @@ class ServerUiState(
         val isHysteria2 = configType == EConfigType.HYSTERIA2
         val isAether = configType == EConfigType.AETHER
         val isPsiphon = isAether && aetherPsiphon != AetherPsiphon.OFF.type
+        val isTor = isAether && aetherTor != AetherTor.OFF.type
 
         val profile = initialConfig.copy(
             configType = configType,
@@ -258,6 +267,9 @@ class ServerUiState(
             aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
             aetherPsiphonCdnSni = if (isPsiphon) aetherPsiphonCdnSni.nullIfBlank() else null,
             aetherPsiphonRegion = if (isPsiphon) aetherPsiphonRegion.nullIfBlank() else null,
+            aetherTor = if (isTor) aetherTor else null,
+            aetherTorBridges = if (isTor) aetherTorBridges else null,
+            aetherTorBridgeLines = if (isTor) aetherTorBridgeLines.nullIfBlank() else null,
             aetherCommand = null,
         )
         if (!isAether) return profile
@@ -339,6 +351,9 @@ class ServerUiState(
                 aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",
                 aetherPsiphonCdnSni = initialConfig.aetherPsiphonCdnSni ?: "",
                 aetherPsiphonRegion = initialConfig.aetherPsiphonRegion ?: "",
+                aetherTor = AetherTor.fromString(initialConfig.aetherTor).type,
+                aetherTorBridges = AetherTorBridges.fromString(initialConfig.aetherTorBridges).type,
+                aetherTorBridgeLines = initialConfig.aetherTorBridgeLines ?: "",
                 aetherCommand = initialConfig.aetherCommand ?: ""
             )
 

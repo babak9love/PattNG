@@ -12,6 +12,8 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
+import com.v2ray.ang.enums.AetherTorBridges
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.idnHost
@@ -30,6 +32,9 @@ object AetherFmt : FmtBase() {
         LISTEN_PORT_TAKEN,
         PSIPHON_NEEDS_MASQUE,
         NEXT_PORT_TAKEN,
+        TOR_NEEDS_MASQUE,
+        TOR_PSIPHON_CONFLICT,
+        TOR_BRIDGES_MISSING,
         INVALID_COMMAND,
     }
 
@@ -71,6 +76,9 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonCdnIps = queryParam["cdn_ips"]
         config.aetherPsiphonCdnSni = queryParam["cdn_sni"]
         config.aetherPsiphonRegion = queryParam["region"]
+        config.aetherTor = AetherTor.fromString(queryParam["tor"]).type.takeUnless { it == AetherTor.OFF.type }
+        config.aetherTorBridges = queryParam["tor_bridges"]?.let { AetherTorBridges.fromString(it).type }
+        config.aetherTorBridgeLines = queryParam["bridges"]?.split(';')?.joinToString("\n")
 
         if (protocol.twoHops) {
             val outer = AetherEndpoint.parse(queryParam["outer"])
@@ -116,6 +124,13 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { query["cdn_ips"] = it }
             config.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { query["cdn_sni"] = it }
             config.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { query["region"] = it }
+        }
+        val tor = AetherTor.fromString(config.aetherTor)
+        if (tor != AetherTor.OFF) {
+            query["tor"] = tor.type
+            query["tor_bridges"] = AetherTorBridges.fromString(config.aetherTorBridges).type
+            // Bridge lines never hold a semicolon: the core itself separates them with one.
+            bridgeLines(config.aetherTorBridgeLines).takeIf { it.isNotEmpty() }?.let { query["bridges"] = it.joinToString(";") }
         }
         val endpoint = AetherEndpoint.of(config.server, config.serverPort).takeUnless { protocol.twoHops }
 
@@ -190,6 +205,7 @@ object AetherFmt : FmtBase() {
         normalizeFragment(config)
             ?: normalizeEndpoints(config)
             ?: normalizePsiphon(config)
+            ?: normalizeTor(config)
             ?: normalizeListenPort(config, takenPorts)
             ?: normalizeCommand(config, takenPorts)
 
@@ -200,11 +216,16 @@ object AetherFmt : FmtBase() {
         // The default port can be taken too, once the local proxy has been moved onto it.
         val listen = port ?: AppConfig.PORT_AETHER_SOCKS.toInt()
         if (listen in takenPorts) return Problem.LISTEN_PORT_TAKEN
-        if (AetherPsiphon.fromString(config.aetherPsiphon) == AetherPsiphon.CHAIN) {
-            // The tunnel's own listener takes the port after the one the app dials.
-            if (listen == 65535) return Problem.INVALID_LISTEN_PORT
-            if (listen + 1 in takenPorts) return Problem.NEXT_PORT_TAKEN
-        }
+        // Psiphon inside the tunnel, Tor inside it and Tor around it each take one more port after the
+        // one the app dials, as AetherCoreManager.buildArguments hands them out.
+        val tor = AetherTor.fromString(config.aetherTor)
+        val more = listOf(
+            AetherPsiphon.fromString(config.aetherPsiphon) == AetherPsiphon.CHAIN,
+            tor == AetherTor.CHAIN,
+            tor == AetherTor.REVERSE,
+        ).count { it }
+        if (listen + more > 65535) return Problem.INVALID_LISTEN_PORT
+        if ((1..more).any { listen + it in takenPorts }) return Problem.NEXT_PORT_TAKEN
         config.aetherListenPort = port?.let(::storedListenPort)
         return null
     }
@@ -230,6 +251,45 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonRegion = config.aetherPsiphonRegion?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
         return null
     }
+
+    private fun normalizeTor(config: ProfileItem): Problem? {
+        val tor = AetherTor.fromString(config.aetherTor)
+        if (tor == AetherTor.OFF) {
+            config.aetherTor = null
+            config.aetherTorBridges = null
+            config.aetherTorBridgeLines = null
+            return null
+        }
+        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
+        if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
+            return Problem.TOR_NEEDS_MASQUE
+        }
+        // Tor and Psiphon go together only nested, one inside the tunnel and the other around it: two around
+        // it the core refuses, two inside it or one alone leaves the app nothing to dial the other on.
+        val psiphon = AetherPsiphon.fromString(config.aetherPsiphon)
+        val nested = psiphon == AetherPsiphon.OFF ||
+            (tor == AetherTor.CHAIN && psiphon == AetherPsiphon.REVERSE) ||
+            (tor == AetherTor.REVERSE && psiphon == AetherPsiphon.CHAIN)
+        if (!nested) return Problem.TOR_PSIPHON_CONFLICT
+        val bridges = AetherTorBridges.fromString(config.aetherTorBridges)
+        val lines = bridgeLines(config.aetherTorBridgeLines)
+        if (bridges == AetherTorBridges.OWN && lines.isEmpty()) return Problem.TOR_BRIDGES_MISSING
+        config.aetherTor = tor.type
+        config.aetherTorBridges = bridges.type
+        config.aetherTorBridgeLines = lines.takeIf { bridges == AetherTorBridges.OWN }?.joinToString("\n")
+        return null
+    }
+
+    /**
+     * The bridge lines in [text], one per line the way torrc writes them, read as the core reads a
+     * bridge file: blank lines and comments dropped, a leading Bridge keyword taken off.
+     */
+    fun bridgeLines(text: String?): List<String> =
+        text.orEmpty().lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .map { it.removePrefix("Bridge ").removePrefix("bridge ").trim() }
+            .filter { it.isNotEmpty() }
 
     /** A list as the core reads it, entries separated by commas or spaces, written back with commas alone. */
     private fun commaList(text: String?): String? =

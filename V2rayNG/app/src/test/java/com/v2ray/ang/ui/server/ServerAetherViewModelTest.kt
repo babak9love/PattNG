@@ -43,6 +43,7 @@ class ServerAetherViewModelTest {
 
         override suspend fun isCoreAvailable() = available
         override suspend fun isPsiphonAvailable(): Boolean = false
+        override suspend fun isTorTransportsAvailable(): Boolean = false
         override suspend fun activeSession() = session
         override suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit) = scanner(profile, onOutput)
         override suspend fun identityStatus(protocol: AetherProtocol) =

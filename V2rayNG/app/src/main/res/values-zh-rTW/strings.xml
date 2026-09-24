@@ -595,7 +595,15 @@
     <string name="aether_hint_psiphon_region">國家代碼，如 DE；留空則不限</string>
     <string name="aether_psiphon_unavailable">此版本未包含 Psiphon 用戶端，使用 Psiphon 的設定檔無法連線</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP 僅支援 MASQUE 協定</string>
-    <string name="aether_next_port_taken">使用 WARP → Psiphon 時，核心還會使用監聽連接埠之後的一個連接埠；它不能是應用程式的本機代理連接埠</string>
+    <string name="aether_next_port_taken">使用 Tor 或 Psiphon 時，核心還會使用監聽連接埠之後的連接埠；它們都不能是應用程式的本機代理連接埠</string>
+    <string name="aether_lab_tor">Tor</string>
+    <string name="aether_lab_tor_bridges">橋接</string>
+    <string name="aether_lab_tor_bridge_lines">橋接行</string>
+    <string name="aether_hint_tor_bridge_lines">每行一條，格式同 torrc：obfs4 1.2.3.4:443 指紋 cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">此版本未包含可插拔傳輸，無法使用 Tor 橋接；Tor 只能在未被封鎖的網路上連線</string>
+    <string name="aether_tor_needs_masque">Tor → WARP 僅支援 MASQUE 協定</string>
+    <string name="aether_tor_psiphon_conflict">Tor 與 Psiphon 只能以一個在通道內、一個在通道外的方式搭配使用</string>
+    <string name="aether_tor_bridges_missing">請至少填寫一條橋接行，或選擇其他橋接設定</string>
     <string name="aether_lab_command">Aether 命令</string>
     <string name="aether_command_custom">已手動編輯：此命令按原樣執行，上方的設定不再生效</string>
     <string name="aether_action_use_settings">使用上方設定</string>
@@ -652,6 +660,18 @@
         <item>自動</item>
         <item>僅 CDN 前置</item>
         <item>僅直連</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>關閉</item>
+        <item>WARP → Tor</item>
+        <item>Tor → WARP</item>
+        <item>僅 Tor</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>Tor 被封鎖時</item>
+        <item>一開始就使用</item>
+        <item>從不</item>
+        <item>使用我自己的橋接行</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>關閉</item>

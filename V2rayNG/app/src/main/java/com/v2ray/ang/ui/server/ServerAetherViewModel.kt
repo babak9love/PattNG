@@ -50,6 +50,10 @@ class ServerAetherViewModel(
     private val _isPsiphonAvailable = MutableStateFlow(false)
     val isPsiphonAvailable: StateFlow<Boolean> = _isPsiphonAvailable.asStateFlow()
 
+    /** Whether this build ships the pluggable transport Tor's bridges run through; false until looked up. */
+    private val _isTorTransportsAvailable = MutableStateFlow(false)
+    val isTorTransportsAvailable: StateFlow<Boolean> = _isTorTransportsAvailable.asStateFlow()
+
     private val _scanState = MutableStateFlow<AetherScanState>(AetherScanState.Idle)
     val scanState: StateFlow<AetherScanState> = _scanState.asStateFlow()
 
@@ -73,6 +77,7 @@ class ServerAetherViewModel(
     init {
         viewModelScope.launch { _isCoreAvailable.value = source.isCoreAvailable() }
         viewModelScope.launch { _isPsiphonAvailable.value = source.isPsiphonAvailable() }
+        viewModelScope.launch { _isTorTransportsAvailable.value = source.isTorTransportsAvailable() }
         refreshSession()
     }
 

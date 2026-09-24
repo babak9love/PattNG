@@ -597,7 +597,15 @@
     <string name="aether_hint_psiphon_region">کد کشور مثل DE؛ خالی یعنی هر کشوری</string>
     <string name="aether_psiphon_unavailable">ای نسخه کلاینت سایفون نداره؛ پروفایلی که سایفون داشته بۊ نیتره وصل بۊ</string>
     <string name="aether_psiphon_needs_masque">حالت «اول سایفون، بعد WARP» فقط وا پروتکل MASQUE کار اکنه</string>
-    <string name="aether_next_port_taken">من حالت «اول WARP، بعد سایفون» هسته پورت بعد زه پورت گوش‌دادن هم استفاده اکنه؛ او پورت نیتره پورت پروکسی محلی برنامه بۊ</string>
+    <string name="aether_next_port_taken">وا تور یا سایفون من مسیر، هسته پورت‌یای بعد زه پورت گوش‌دادن هم استفاده اکنه؛ هیچ‌کوم نیتره پورت پروکسی محلی برنامه بۊ</string>
+    <string name="aether_lab_tor">تور (Tor)</string>
+    <string name="aether_lab_tor_bridges">پل‌یا</string>
+    <string name="aether_lab_tor_bridge_lines">خط‌یای پل</string>
+    <string name="aether_hint_tor_bridge_lines">هر خط یه پل، مثل torrc: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">ای نسخه انتقال‌یای اتصال‌پذیر (pluggable transport) نداره، پس پل‌یای تور قابل استفاده نیسن؛ تور فقط جایی وصل ابۊ که مسدود نبۊ</string>
+    <string name="aether_tor_needs_masque">حالت «اول تور، بعد WARP» فقط وا پروتکل MASQUE کار اکنه</string>
+    <string name="aether_tor_psiphon_conflict">تور و سایفون فقط ای‌جور وا هم کار اکنن: یکی من تونل و اۊ یکی دور تونل</string>
+    <string name="aether_tor_bridges_missing">کم‌کم یه خط پل بنویسین، یا یه تنظیم دیه سی پل‌یا انتخاب کنین</string>
     <string name="aether_lab_command">فرمان Aether</string>
     <string name="aether_command_custom">وا دست ویرایش بیده: ای فرمان همی‌طور که نوشته بیده اجرا ابۊ وو تنظیمات بالا اعمال نیبۊن</string>
     <string name="aether_action_use_settings">استفاده زه تنظیمات</string>
@@ -654,6 +662,18 @@
         <item>خودکار</item>
         <item>فقط زه راه CDN</item>
         <item>فقط مستقیم</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>خاموش</item>
+        <item>اول WARP، بعد تور</item>
+        <item>اول تور، بعد WARP</item>
+        <item>فقط تور</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>وختی تور مسدوده</item>
+        <item>زه اول</item>
+        <item>هیچ‌وخت</item>
+        <item>خط‌یای پل خوم</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>خاموش</item>

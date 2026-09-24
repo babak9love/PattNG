@@ -597,7 +597,15 @@
     <string name="aether_hint_psiphon_region">দেশের কোড যেমন DE; খালি রাখলে যেকোনো</string>
     <string name="aether_psiphon_unavailable">এই বিল্ডে Psiphon ক্লায়েন্ট নেই, তাই Psiphon সহ প্রোফাইল সংযোগ করতে পারবে না</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP শুধু MASQUE প্রোটোকলের সাথে কাজ করে</string>
-    <string name="aether_next_port_taken">WARP → Psiphon-এ কোর শোনার পোর্টের পরের পোর্টটিও ব্যবহার করে; সেটি অ্যাপের লোকাল প্রক্সি পোর্ট হতে পারবে না</string>
+    <string name="aether_next_port_taken">পথে Tor বা Psiphon থাকলে কোর শোনার পোর্টের পরের পোর্টগুলোও ব্যবহার করে; সেগুলোর কোনোটিই অ্যাপের লোকাল প্রক্সি পোর্ট হতে পারবে না</string>
+    <string name="aether_lab_tor">Tor</string>
+    <string name="aether_lab_tor_bridges">ব্রিজ</string>
+    <string name="aether_lab_tor_bridge_lines">ব্রিজ লাইন</string>
+    <string name="aether_hint_tor_bridge_lines">প্রতি লাইনে একটি, torrc-এর মতো: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">এই বিল্ডে প্লাগেবল ট্রান্সপোর্ট নেই, তাই Tor ব্রিজ ব্যবহার করা যাবে না; Tor শুধু সেখানেই সংযোগ করবে যেখানে এটি ব্লক করা নেই</string>
+    <string name="aether_tor_needs_masque">Tor → WARP শুধু MASQUE প্রোটোকলের সাথে কাজ করে</string>
+    <string name="aether_tor_psiphon_conflict">Tor ও Psiphon একসাথে শুধু তখনই চলে যখন একটি টানেলের ভিতরে আর অন্যটি তার চারপাশে থাকে</string>
+    <string name="aether_tor_bridges_missing">অন্তত একটি ব্রিজ লাইন লিখুন, অথবা অন্য ব্রিজ সেটিং বেছে নিন</string>
     <string name="aether_lab_command">Aether কমান্ড</string>
     <string name="aether_command_custom">হাতে সম্পাদিত: এই কমান্ড যেমন লেখা তেমনই চলে, উপরের সেটিংস প্রয়োগ হয় না</string>
     <string name="aether_action_use_settings">সেটিংস ব্যবহার করুন</string>
@@ -654,6 +662,18 @@
         <item>স্বয়ংক্রিয়</item>
         <item>শুধু CDN ফ্রন্টিং</item>
         <item>শুধু সরাসরি</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>বন্ধ</item>
+        <item>WARP → Tor</item>
+        <item>Tor → WARP</item>
+        <item>শুধু Tor</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>Tor ব্লক থাকলে</item>
+        <item>শুরু থেকেই</item>
+        <item>কখনো না</item>
+        <item>আমার নিজের ব্রিজ লাইন</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>বন্ধ</item>

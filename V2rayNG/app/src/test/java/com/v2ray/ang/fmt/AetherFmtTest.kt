@@ -137,6 +137,105 @@ class AetherFmtTest {
     }
 
     @Test
+    fun torSurvivesTheRoundTripAndStaysOutOfALinkWithoutIt() {
+        val bridged = profile {
+            aetherTor = "only"
+            aetherTorBridges = "own"
+            aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0\nwebtunnel 198.51.100.25:443 7DD627 url=https://example.com/x"
+        }
+        val parsed = AetherFmt.parse(link(bridged))
+        assertEquals("only", parsed?.aetherTor)
+        assertEquals("own", parsed?.aetherTorBridges)
+        assertEquals(bridged.aetherTorBridgeLines, parsed?.aetherTorBridgeLines)
+
+        val automatic = AetherFmt.parse(link(profile { aetherTor = "chain" }))
+        assertEquals("chain", automatic?.aetherTor)
+        assertEquals("auto", automatic?.aetherTorBridges)
+        assertNull(automatic?.aetherTorBridgeLines)
+
+        val plain = AetherFmt.toUri(profile {})
+        assertFalse(plain.contains("tor="))
+        assertFalse(plain.contains("bridges"))
+        assertNull(AetherFmt.parse(link(profile {}))?.aetherTor)
+    }
+
+    @Test
+    fun torSettingsAreNormalizedAndClearedWhenTorIsOff() {
+        val own = profile {
+            aetherTor = "chain"
+            aetherTorBridges = "own"
+            aetherTorBridgeLines = " Bridge obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0 \n# a comment\n\nbridge webtunnel 198.51.100.25:443 7DD627 url=https://example.com/x\n"
+        }
+        assertNull(AetherFmt.normalize(own))
+        assertEquals(
+            "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0\nwebtunnel 198.51.100.25:443 7DD627 url=https://example.com/x",
+            own.aetherTorBridgeLines
+        )
+
+        // Lines are kept only with the setting that uses them, and an unknown setting is the automatic one.
+        val automatic = profile { aetherTor = "chain"; aetherTorBridges = "made-up"; aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc" }
+        assertNull(AetherFmt.normalize(automatic))
+        assertEquals("auto", automatic.aetherTorBridges)
+        assertNull(automatic.aetherTorBridgeLines)
+
+        val off = profile { aetherTor = "off"; aetherTorBridges = "first"; aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc" }
+        assertNull(AetherFmt.normalize(off))
+        assertNull(off.aetherTor)
+        assertNull(off.aetherTorBridges)
+        assertNull(off.aetherTorBridgeLines)
+
+        assertEquals(
+            AetherFmt.Problem.TOR_BRIDGES_MISSING,
+            AetherFmt.normalize(profile { aetherTor = "only"; aetherTorBridges = "own"; aetherTorBridgeLines = "# nothing here\n" })
+        )
+    }
+
+    @Test
+    fun torAroundTheTunnelNeedsMasqueAndTorAndPsiphonOnlyNest() {
+        assertEquals(
+            AetherFmt.Problem.TOR_NEEDS_MASQUE,
+            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherTor = "reverse" })
+        )
+        assertEquals(
+            AetherFmt.Problem.TOR_NEEDS_MASQUE,
+            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherTor = "reverse" })
+        )
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MIM.type; aetherTor = "reverse" }))
+        // Inside the tunnel or alone, Tor does not care what carries WARP.
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherTor = "chain" }))
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherTor = "only" }))
+
+        assertNull(AetherFmt.normalize(profile { aetherTor = "chain"; aetherPsiphon = "reverse" }))
+        assertNull(AetherFmt.normalize(profile { aetherTor = "reverse"; aetherPsiphon = "chain" }))
+        val clashes = listOf("chain" to "chain", "reverse" to "reverse", "only" to "chain", "only" to "only", "chain" to "only", "reverse" to "only")
+        for ((tor, psiphon) in clashes) {
+            assertEquals(
+                "tor=$tor psiphon=$psiphon",
+                AetherFmt.Problem.TOR_PSIPHON_CONFLICT,
+                AetherFmt.normalize(profile { aetherTor = tor; aetherPsiphon = psiphon })
+            )
+        }
+    }
+
+    @Test
+    fun torTakesThePortAfterTheListenPortInsideOrAroundTheTunnel() {
+        assertEquals(AetherFmt.Problem.NEXT_PORT_TAKEN, AetherFmt.normalize(profile { aetherTor = "chain" }, takenPorts = setOf(10820)))
+        assertEquals(AetherFmt.Problem.NEXT_PORT_TAKEN, AetherFmt.normalize(profile { aetherTor = "reverse" }, takenPorts = setOf(10820)))
+        assertNull(AetherFmt.normalize(profile { aetherTor = "only" }, takenPorts = setOf(10820)))
+        // Nested, Psiphon inside and Tor around, the core takes two ports after the listen port.
+        assertEquals(
+            AetherFmt.Problem.NEXT_PORT_TAKEN,
+            AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }, takenPorts = setOf(10821))
+        )
+        assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }, takenPorts = setOf(10822)))
+        assertEquals(
+            AetherFmt.Problem.INVALID_LISTEN_PORT,
+            AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse"; aetherListenPort = "65534" })
+        )
+        assertNull(AetherFmt.normalize(profile { aetherTor = "chain"; aetherListenPort = "65534" }))
+    }
+
+    @Test
     fun aCommandWrittenInPlaceOfTheSettingsIsCheckedAndTrimmed() {
         val trimmed = profile { aetherCommand = "  aether --wg --bind 127.0.0.1:20808  " }
         assertNull(AetherFmt.normalize(trimmed))

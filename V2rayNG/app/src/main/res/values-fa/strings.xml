@@ -597,7 +597,15 @@
     <string name="aether_hint_psiphon_region">کد کشور مانند DE؛ خالی یعنی هر کشوری</string>
     <string name="aether_psiphon_unavailable">این نسخه کلاینت سایفون را ندارد؛ پروفایلی که از سایفون استفاده کند نمی‌تواند وصل شود</string>
     <string name="aether_psiphon_needs_masque">حالت «اول سایفون، بعد WARP» فقط با پروتکل MASQUE کار می‌کند</string>
-    <string name="aether_next_port_taken">در حالت «اول WARP، بعد سایفون» هسته پورت بعد از پورت گوش‌دادن را هم استفاده می‌کند؛ آن پورت نمی‌تواند پورت پروکسی محلی برنامه باشد</string>
+    <string name="aether_next_port_taken">با تور یا سایفون در مسیر، هسته پورت‌های بعد از پورت گوش‌دادن را هم استفاده می‌کند؛ هیچ‌کدام نمی‌تواند پورت پروکسی محلی برنامه باشد</string>
+    <string name="aether_lab_tor">تور (Tor)</string>
+    <string name="aether_lab_tor_bridges">پل‌ها</string>
+    <string name="aether_lab_tor_bridge_lines">خط‌های پل</string>
+    <string name="aether_hint_tor_bridge_lines">هر خط یک پل، مانند torrc: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0</string>
+    <string name="aether_tor_transports_unavailable">این نسخه انتقال‌های اتصال‌پذیر (pluggable transport) را ندارد، پس پل‌های تور قابل استفاده نیستند؛ تور فقط جایی وصل می‌شود که مسدود نباشد</string>
+    <string name="aether_tor_needs_masque">حالت «اول تور، بعد WARP» فقط با پروتکل MASQUE کار می‌کند</string>
+    <string name="aether_tor_psiphon_conflict">تور و سایفون فقط به این شکل با هم کار می‌کنند: یکی درون تونل و دیگری دور آن</string>
+    <string name="aether_tor_bridges_missing">دست‌کم یک خط پل بنویسید، یا تنظیم دیگری برای پل‌ها انتخاب کنید</string>
     <string name="aether_lab_command">فرمان Aether</string>
     <string name="aether_command_custom">دستی ویرایش شده: این فرمان همان‌طور که نوشته شده اجرا می‌شود و تنظیمات بالا اعمال نمی‌شوند</string>
     <string name="aether_action_use_settings">استفاده از تنظیمات</string>
@@ -654,6 +662,18 @@
         <item>خودکار</item>
         <item>فقط از طریق CDN</item>
         <item>فقط مستقیم</item>
+    </string-array>
+    <string-array name="aether_tor_entries">
+        <item>خاموش</item>
+        <item>اول WARP، بعد تور</item>
+        <item>اول تور، بعد WARP</item>
+        <item>فقط تور</item>
+    </string-array>
+    <string-array name="aether_tor_bridges_entries">
+        <item>وقتی تور مسدود است</item>
+        <item>از همان ابتدا</item>
+        <item>هرگز</item>
+        <item>خط‌های پل خودم</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>خاموش</item>
