@@ -29,6 +29,9 @@ data class AetherCore(val arguments: List<String>) {
     /** The protocol, which tells whose identity files the core uses. */
     val protocol: AetherProtocol get() = AetherCoreManager.protocolOf(arguments)
 
+    /** The tunnel as the names of its parts from the outside in, carriers included; see [AetherCoreManager.pathOf]. */
+    val path: List<String> get() = AetherCoreManager.pathOf(arguments)
+
     /** The command line a profile or a custom configuration carries for this core; [ofCommand] reads it back. */
     val command: String get() = (listOf(COMMAND_NAME) + arguments).joinToString(" ", transform = ::quoted)
 

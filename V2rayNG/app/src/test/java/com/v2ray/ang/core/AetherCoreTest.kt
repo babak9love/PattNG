@@ -210,6 +210,15 @@ class AetherCoreTest {
     }
 
     @Test
+    fun aCoreNamesItsTunnelFromTheOutsideIn() {
+        assertEquals(listOf("WIREGUARD"), AetherCore.of(pinned).path)
+        assertEquals(listOf("WIREGUARD", "PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "chain")).path)
+        assertEquals(listOf("PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "only")).path)
+        assertEquals(listOf("TOR", "MASQUE"), AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherTor = "reverse")).path)
+        assertEquals(listOf("GOOL", "TOR"), AetherCore.ofCommand("aether --gool --tor")!!.path)
+    }
+
+    @Test
     fun theSameArgumentsAreTheSameCore() {
         assertEquals(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:20808"), AetherCore.ofCommand("aether --wg --bind 127.0.0.1:20808"))
         assertNotEquals(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:20808"), AetherCore.ofCommand("aether --wg --bind 127.0.0.1:20809"))

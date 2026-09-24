@@ -495,10 +495,53 @@ object AetherCoreManager {
      * command written that way is dialled on Psiphon's.
      */
     internal fun listenerFlagOf(arguments: List<String>): String = when {
-        "--psiphon" in arguments -> PSIPHON_BIND
-        "--tor" in arguments -> TOR_BIND
+        psiphonModeOf(arguments) == AetherPsiphon.CHAIN -> PSIPHON_BIND
+        torModeOf(arguments) == AetherTor.CHAIN -> TOR_BIND
         else -> "--bind"
     }
+
+    /** Where Tor stands in the tunnel [argv] runs, read the way the core reads it: the last mode flag wins. */
+    internal fun torModeOf(argv: List<String>): AetherTor = argv.fold(AetherTor.OFF) { mode, word ->
+        when (word) {
+            "--tor" -> AetherTor.CHAIN
+            "--tor-reverse" -> AetherTor.REVERSE
+            "--tor-only" -> AetherTor.ONLY
+            else -> mode
+        }
+    }
+
+    /** Where Psiphon stands in the tunnel [argv] runs, read the way the core reads it: the last mode flag wins. */
+    internal fun psiphonModeOf(argv: List<String>): AetherPsiphon = argv.fold(AetherPsiphon.OFF) { mode, word ->
+        when (word) {
+            "--psiphon" -> AetherPsiphon.CHAIN
+            "--psiphon-reverse" -> AetherPsiphon.REVERSE
+            "--psiphon-only" -> AetherPsiphon.ONLY
+            else -> mode
+        }
+    }
+
+    /**
+     * The tunnel [argv] runs, as the names of its parts from the outside in: a carrier around the
+     * tunnel, the WARP protocol, a carrier inside it. A carrier alone is the whole tunnel, and Tor
+     * alone comes before Psiphon alone, as the core runs it before it looks at Psiphon.
+     */
+    internal fun pathOf(argv: List<String>): List<String> {
+        val tor = torModeOf(argv)
+        val psiphon = psiphonModeOf(argv)
+        if (tor == AetherTor.ONLY) return listOf(TOR_NAME)
+        if (psiphon == AetherPsiphon.ONLY) return listOf(PSIPHON_NAME)
+        return buildList {
+            if (tor == AetherTor.REVERSE) add(TOR_NAME)
+            if (psiphon == AetherPsiphon.REVERSE) add(PSIPHON_NAME)
+            add(protocolOf(argv).name)
+            if (psiphon == AetherPsiphon.CHAIN) add(PSIPHON_NAME)
+            if (tor == AetherTor.CHAIN) add(TOR_NAME)
+        }
+    }
+
+    /** The carriers as [pathOf] names them, beside the names of [AetherProtocol]. */
+    private const val TOR_NAME = "TOR"
+    private const val PSIPHON_NAME = "PSIPHON"
 
     /** A core process is stale when its owner is known to be dead or it holds the address we are about to bind. */
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =

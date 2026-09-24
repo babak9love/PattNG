@@ -5,7 +5,9 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import kotlinx.coroutines.runBlocking
@@ -691,6 +693,27 @@ class AetherCoreManagerTest {
         val own = profile().copy(aetherTor = "only", aetherTorBridges = "own", aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0", aetherTorRelays = "only")
         assertNull(valueAfter(AetherCoreManager.buildArguments(own, 10819), "--tor-relays"))
         assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTorRelays = "only"), 10819), "--tor-relays"))
+    }
+
+    @Test
+    fun theTunnelIsNamedFromTheOutsideIn() {
+        fun path(vararg words: String) = AetherCoreManager.pathOf(words.toList())
+        assertEquals(listOf("MASQUE"), path("--bind", "127.0.0.1:10819"))
+        assertEquals(listOf("WIREGUARD", "PSIPHON"), path("--wg", "--psiphon"))
+        assertEquals(listOf("PSIPHON", "MASQUE"), path("--psiphon-reverse"))
+        assertEquals(listOf("MASQUE", "TOR"), path("--tor"))
+        assertEquals(listOf("TOR", "MIM"), path("--mim", "--tor-reverse"))
+        assertEquals(listOf("TOR", "GOOL", "PSIPHON"), path("--gool", "--psiphon", "--tor-reverse"))
+        assertEquals(listOf("PSIPHON", "WIREGUARD", "TOR"), path("--wg", "--tor", "--psiphon-reverse"))
+        // A carrier alone is the whole tunnel, whatever else is written; Tor alone comes first, as it does for the core.
+        assertEquals(listOf("PSIPHON"), path("--wg", "--psiphon-only"))
+        assertEquals(listOf("TOR"), path("--tor-only", "--psiphon"))
+        assertEquals(listOf("TOR"), path("--tor-only", "--psiphon-only"))
+        // The last mode flag wins, as it does for the core.
+        assertEquals(listOf("TOR"), path("--tor", "--tor-only"))
+        assertEquals(AetherTor.ONLY, AetherCoreManager.torModeOf(listOf("--tor", "--tor-only")))
+        assertEquals(AetherPsiphon.CHAIN, AetherCoreManager.psiphonModeOf(listOf("--psiphon-reverse", "--psiphon")))
+        assertEquals("--bind", AetherCoreManager.listenerFlagOf(listOf("--psiphon", "--psiphon-only")))
     }
 
     @Test
