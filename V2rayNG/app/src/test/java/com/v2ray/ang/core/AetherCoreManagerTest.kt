@@ -736,6 +736,28 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun whereTheAppDialsPsiphonReadinessNeedsTheCoresWord() {
+        assertTrue(AetherCoreManager.readyNeedsWord(listOf("--wg", "--psiphon", "--psiphon-bind", "127.0.0.1:10819")))
+        assertTrue(AetherCoreManager.readyNeedsWord(listOf("--psiphon-only", "--bind", "127.0.0.1:10819")))
+        // Around the tunnel the app dials WARP, whose listener comes up only once the tunnel stands.
+        assertFalse(AetherCoreManager.readyNeedsWord(listOf("--masque", "--psiphon-reverse")))
+        assertFalse(AetherCoreManager.readyNeedsWord(listOf("--wg", "--tor")))
+        assertFalse(AetherCoreManager.readyNeedsWord(listOf("--wg")))
+
+        assertTrue(AetherCoreManager.isReadyWord("[2026-09-24T10:00:00.000Z INFO  aether] [+] psiphon is ready; 127.0.0.1:10819 leaves through psiphon, carried by the tunnel"))
+        assertTrue(AetherCoreManager.isReadyWord("[2026-09-24T10:00:00.000Z INFO  aether] [+] psiphon is ready; 127.0.0.1:10819 leaves through psiphon"))
+        assertFalse(AetherCoreManager.isReadyWord("[2026-09-24T10:00:00.000Z INFO  aether] [*] starting psiphon through the tunnel at 127.0.0.1:10820"))
+        assertFalse(AetherCoreManager.isReadyWord("[2026-09-24T10:00:00.000Z INFO  aether] [+] psiphon reached a server at 203.0.113.9"))
+
+        // The word is an info line: a quieter core never writes it, and the listener alone decides then.
+        assertTrue(AetherCoreManager.showsInfo(listOf("--psiphon")))
+        assertTrue(AetherCoreManager.showsInfo(listOf("--psiphon", "--log-level", "debug")))
+        assertTrue(AetherCoreManager.showsInfo(listOf("--psiphon", "--verbose")))
+        assertFalse(AetherCoreManager.showsInfo(listOf("--psiphon", "--log-level", "warn")))
+        assertFalse(AetherCoreManager.showsInfo(listOf("--psiphon", "--log-level", "error")))
+    }
+
+    @Test
     fun aScanLeavesOutACarrierInsideTheTunnelAndKeepsOneAroundIt() {
         val inside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherPsiphonRegion = "DE"), 0, scan = true)
         assertFalse(inside.any { it.startsWith("--psiphon") })

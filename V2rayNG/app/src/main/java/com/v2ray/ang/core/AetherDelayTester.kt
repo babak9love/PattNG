@@ -154,13 +154,15 @@ object AetherDelayTester {
         val port = withContext(Dispatchers.IO) { Utils.findRandomFreePort() }
         // The clock starts before the spawn: the budget covers the whole test, as it does for every other profile.
         val deadline = deadlineAfter(TEST_BUDGET_MS)
+        val arguments = core.on(port).arguments
         return AetherCoreManager.withProcess(
             context = context,
-            arguments = core.on(port).arguments,
+            arguments = arguments,
             source = "aether-test",
             onOutput = {},
         ) { output ->
-            if (!awaitListening(port, output, deadline)) {
+            val needsWord = AetherCoreManager.readyNeedsWord(arguments) && AetherCoreManager.showsInfo(arguments)
+            if (!awaitListening(port, output, deadline, needsWord)) {
                 LogUtil.w(AppConfig.TAG, "AetherTest: the tunnel did not come up, guid=$guid")
                 return@withProcess -1L
             }
@@ -170,11 +172,19 @@ object AetherDelayTester {
         } ?: -1L
     }
 
-    private suspend fun awaitListening(port: Int, output: ReceiveChannel<String>, deadline: Long): Boolean {
+    /**
+     * Waits until the listener on [port] answers, and, with [needsWord], until the core has also
+     * written its word that the listener carries traffic; false when the core ends or [deadline] passes.
+     */
+    internal suspend fun awaitListening(port: Int, output: ReceiveChannel<String>, deadline: Long, needsWord: Boolean = false): Boolean {
+        var wordSeen = !needsWord
         while (System.nanoTime() < deadline) {
-            while (output.tryReceive().isSuccess) Unit
+            while (true) {
+                val line = output.tryReceive().getOrNull() ?: break
+                if (!wordSeen && AetherCoreManager.isReadyWord(line)) wordSeen = true
+            }
             if (output.isClosedForReceive) return false
-            if (withContext(Dispatchers.IO) { AetherCoreManager.answersSocks(port) }) return true
+            if (wordSeen && withContext(Dispatchers.IO) { AetherCoreManager.answersSocks(port) }) return true
             delay(POLL_INTERVAL_MS)
         }
         return false

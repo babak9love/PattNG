@@ -4,7 +4,10 @@ import com.v2ray.ang.core.AetherDelayTester.Route
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.EConfigType
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.DataInputStream
@@ -81,6 +84,28 @@ class AetherDelayTesterTest {
         assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MIM)), "a", session(AetherProtocol.WIREGUARD)))
         assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.MIM)))
     }
+
+    @Test
+    fun aTestCoreThatDialsPsiphonIsReadyOnlyOnTheCoresWord() = runBlocking {
+        SocksStub().use { socks ->
+            val output = Channel<String>(Channel.UNLIMITED)
+            // The listener answers, but nothing said yet: not ready within a short budget.
+            assertFalse(AetherDelayTester.awaitListening(socks.port, output, deadlineAfterMs(600), needsWord = true))
+            // Without the need, the answering listener is enough.
+            assertTrue(AetherDelayTester.awaitListening(socks.port, output, deadlineAfterMs(2_000), needsWord = false))
+
+            output.trySend("[2026-09-24T10:00:00.000Z INFO  aether] [*] starting psiphon through the tunnel at 127.0.0.1:10820")
+            output.trySend("[2026-09-24T10:00:00.000Z INFO  aether] [+] psiphon is ready; 127.0.0.1:${socks.port} leaves through psiphon, carried by the tunnel")
+            assertTrue(AetherDelayTester.awaitListening(socks.port, output, deadlineAfterMs(2_000), needsWord = true))
+
+            // A core that ends before its word is a failed test, not a wait.
+            val ended = Channel<String>(Channel.UNLIMITED)
+            ended.close()
+            assertFalse(AetherDelayTester.awaitListening(socks.port, ended, deadlineAfterMs(2_000), needsWord = true))
+        }
+    }
+
+    private fun deadlineAfterMs(ms: Long): Long = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ms)
 
     @Test
     fun aTcpPingProbesThePinnedEdgeInsteadOfOpeningATunnel() {

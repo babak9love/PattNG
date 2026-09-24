@@ -99,6 +99,16 @@ object AetherCoreManager {
     private val socksGreeting = byteArrayOf(5, 1, 0)
     private const val SOCKS_VERSION = 5
 
+    /**
+     * The core's word that Psiphon has a tunnel: "psiphon is ready". Psiphon's listener answers the
+     * greeting as soon as it is bound and closes every connection until then, so the greeting alone
+     * says nothing where the app dials Psiphon.
+     */
+    private val psiphonReady = Regex("""psiphon is ready""")
+
+    /** The levels at which the core writes its info lines, the ready word among them. */
+    private val infoLevels = setOf("info", "debug", "trace")
+
     private val logLevels = setOf("ERROR", "WARN", "INFO", "DEBUG", "TRACE")
     private val procDir = File("/proc")
 
@@ -343,13 +353,29 @@ object AetherCoreManager {
     @Synchronized
     fun start(context: Context, core: AetherCore, onExit: () -> Unit) {
         stop()
-        val next = Session(core.port, onExit)
-        session = next
         val appContext = context.applicationContext
-        val logLevel = coreLogLevel(MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL))
+        var logLevel = coreLogLevel(MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL))
+        // The ready word is an info line; a quieter setting must not leave a Psiphon session waiting for it.
+        if (readyNeedsWord(core.arguments) && logLevel !in infoLevels) logLevel = DEFAULT_LOG_LEVEL
         val arguments = withLogLevel(core.arguments, logLevel)
+        val next = Session(core.port, needsWord = readyNeedsWord(arguments) && showsInfo(arguments), onExit)
+        session = next
         lifecycle.execute { open(next, appContext, arguments) }
     }
+
+    /**
+     * True when the listener the app dials is Psiphon's, inside the tunnel or alone: it answers the
+     * greeting before it carries anything, so readiness needs the core's word as well.
+     */
+    internal fun readyNeedsWord(arguments: List<String>): Boolean =
+        psiphonModeOf(arguments).let { it == AetherPsiphon.CHAIN || it == AetherPsiphon.ONLY }
+
+    /** True when [line] is the core's word that the listener the app dials carries traffic now. */
+    internal fun isReadyWord(line: String): Boolean = psiphonReady.containsMatchIn(line)
+
+    /** True when a core started with [arguments] writes its info lines, at the level named or at the default. */
+    internal fun showsInfo(arguments: List<String>): Boolean =
+        "--verbose" in arguments || (valueAfter(arguments, "--log-level") ?: DEFAULT_LOG_LEVEL) in infoLevels
 
     @Synchronized
     fun stop() {
@@ -359,7 +385,7 @@ object AetherCoreManager {
     }
 
     suspend fun awaitListening(timeoutMs: Long): Boolean =
-        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { session?.port?.let(::answersSocks) == true })
+        awaitReady(timeoutMs, READY_POLL_MS, { isRunning }, { session?.let { it.wordSeen && answersSocks(it.port) } == true })
 
     internal suspend fun awaitReady(
         timeoutMs: Long,
@@ -707,7 +733,10 @@ object AetherCoreManager {
 
     private fun watch(target: Session, process: Process) {
         try {
-            process.inputStream.bufferedReader().forEachLine { relay(it, "aether") }
+            process.inputStream.bufferedReader().forEachLine { line ->
+                relay(line, "aether")
+                if (!target.wordSeen && isReadyWord(line)) target.wordSeen = true
+            }
         } catch (e: IOException) {
             LogUtil.d(AppConfig.TAG, "AetherCore: output closed: ${e.message}")
         }
@@ -724,7 +753,11 @@ object AetherCoreManager {
         return true
     }
 
-    private class Session(val port: Int, val onExit: () -> Unit) {
+    /** [wordSeen] starts true where no word is needed, so the listener alone decides there. */
+    private class Session(val port: Int, needsWord: Boolean, val onExit: () -> Unit) {
         var process: Process? = null
+
+        @Volatile
+        var wordSeen: Boolean = !needsWord
     }
 }
