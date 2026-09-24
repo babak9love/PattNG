@@ -3,8 +3,10 @@ package com.v2ray.ang.core
 import com.google.gson.Gson
 import com.v2ray.ang.AppConfig
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -55,6 +57,35 @@ class PsiphonServerListTest {
         // Not a list at all, and a list of nothing.
         assertThrows(IOException::class.java) { PsiphonServerList.unpack("not a list".toByteArray(), keyText) }
         assertThrows(IOException::class.java) { PsiphonServerList.unpack(pack(data = "\n"), keyText) }
+    }
+
+    @Test
+    fun theBundledListGoesOverACopyOnlyWhenItWasPublishedLater() {
+        val copy = File(folder.newFolder("assets"), AppConfig.PSIPHON_SERVERS_DAT)
+        assertTrue(PsiphonServerList.bundledListGoesOver(copy, 0L, keptByUser = false))
+        assertTrue(PsiphonServerList.bundledListGoesOver(copy, 0L, keptByUser = true))
+
+        copy.writeBytes(pack())
+        copy.setLastModified(1_700_000_000_000L)
+        // Published after the copy was made: a newer list.
+        assertTrue(PsiphonServerList.bundledListGoesOver(copy, 1_700_000_100_000L, keptByUser = false))
+        // Published at or before the copy's time: the copy holds that list already.
+        assertFalse(PsiphonServerList.bundledListGoesOver(copy, 1_700_000_000_000L, keptByUser = false))
+        assertFalse(PsiphonServerList.bundledListGoesOver(copy, 1_600_000_000_000L, keptByUser = false))
+        // Without a stamp there is no telling, and the copy stays.
+        assertFalse(PsiphonServerList.bundledListGoesOver(copy, 0L, keptByUser = false))
+        // A file the user picked stays whatever the build brings.
+        assertFalse(PsiphonServerList.bundledListGoesOver(copy, 1_700_000_100_000L, keptByUser = true))
+    }
+
+    @Test
+    fun thePublicationStampIsSecondsSinceTheEpochOrNothing() {
+        assertEquals(1_790_000_000_000L, PsiphonServerList.publishedAt("1790000000\n"))
+        assertEquals(1_790_000_000_000L, PsiphonServerList.publishedAt(" 1790000000 "))
+        assertEquals(0L, PsiphonServerList.publishedAt(null))
+        assertEquals(0L, PsiphonServerList.publishedAt(""))
+        assertEquals(0L, PsiphonServerList.publishedAt("yesterday"))
+        assertEquals(0L, PsiphonServerList.publishedAt("-5"))
     }
 
     @Test

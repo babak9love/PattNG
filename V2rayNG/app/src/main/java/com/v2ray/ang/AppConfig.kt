@@ -165,6 +165,9 @@ object AppConfig {
     const val PSIPHON_SERVERS_DAT = "psiphon_servers.dat"
     const val PSIPHON_SERVERS_URL = "https://s3.amazonaws.com//psiphon/web/mjr4-p23r-puwl/server_list_compressed"
 
+    /** When the bundled list was published, as the build recorded it from the download: seconds since the epoch. */
+    const val PSIPHON_SERVERS_STAMP = "psiphon_servers.stamp"
+
     /** Ports and addresses for various services. */
     const val PORT_LOCAL_DNS = "10853"
     const val PORT_SOCKS = "10808"

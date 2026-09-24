@@ -69,6 +69,22 @@ object PsiphonServerList {
     }
 
     /**
+     * When the bundled list was published, from the stamp the build writes beside it: the seconds
+     * since the epoch of the download's Last-Modified header, as millis; 0 without a usable stamp.
+     */
+    fun publishedAt(stamp: String?): Long = stamp?.trim()?.toLongOrNull()?.takeIf { it > 0 }?.times(1000) ?: 0L
+
+    /**
+     * Whether the bundled list, published at [publishedAt], goes over [copy] in the asset folder:
+     * when there is no copy, or when the list was published after the copy was made and the copy
+     * is not a file the user picked. A copy's time is when it was downloaded or, for one the app
+     * copied out, when its list was published; a download holds the list as published up to that
+     * moment, so a later publication is a newer list and an earlier one is not.
+     */
+    fun bundledListGoesOver(copy: File, publishedAt: Long, keptByUser: Boolean): Boolean =
+        !copy.exists() || (!keptByUser && publishedAt > copy.lastModified())
+
+    /**
      * The server entries inside [packed], a signed, compressed list as Psiphon writes it; throws
      * when it is not one, or is not signed with [signingKey]. Psiphon names the key by the digest
      * of its text as written, not of the key's bytes, and signs the entry text with it.

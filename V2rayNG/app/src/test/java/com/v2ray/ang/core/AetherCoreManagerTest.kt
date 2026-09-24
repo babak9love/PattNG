@@ -17,9 +17,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.DataInputStream
+import java.io.File
 import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.nio.file.Files
 import kotlin.concurrent.thread
 
 class AetherCoreManagerTest {
@@ -771,6 +773,35 @@ class AetherCoreManagerTest {
         // What Psiphon is told beyond the core's built-in configuration: resolvers for the names it looks up itself.
         assertTrue(AetherCoreManager.PSIPHON_OVERLAY.contains("\"DNSResolverAlternateServers\""))
         assertTrue(AetherCoreManager.PSIPHON_OVERLAY.contains("1.1.1.1"))
+    }
+
+    @Test
+    fun thePsiphonDatastoreLivesBesideTheIdentityDirectoryAndMovesOutOfItOnce() {
+        assertEquals("AETHER_PSIPHON_DIR", AetherCoreManager.PSIPHON_DIR_ENV)
+        val files = Files.createTempDirectory("pattng-files").toFile()
+        val work = File(files, "aether").apply { mkdirs() }
+        try {
+            // Nothing to move: the directory is named, not made; the core makes it.
+            val dir = AetherCoreManager.psiphonStateDir(files, work)
+            assertEquals(File(files, "psiphon"), dir)
+            assertFalse(dir.exists())
+
+            // A datastore the core had put inside the identity directory moves out.
+            val inside = File(work, "${AetherIdentityManager.BASE_FILE}-psiphon").apply { mkdirs() }
+            File(inside, "datastore").writeText("servers")
+            assertEquals(dir, AetherCoreManager.psiphonStateDir(files, work))
+            assertEquals("servers", File(dir, "datastore").readText())
+            assertFalse(inside.exists())
+
+            // Once out, whatever turns up inside later is left alone.
+            inside.mkdirs()
+            File(inside, "datastore").writeText("stale")
+            AetherCoreManager.psiphonStateDir(files, work)
+            assertEquals("servers", File(dir, "datastore").readText())
+            assertTrue(inside.exists())
+        } finally {
+            files.deleteRecursively()
+        }
     }
 
     @Test

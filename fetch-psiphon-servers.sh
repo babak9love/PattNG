@@ -10,10 +10,13 @@ __dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # core hands it to the client at start, so a fresh install has servers before it can reach the list
 # on its own; a fetched list is merged on top later. The list is checked here against Psiphon's
 # public key, the one the core and the app carry, so a broken or foreign download never ships.
+# psiphon_servers.stamp beside it records when the list was published, from the download's
+# Last-Modified header, so the app can tell a newer bundled list from an older one.
 
 APP_CONFIG="$__dir/V2rayNG/app/src/main/java/com/v2ray/ang/AppConfig.kt"
 KEY_SOURCE="$__dir/aether/aether/src/psiphon.rs"
 TARGET="$__dir/V2rayNG/app/src/main/assets/psiphon_servers.dat"
+STAMP="$__dir/V2rayNG/app/src/main/assets/psiphon_servers.stamp"
 
 # The first python that runs: on Windows, "python3" may be a store stub that only prints a hint.
 PY=""
@@ -43,12 +46,23 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 echo "[psiphon-servers] fetching $URL"
-curl -fsSL --retry 3 --retry-delay 5 --max-time 180 -o "$work/list" "$URL"
+curl -fsSL --retry 3 --retry-delay 5 --max-time 180 -D "$work/headers" -o "$work/list" "$URL"
 
 # Unpack the package for the check: the key as the core carries it, the entry text and the signature.
 "$PY" - "$work" "$KEY_SOURCE" <<'EOF'
-import base64, hashlib, io, json, re, sys, zlib
+import base64, email.utils, hashlib, io, json, re, sys, time, zlib
 work, key_source = sys.argv[1], sys.argv[2]
+published = None
+for line in io.open(work + "/headers", encoding="latin-1"):
+    if line.lower().startswith("last-modified:"):
+        parsed = email.utils.parsedate_tz(line.split(":", 1)[1].strip())
+        if parsed:
+            published = email.utils.mktime_tz(parsed)
+if published is None:
+    published = int(time.time())
+    print("[psiphon-servers] no Last-Modified header; the fetch time stands for the publication time")
+io.open(work + "/stamp", "w").write(str(published) + chr(10))
+print("[psiphon-servers] published %s" % time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(published)))
 source = io.open(key_source, encoding="utf-8").read()
 found = re.search(r'SERVER_LIST_SIGNATURE_KEY: &str = concat!\((.*?)\);', source, re.S)
 if not found:
@@ -73,5 +87,6 @@ openssl dgst -sha256 -verify "$work/key.pem" -signature "$work/sig.bin" "$work/d
 
 mkdir -p "$(dirname "$TARGET")"
 cp "$work/list" "$TARGET"
+cp "$work/stamp" "$STAMP"
 echo "[psiphon-servers] staged:"
-ls -la "$TARGET"
+ls -la "$TARGET" "$STAMP"

@@ -113,6 +113,10 @@ object AetherCoreManager {
 
     /** Environment variable naming the file of server entries the Psiphon client starts with; see [PsiphonServerList]. */
     internal const val PSIPHON_SERVER_ENTRIES_ENV = "AETHER_PSIPHON_SERVER_ENTRIES"
+
+    /** Environment variable naming the directory the Psiphon client keeps its datastore in; see [psiphonStateDir]. */
+    internal const val PSIPHON_DIR_ENV = "AETHER_PSIPHON_DIR"
+    private const val PSIPHON_STATE_DIR = "psiphon"
     private const val PSIPHON_OVERLAY_FILE = "psiphon-overlay.json"
     internal const val PSIPHON_OVERLAY = """{"DNSResolverAlternateServers": ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]}"""
 
@@ -305,6 +309,21 @@ object AetherCoreManager {
     internal fun withLogLevel(arguments: List<String>, logLevel: String): List<String> =
         if ("--log-level" in arguments || "--verbose" in arguments) arguments else arguments + listOf("--log-level", logLevel)
 
+    /**
+     * Where the Psiphon client keeps its datastore: the servers it was given, fetched and discovered.
+     * That state is no part of the WARP identity, so it lives beside the identity directory rather
+     * than inside it, which a renewal of the identity replaces. Left to itself the core derives the
+     * place from the identity file, inside that directory; a datastore still there moves out once.
+     */
+    internal fun psiphonStateDir(filesDir: File, workDir: File): File {
+        val dir = File(filesDir, PSIPHON_STATE_DIR)
+        val inside = File(workDir, "${AetherIdentityManager.BASE_FILE}-psiphon")
+        if (!dir.exists() && inside.isDirectory && !inside.renameTo(dir)) {
+            LogUtil.w(AppConfig.TAG, "AetherCoreManager: the Psiphon datastore could not leave the identity directory; the client starts over")
+        }
+        return dir
+    }
+
     internal fun startProcess(context: Context, arguments: List<String>, markSession: Boolean = false): Process {
         val workDir = AetherIdentityManager.workDir(context).apply { mkdirs() }
         val builder = ProcessBuilder(listOf(binary(context).absolutePath) + arguments)
@@ -320,6 +339,7 @@ object AetherCoreManager {
             certificateDirectories(File::isDirectory)?.let { put(CERT_DIR_ENV, it) }
             psiphonOverlay(workDir)?.let { put(PSIPHON_CONFIG_ENV, it.absolutePath) }
             PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir)?.let { put(PSIPHON_SERVER_ENTRIES_ENV, it.absolutePath) }
+            put(PSIPHON_DIR_ENV, psiphonStateDir(context.filesDir, workDir).absolutePath)
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)
