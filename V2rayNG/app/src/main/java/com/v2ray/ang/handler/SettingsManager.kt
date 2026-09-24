@@ -318,9 +318,15 @@ object SettingsManager {
 
         try {
             val geo = arrayOf(AppConfig.GEOSITE_DAT, AppConfig.GEOIP_DAT, AppConfig.GEOIP_ONLY_CN_PRIVATE_DAT)
+            // Every build ships the newest Psiphon server list, so a build newer than the copy replaces the
+            // copy; one the user updated or replaced since installing is newer than the build and stays.
+            val installedAt = File(context.applicationInfo.sourceDir).lastModified()
             assets.list("")
-                ?.filter { geo.contains(it) }
-                ?.filter { !File(extFolder, it).exists() }
+                ?.filter { geo.contains(it) || it == AppConfig.PSIPHON_SERVERS_DAT }
+                ?.filter { name ->
+                    val copy = File(extFolder, name)
+                    !copy.exists() || (name == AppConfig.PSIPHON_SERVERS_DAT && copy.lastModified() < installedAt)
+                }
                 ?.forEach {
                     val target = File(extFolder, it)
                     assets.open(it).use { input ->

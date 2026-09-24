@@ -110,6 +110,9 @@ object AetherCoreManager {
      * tunnel; inside the tunnel the names go to the core's proxy and are resolved there.
      */
     internal const val PSIPHON_CONFIG_ENV = "AETHER_PSIPHON_CONFIG"
+
+    /** Environment variable naming the file of server entries the Psiphon client starts with; see [PsiphonServerList]. */
+    internal const val PSIPHON_SERVER_ENTRIES_ENV = "AETHER_PSIPHON_SERVER_ENTRIES"
     private const val PSIPHON_OVERLAY_FILE = "psiphon-overlay.json"
     internal const val PSIPHON_OVERLAY = """{"DNSResolverAlternateServers": ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]}"""
 
@@ -316,6 +319,7 @@ object AetherCoreManager {
             }
             certificateDirectories(File::isDirectory)?.let { put(CERT_DIR_ENV, it) }
             psiphonOverlay(workDir)?.let { put(PSIPHON_CONFIG_ENV, it.absolutePath) }
+            PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir)?.let { put(PSIPHON_SERVER_ENTRIES_ENV, it.absolutePath) }
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)

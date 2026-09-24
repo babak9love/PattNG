@@ -150,6 +150,12 @@ jobs:
         cp -r ${{ github.workspace }}/libs-psiphon/. ${{ github.workspace }}/V2rayNG/app/libs/
         cp -r ${{ github.workspace }}/libs-pt/. ${{ github.workspace }}/V2rayNG/app/libs/
 
+    # Psiphon's client starts with the newest server list the build could fetch, so a fresh install has
+    # servers before it can reach the list on its own; see fetch-psiphon-servers.sh.
+    - name: Fetch the Psiphon server list
+      run: |
+        bash fetch-psiphon-servers.sh
+
     - name: Fetch AndroidLibXrayLite tag
       run: |
         pushd AndroidLibXrayLite

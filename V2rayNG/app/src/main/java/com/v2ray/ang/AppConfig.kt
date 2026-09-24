@@ -161,6 +161,10 @@ object AppConfig {
     const val GEOIP_ONLY_CN_PRIVATE_DAT = "geoip-only-cn-private.dat"
     const val GEOIP_ONLY_CN_PRIVATE_URL = "$GITHUB_RAW_URL/Loyalsoldier/geoip/release/$GEOIP_ONLY_CN_PRIVATE_DAT"
 
+    /** Psiphon's signed server list, as its client downloads it: shipped by every build and kept beside the geo files. */
+    const val PSIPHON_SERVERS_DAT = "psiphon_servers.dat"
+    const val PSIPHON_SERVERS_URL = "https://s3.amazonaws.com//psiphon/web/mjr4-p23r-puwl/server_list_compressed"
+
     /** Ports and addresses for various services. */
     const val PORT_LOCAL_DNS = "10853"
     const val PORT_SOCKS = "10808"
