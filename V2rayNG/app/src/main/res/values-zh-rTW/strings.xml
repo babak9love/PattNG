@@ -613,6 +613,7 @@
     <string name="aether_hint_exit_loc">DE,SE 表示只允許這些；!IR,RU 表示拒絕這些；留空則接受任意</string>
     <string name="aether_invalid_exit_loc">請填寫以逗號分隔的兩位國家代碼，前加 ! 表示拒絕</string>
     <string name="aether_lab_tor_relays">橋接來源</string>
+    <string name="aether_lab_advanced">進階設定</string>
     <string name="aether_lab_command">Aether 命令</string>
     <string name="aether_command_custom">已手動編輯：此命令按原樣執行，上方的設定不再生效</string>
     <string name="aether_action_use_settings">使用上方設定</string>

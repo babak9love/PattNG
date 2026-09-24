@@ -613,6 +613,7 @@
     <string name="aether_hint_exit_loc">DE,SE chỉ cho phép các nước đó; !IR,RU từ chối các nước đó; để trống chấp nhận mọi nơi</string>
     <string name="aether_invalid_exit_loc">Hãy nhập mã quốc gia hai chữ cái, phân cách bằng dấu phẩy, thêm ! ở đầu để từ chối</string>
     <string name="aether_lab_tor_relays">Nguồn bridge</string>
+    <string name="aether_lab_advanced">Cài đặt nâng cao</string>
     <string name="aether_lab_command">Lệnh Aether</string>
     <string name="aether_command_custom">Đã sửa tay: lệnh này chạy đúng như đã viết, các thiết lập bên trên không được áp dụng</string>
     <string name="aether_action_use_settings">Dùng thiết lập</string>

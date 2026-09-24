@@ -84,7 +84,7 @@ class ServerUiState(
     aetherTransport: String = AetherTransport.HTTP3.type,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
     aetherObfuscation: String = AetherObfuscation.AUTO.type,
-    aetherIpVersion: String = AetherIpVersion.V4.type,
+    aetherIpVersion: String = AetherIpVersion.DUAL.type,
     aetherWiwOuter: String = "",
     aetherWiwInner: String = "",
     aetherFragment: Boolean = false,
@@ -180,6 +180,17 @@ class ServerUiState(
     var aetherTorBridgeLines by mutableStateOf(aetherTorBridgeLines)
     var aetherTorRelays by mutableStateOf(aetherTorRelays)
     var aetherCommand by mutableStateOf(aetherCommand)
+
+    /**
+     * Whether an Aether setting the editor keeps folded away holds a value of its own, so that the
+     * folded section opens by itself and nothing set stays out of sight. The IP version is left
+     * out: profiles saved before both versions became the default carry IPv4 explicitly.
+     */
+    val hasAdvancedAetherSettings: Boolean
+        get() = aetherDns.isNotBlank() ||
+            aetherExitLoc.isNotBlank() ||
+            aetherListenPort.trim().let { it.isNotEmpty() && it != PORT_AETHER_SOCKS } ||
+            (targetStrategy.isNotBlank() && targetStrategy != TARGET_STRATEGY_AS_IS)
 
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)

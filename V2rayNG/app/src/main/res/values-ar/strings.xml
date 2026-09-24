@@ -623,6 +623,7 @@
     <string name="aether_hint_exit_loc">DE,SE يسمح بهذه فقط؛ !IR,RU يرفضها؛ الفراغ يقبل أي موقع</string>
     <string name="aether_invalid_exit_loc">اكتب رموز دول من حرفين مفصولة بفواصل، مع ! في البداية لرفضها</string>
     <string name="aether_lab_tor_relays">مصادر الجسور</string>
+    <string name="aether_lab_advanced">إعدادات متقدمة</string>
     <string name="aether_lab_command">أمر Aether</string>
     <string name="aether_command_custom">مُعدَّل يدويًا: يُنفَّذ هذا الأمر كما هو مكتوب، ولا تُطبَّق الإعدادات أعلاه</string>
     <string name="aether_action_use_settings">استخدام الإعدادات</string>

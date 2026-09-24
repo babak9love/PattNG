@@ -619,6 +619,7 @@
     <string name="aether_hint_exit_loc">DE,SE разрешает только эти страны; !IR,RU запрещает их; пустое поле принимает любую</string>
     <string name="aether_invalid_exit_loc">Укажите двухбуквенные коды стран через запятую, с ! в начале для запрета</string>
     <string name="aether_lab_tor_relays">Источники мостов</string>
+    <string name="aether_lab_advanced">Дополнительные настройки</string>
     <string name="aether_lab_command">Команда Aether</string>
     <string name="aether_command_custom">Изменено вручную: эта команда выполняется как написана, настройки выше не применяются</string>
     <string name="aether_action_use_settings">Использовать настройки</string>

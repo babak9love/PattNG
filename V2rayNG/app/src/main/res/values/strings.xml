@@ -618,6 +618,7 @@
     <string name="aether_hint_exit_loc">DE,SE allows only those; !IR,RU refuses those; blank accepts any</string>
     <string name="aether_invalid_exit_loc">Write two-letter country codes separated by commas, with a leading ! to refuse them</string>
     <string name="aether_lab_tor_relays">Bridge sources</string>
+    <string name="aether_lab_advanced">Advanced settings</string>
     <string name="aether_lab_command">Aether command</string>
     <string name="aether_command_custom">Edited by hand: this command runs as written, and the settings above are not applied</string>
     <string name="aether_action_use_settings">Use the settings</string>

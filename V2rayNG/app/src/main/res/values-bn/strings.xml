@@ -615,6 +615,7 @@
     <string name="aether_hint_exit_loc">DE,SE শুধু সেগুলো অনুমোদন করে; !IR,RU সেগুলো প্রত্যাখ্যান করে; খালি রাখলে যেকোনোটি</string>
     <string name="aether_invalid_exit_loc">কমা দিয়ে আলাদা করা দুই অক্ষরের দেশের কোড লিখুন, প্রত্যাখ্যানের জন্য শুরুতে !</string>
     <string name="aether_lab_tor_relays">ব্রিজের উৎস</string>
+    <string name="aether_lab_advanced">উন্নত সেটিংস</string>
     <string name="aether_lab_command">Aether কমান্ড</string>
     <string name="aether_command_custom">হাতে সম্পাদিত: এই কমান্ড যেমন লেখা তেমনই চলে, উপরের সেটিংস প্রয়োগ হয় না</string>
     <string name="aether_action_use_settings">সেটিংস ব্যবহার করুন</string>

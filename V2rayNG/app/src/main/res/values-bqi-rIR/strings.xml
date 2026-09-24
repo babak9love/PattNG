@@ -615,6 +615,7 @@
     <string name="aether_hint_exit_loc">DE,SE فقط هموناره مجاز اکنه؛ !IR,RU اونونه رد اکنه؛ خالی یعنی هر ولاتی</string>
     <string name="aether_invalid_exit_loc">کدیای دوحرفی ولات نه وا کاما سوا بنویسین، وا ! من اول سی رد کردن</string>
     <string name="aether_lab_tor_relays">منبع پل‌یا</string>
+    <string name="aether_lab_advanced">تنظیمات پیشرفته</string>
     <string name="aether_lab_command">فرمان Aether</string>
     <string name="aether_command_custom">وا دست ویرایش بیده: ای فرمان همی‌طور که نوشته بیده اجرا ابۊ وو تنظیمات بالا اعمال نیبۊن</string>
     <string name="aether_action_use_settings">استفاده زه تنظیمات</string>

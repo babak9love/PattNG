@@ -170,6 +170,31 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun theFoldedSettingsAnnounceThemselvesOnlyWhenOneHoldsAValue() {
+        val state = ServerUiState.from(ProfileItem.create(EConfigType.AETHER))
+        assertEquals(AetherIpVersion.DUAL.type, state.aetherIpVersion)
+        assertEquals(false, state.hasAdvancedAetherSettings)
+
+        // The IP version does not count: profiles from before the dual-stack default all carry IPv4.
+        state.aetherIpVersion = AetherIpVersion.V4.type
+        assertEquals(false, state.hasAdvancedAetherSettings)
+        state.aetherListenPort = " ${AppConfig.PORT_AETHER_SOCKS} "
+        assertEquals(false, state.hasAdvancedAetherSettings)
+
+        state.aetherListenPort = "20808"
+        assertEquals(true, state.hasAdvancedAetherSettings)
+        state.aetherListenPort = ""
+        state.aetherDns = "1.1.1.1"
+        assertEquals(true, state.hasAdvancedAetherSettings)
+        state.aetherDns = ""
+        state.aetherExitLoc = "!IR"
+        assertEquals(true, state.hasAdvancedAetherSettings)
+        state.aetherExitLoc = ""
+        state.targetStrategy = "UseIPv4v6"
+        assertEquals(true, state.hasAdvancedAetherSettings)
+    }
+
+    @Test
     fun aCommandIsStoredOnlyWhenItSaysMoreThanTheSettings() {
         val profile = ProfileItem.create(EConfigType.AETHER)
         val state = ServerUiState.from(profile)

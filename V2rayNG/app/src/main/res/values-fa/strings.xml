@@ -615,6 +615,7 @@
     <string name="aether_hint_exit_loc">DE,SE فقط همان‌ها را مجاز می‌کند؛ !IR,RU آن‌ها را رد می‌کند؛ خالی یعنی هر کشوری</string>
     <string name="aether_invalid_exit_loc">کدهای دوحرفی کشور را با کاما جدا بنویسید، با ! در ابتدا برای رد کردن</string>
     <string name="aether_lab_tor_relays">منبع پل‌ها</string>
+    <string name="aether_lab_advanced">تنظیمات پیشرفته</string>
     <string name="aether_lab_command">فرمان Aether</string>
     <string name="aether_command_custom">دستی ویرایش شده: این فرمان همان‌طور که نوشته شده اجرا می‌شود و تنظیمات بالا اعمال نمی‌شوند</string>
     <string name="aether_action_use_settings">استفاده از تنظیمات</string>

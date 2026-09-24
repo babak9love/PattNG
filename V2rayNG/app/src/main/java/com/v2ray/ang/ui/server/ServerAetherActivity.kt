@@ -64,6 +64,7 @@ import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.SettingsManager
+import com.v2ray.ang.ui.compose.CollapsiblePreferenceGroupHeader
 import com.v2ray.ang.ui.compose.ConfirmDialog
 import com.v2ray.ang.ui.compose.FormDropdownField
 import com.v2ray.ang.ui.compose.FormTextField
@@ -107,6 +108,8 @@ class ServerAetherActivity : BaseServerActivity() {
         val session by viewModel.session.collectAsStateWithLifecycle()
         val log by viewModel.log.collectAsStateWithLifecycle()
         var showRenewConfirm by rememberSaveable { mutableStateOf(false) }
+        // Folded away unless one of its settings holds a value, so a profile that set one shows it at once.
+        var showAdvanced by rememberSaveable { mutableStateOf(uiState.hasAdvancedAetherSettings) }
         val isScanning = scanState == AetherScanState.Scanning
         val isBusy = isScanning || isRenewingIdentity
         // The key files are shared by every Aether profile, so a live session on any of them blocks renewal.
@@ -216,34 +219,7 @@ class ServerAetherActivity : BaseServerActivity() {
                     values = R.array.aether_obfuscation_values,
                     onValueChange = { uiState.aetherObfuscation = it }
                 )
-                AetherDropdownField(
-                    label = R.string.aether_lab_ip_version,
-                    value = uiState.aetherIpVersion,
-                    entries = R.array.aether_ip_entries,
-                    values = R.array.aether_ip_values,
-                    onValueChange = { uiState.aetherIpVersion = it }
-                )
-                FormTextField(
-                    stringResource(R.string.aether_lab_dns),
-                    uiState.aetherDns,
-                    { uiState.aetherDns = it },
-                    placeholder = stringResource(R.string.aether_hint_dns)
-                )
-                FormTextField(
-                    stringResource(R.string.aether_lab_exit_loc),
-                    uiState.aetherExitLoc,
-                    { uiState.aetherExitLoc = it },
-                    placeholder = stringResource(R.string.aether_hint_exit_loc)
-                )
             }
-            CommonTargetStrategyField(uiState)
-            FormTextField(
-                stringResource(R.string.aether_lab_listen_port),
-                uiState.aetherListenPort,
-                { uiState.aetherListenPort = it },
-                keyboardType = KeyboardType.Number,
-                placeholder = AppConfig.PORT_AETHER_SOCKS
-            )
             AetherDropdownField(
                 label = R.string.aether_lab_psiphon,
                 value = uiState.aetherPsiphon,
@@ -417,6 +393,42 @@ class ServerAetherActivity : BaseServerActivity() {
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
+            }
+            CollapsiblePreferenceGroupHeader(
+                title = stringResource(R.string.aether_lab_advanced),
+                expanded = showAdvanced,
+                onExpandedChange = { showAdvanced = it }
+            )
+            if (showAdvanced) {
+                if (warpUsed) {
+                    AetherDropdownField(
+                        label = R.string.aether_lab_ip_version,
+                        value = uiState.aetherIpVersion,
+                        entries = R.array.aether_ip_entries,
+                        values = R.array.aether_ip_values,
+                        onValueChange = { uiState.aetherIpVersion = it }
+                    )
+                    FormTextField(
+                        stringResource(R.string.aether_lab_dns),
+                        uiState.aetherDns,
+                        { uiState.aetherDns = it },
+                        placeholder = stringResource(R.string.aether_hint_dns)
+                    )
+                    FormTextField(
+                        stringResource(R.string.aether_lab_exit_loc),
+                        uiState.aetherExitLoc,
+                        { uiState.aetherExitLoc = it },
+                        placeholder = stringResource(R.string.aether_hint_exit_loc)
+                    )
+                }
+                CommonTargetStrategyField(uiState)
+                FormTextField(
+                    stringResource(R.string.aether_lab_listen_port),
+                    uiState.aetherListenPort,
+                    { uiState.aetherListenPort = it },
+                    keyboardType = KeyboardType.Number,
+                    placeholder = AppConfig.PORT_AETHER_SOCKS
+                )
             }
             if (!isCoreAvailable) {
                 Text(
