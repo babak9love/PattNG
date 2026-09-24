@@ -403,7 +403,13 @@ object AetherCoreManager {
 
     internal fun startProcess(context: Context, arguments: List<String>, markSession: Boolean = false): Process {
         val workDir = AetherIdentityManager.workDir(context).apply { mkdirs() }
-        val shippedList = if (PSIPHON_SERVER_ENTRIES in arguments) PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir) else null
+        val shippedList = if (PSIPHON_SERVER_ENTRIES in arguments) {
+            PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir) { problem ->
+                LogUtil.w(AppConfig.TAG, "AetherCore: ${AppConfig.PSIPHON_SERVERS_DAT} is not a usable Psiphon list; the entries kept from before stay", problem)
+            }
+        } else {
+            null
+        }
         val builder = ProcessBuilder(listOf(binary(context).absolutePath) + withShippedList(arguments, shippedList))
             .directory(workDir)
             .redirectErrorStream(true)

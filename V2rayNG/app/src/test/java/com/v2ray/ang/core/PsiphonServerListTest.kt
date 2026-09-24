@@ -107,10 +107,12 @@ class PsiphonServerListTest {
         source.setLastModified(source.lastModified() + 5_000)
         assertEquals(more, PsiphonServerList.entriesFile(assets, work, keyText)!!.readText())
 
-        // A broken replacement leaves the last good entries in place.
+        // A broken replacement leaves the last good entries in place, and says why.
         source.writeBytes("garbage".toByteArray())
         source.setLastModified(source.lastModified() + 5_000)
-        assertEquals(more, PsiphonServerList.entriesFile(assets, work, keyText)!!.readText())
+        val problems = mutableListOf<IOException>()
+        assertEquals(more, PsiphonServerList.entriesFile(assets, work, keyText, problems::add)!!.readText())
+        assertEquals(1, problems.size)
 
         // Without the list there is nothing to hand on.
         source.delete()

@@ -2,7 +2,6 @@ package com.v2ray.ang.core
 
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
-import com.v2ray.ang.util.LogUtil
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -42,10 +41,10 @@ object PsiphonServerList {
 
     /**
      * The entries file for the list in [assetDir], unpacked into [workDir] when the list is new
-     * or has changed since; the entries kept from before when the list there cannot be used, and
-     * null when there is no list at all.
+     * or has changed since; the entries kept from before when the list there cannot be used, with
+     * the reason given to [onProblem], and null when there is no list at all.
      */
-    fun entriesFile(assetDir: File, workDir: File, signingKey: String = SIGNING_KEY): File? {
+    fun entriesFile(assetDir: File, workDir: File, signingKey: String = SIGNING_KEY, onProblem: (IOException) -> Unit = {}): File? {
         val source = File(assetDir, AppConfig.PSIPHON_SERVERS_DAT)
         if (!source.isFile) return null
         val entries = File(workDir, ENTRIES_FILE)
@@ -63,7 +62,7 @@ object PsiphonServerList {
             mark.writeText(stamp)
             entries
         } catch (e: IOException) {
-            LogUtil.w(AppConfig.TAG, "PsiphonServerList: ${source.name} is not a usable list, the entries kept from before stay", e)
+            onProblem(e)
             entries.takeIf { it.isFile }
         }
     }
