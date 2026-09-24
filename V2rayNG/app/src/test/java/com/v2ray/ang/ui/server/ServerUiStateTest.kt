@@ -84,26 +84,34 @@ class ServerUiStateTest {
         val state = ServerUiState.from(profile)
         assertEquals("off", state.aetherPsiphon)
         assertEquals("auto", state.aetherPsiphonMode)
+        assertEquals(true, state.aetherPsiphonBundledList)
         assertNull(state.toProfileItem(profile).aetherPsiphon)
         assertNull(state.toProfileItem(profile).aetherPsiphonMode)
 
         state.aetherPsiphonMode = "cdn"
         state.aetherPsiphonRegion = "DE"
+        state.aetherPsiphonBundledList = false
         // Settings of a Psiphon that is off are not kept.
         assertNull(state.toProfileItem(profile).aetherPsiphonMode)
         assertNull(state.toProfileItem(profile).aetherPsiphonRegion)
+        assertNull(state.toProfileItem(profile).aetherPsiphonBundledList)
 
         state.aetherPsiphon = "chain"
         val stored = state.toProfileItem(profile)
         assertEquals("chain", stored.aetherPsiphon)
         assertEquals("cdn", stored.aetherPsiphonMode)
         assertEquals("DE", stored.aetherPsiphonRegion)
+        assertEquals(false, stored.aetherPsiphonBundledList)
         assertNull(stored.aetherPsiphonCdnIps)
 
         val reloaded = ServerUiState.from(stored)
         assertEquals("chain", reloaded.aetherPsiphon)
         assertEquals("cdn", reloaded.aetherPsiphonMode)
         assertEquals("DE", reloaded.aetherPsiphonRegion)
+        assertEquals(false, reloaded.aetherPsiphonBundledList)
+        // Yes is the default and is stored as nothing.
+        reloaded.aetherPsiphonBundledList = true
+        assertNull(reloaded.toProfileItem(stored).aetherPsiphonBundledList)
         assertEquals("", reloaded.aetherPsiphonCdnIps)
     }
 

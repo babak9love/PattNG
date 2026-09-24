@@ -76,6 +76,7 @@ class AetherFmtTest {
             aetherPsiphonCdnIps = "1.1.1.1,1.0.0.1"
             aetherPsiphonCdnSni = "a.example,b.example"
             aetherPsiphonRegion = "DE"
+            aetherPsiphonBundledList = false
         }
         val parsed = AetherFmt.parse(link(chained))
         assertEquals("chain", parsed?.aetherPsiphon)
@@ -83,12 +84,17 @@ class AetherFmtTest {
         assertEquals("1.1.1.1,1.0.0.1", parsed?.aetherPsiphonCdnIps)
         assertEquals("a.example,b.example", parsed?.aetherPsiphonCdnSni)
         assertEquals("DE", parsed?.aetherPsiphonRegion)
+        assertEquals(false, parsed?.aetherPsiphonBundledList)
 
         val plain = AetherFmt.toUri(profile {})
         assertFalse(plain.contains("psiphon"))
         val parsedPlain = AetherFmt.parse(link(profile {}))
         assertNull(parsedPlain?.aetherPsiphon)
         assertNull(parsedPlain?.aetherPsiphonMode)
+
+        // Starting from the bundled list is the default and needs no word in a link.
+        assertFalse(AetherFmt.toUri(profile { aetherPsiphon = "chain" }).contains("psiphon_bundled"))
+        assertNull(AetherFmt.parse(link(profile { aetherPsiphon = "chain" }))?.aetherPsiphonBundledList)
     }
 
     @Test
@@ -99,18 +105,25 @@ class AetherFmtTest {
             aetherPsiphonCdnIps = " 1.1.1.1, 1.0.0.1  8.8.8.8 "
             aetherPsiphonCdnSni = ""
             aetherPsiphonRegion = " de "
+            aetherPsiphonBundledList = true
         }
         assertNull(AetherFmt.normalize(chained))
         assertEquals("auto", chained.aetherPsiphonMode)
         assertEquals("1.1.1.1,1.0.0.1,8.8.8.8", chained.aetherPsiphonCdnIps)
         assertNull(chained.aetherPsiphonCdnSni)
         assertEquals("DE", chained.aetherPsiphonRegion)
+        // Yes is the default and is stored as nothing; no stays.
+        assertNull(chained.aetherPsiphonBundledList)
+        val fresh = profile { aetherPsiphon = "chain"; aetherPsiphonBundledList = false }
+        assertNull(AetherFmt.normalize(fresh))
+        assertEquals(false, fresh.aetherPsiphonBundledList)
 
-        val off = profile { aetherPsiphon = "off"; aetherPsiphonMode = "cdn"; aetherPsiphonRegion = "DE" }
+        val off = profile { aetherPsiphon = "off"; aetherPsiphonMode = "cdn"; aetherPsiphonRegion = "DE"; aetherPsiphonBundledList = false }
         assertNull(AetherFmt.normalize(off))
         assertNull(off.aetherPsiphon)
         assertNull(off.aetherPsiphonMode)
         assertNull(off.aetherPsiphonRegion)
+        assertNull(off.aetherPsiphonBundledList)
     }
 
     @Test

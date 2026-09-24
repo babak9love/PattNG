@@ -595,6 +595,13 @@
     <string name="aether_hint_psiphon_list">با کاما جدا کنید؛ خالی بگذارید تا فهرست داخلی استفاده شود</string>
     <string name="aether_lab_psiphon_region">کشور خروجی</string>
     <string name="aether_hint_psiphon_region">کد کشور مانند DE؛ خالی یعنی هر کشوری</string>
+    <string name="aether_lab_psiphon_bundled_list">شروع از فهرست سرورهای همراه برنامه</string>
+    <string name="aether_hint_psiphon_bundled_list">روشن: سایفون بی‌درنگ سرورهای psiphon_servers.dat را امتحان می‌کند و فهرست تازه را فقط وقتی می‌گیرد که آن‌ها کار نکنند. خاموش: پیش از نخستین اتصال فهرست تازه را می‌گیرد، پس فهرست باید در دسترس باشد، مثلاً از پشت WARP</string>
+    <string name="aether_action_clear_psiphon">پاک کردن داده‌های سایفون</string>
+    <string name="aether_hint_clear_psiphon">سرورهایی که سایفون یاد گرفته و فهرست‌هایی که گرفته فراموش می‌شوند. شروع بعدی دوباره از فهرست همراه برنامه است، یا اگر گزینهٔ بالا خاموش باشد، از یک دریافت تازه</string>
+    <string name="aether_log_psiphon_cleared">داده‌های سایفون پاک شد</string>
+    <string name="aether_log_psiphon_clear_failed">داده‌های سایفون پاک نشد</string>
+    <string name="aether_psiphon_clear_blocked">پیش از پاک کردن داده‌های سایفون، اتصال Aether را قطع کنید؛ اتصال فعلی از آن‌ها استفاده می‌کند</string>
     <string name="aether_psiphon_unavailable">این نسخه کلاینت سایفون را ندارد؛ پروفایلی که از سایفون استفاده کند نمی‌تواند وصل شود</string>
     <string name="aether_psiphon_needs_masque">حالت «اول سایفون، بعد WARP» فقط با پروتکل MASQUE کار می‌کند</string>
     <string name="aether_next_port_taken">با تور یا سایفون در مسیر، هسته پورت‌های بعد از پورت گوش‌دادن را هم استفاده می‌کند؛ هیچ‌کدام نمی‌تواند پورت پروکسی محلی برنامه باشد</string>

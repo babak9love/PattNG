@@ -148,6 +148,25 @@ class ServerAetherViewModel(
         }
     }
 
+    /** Forgets what Psiphon has learned, unless a session runs on it; the outcome goes to the log. */
+    fun clearPsiphonData() {
+        if (isBusy) return
+        viewModelScope.launch {
+            // Checked again at the tap, the session may have come up after the screen opened.
+            val session = source.activeSession()
+            _session.value = session
+            if (session != null) {
+                append(Log.WARN, AetherLogText.Resource(R.string.aether_psiphon_clear_blocked))
+                return@launch
+            }
+            val cleared = source.clearPsiphonData()
+            append(
+                if (cleared) Log.INFO else Log.ERROR,
+                AetherLogText.Resource(if (cleared) R.string.aether_log_psiphon_cleared else R.string.aether_log_psiphon_clear_failed),
+            )
+        }
+    }
+
     private fun reportIdentity(status: AetherIdentityStatus, onlyChanges: Boolean) {
         if (onlyChanges && status == reportedIdentity) return
         reportedIdentity = status

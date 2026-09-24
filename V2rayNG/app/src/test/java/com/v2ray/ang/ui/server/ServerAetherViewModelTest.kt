@@ -39,6 +39,7 @@ class ServerAetherViewModelTest {
         var session: AetherSession? = null
         var scanner: suspend (ProfileItem, (String) -> Unit) -> AetherScanResult? = { _, _ -> null }
         var renewer: suspend (ProfileItem, (String) -> Unit) -> AetherIdentityStatus? = { _, _ -> null }
+        var clearer: suspend () -> Boolean = { true }
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
 
         override suspend fun isCoreAvailable() = available
@@ -50,6 +51,7 @@ class ServerAetherViewModelTest {
             identities[protocol] ?: AetherIdentityStatus(protocol, null)
 
         override suspend fun renewIdentity(profile: ProfileItem, onOutput: (String) -> Unit) = renewer(profile, onOutput)
+        override suspend fun clearPsiphonData() = clearer()
     }
 
     private val source = FakeSource()
@@ -284,6 +286,34 @@ class ServerAetherViewModelTest {
         source.session = AetherSession(AetherProtocol.MASQUE)
 
         assertEquals(AetherSession(AetherProtocol.MASQUE), viewModel().session.value)
+    }
+
+    @Test
+    fun psiphonDataIsNotClearedUnderALiveSessionAndTheLogTellsTheOutcome() {
+        var clears = 0
+        source.clearer = { clears++; true }
+        val viewModel = viewModel()
+
+        source.session = AetherSession(AetherProtocol.MASQUE)
+        viewModel.clearPsiphonData()
+        assertEquals(0, clears)
+        val blocked = viewModel.log.value.single()
+        assertEquals(resource(R.string.aether_psiphon_clear_blocked), blocked.text)
+        assertEquals(Log.WARN, blocked.priority)
+
+        source.session = null
+        viewModel.clearPsiphonData()
+        assertEquals(1, clears)
+        val cleared = viewModel.log.value.last()
+        assertEquals(resource(R.string.aether_log_psiphon_cleared), cleared.text)
+        assertEquals(Log.INFO, cleared.priority)
+
+        source.clearer = { clears++; false }
+        viewModel.clearPsiphonData()
+        assertEquals(2, clears)
+        val failed = viewModel.log.value.last()
+        assertEquals(resource(R.string.aether_log_psiphon_clear_failed), failed.text)
+        assertEquals(Log.ERROR, failed.priority)
     }
 
     @Test

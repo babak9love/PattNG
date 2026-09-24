@@ -595,6 +595,13 @@
     <string name="aether_hint_psiphon_list">কমা দিয়ে আলাদা করুন; খালি রাখলে অন্তর্নির্মিত তালিকা ব্যবহৃত হবে</string>
     <string name="aether_lab_psiphon_region">প্রস্থান দেশ</string>
     <string name="aether_hint_psiphon_region">দেশের কোড যেমন DE; খালি রাখলে যেকোনো</string>
+    <string name="aether_lab_psiphon_bundled_list">অ্যাপের সাথে দেওয়া সার্ভার তালিকা থেকে শুরু</string>
+    <string name="aether_hint_psiphon_bundled_list">চালু: Psiphon সঙ্গে সঙ্গে psiphon_servers.dat-এর সার্ভারগুলো চেষ্টা করে এবং সেগুলো ব্যর্থ হলেই নতুন তালিকা আনে। বন্ধ: প্রথম সংযোগের আগে নতুন তালিকা আনে, তাই তালিকাটি পৌঁছানোর মতো হতে হবে, যেমন WARP-এর পেছন থেকে</string>
+    <string name="aether_action_clear_psiphon">Psiphon ডেটা মুছুন</string>
+    <string name="aether_hint_clear_psiphon">Psiphon যে সার্ভারগুলো শিখেছে এবং যে তালিকাগুলো এনেছে তা ভুলে যায়। পরের বার আবার দেওয়া তালিকা থেকে শুরু হয়, বা উপরের সুইচ বন্ধ থাকলে নতুন ডাউনলোড থেকে</string>
+    <string name="aether_log_psiphon_cleared">Psiphon ডেটা মুছে ফেলা হয়েছে</string>
+    <string name="aether_log_psiphon_clear_failed">Psiphon ডেটা মোছা যায়নি</string>
+    <string name="aether_psiphon_clear_blocked">Psiphon ডেটা মোছার আগে Aether প্রোফাইল সংযোগ বিচ্ছিন্ন করুন; চলমান সংযোগ এটি ব্যবহার করছে</string>
     <string name="aether_psiphon_unavailable">এই বিল্ডে Psiphon ক্লায়েন্ট নেই, তাই Psiphon সহ প্রোফাইল সংযোগ করতে পারবে না</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP শুধু MASQUE প্রোটোকলের সাথে কাজ করে</string>
     <string name="aether_next_port_taken">পথে Tor বা Psiphon থাকলে কোর শোনার পোর্টের পরের পোর্টগুলোও ব্যবহার করে; সেগুলোর কোনোটিই অ্যাপের লোকাল প্রক্সি পোর্ট হতে পারবে না</string>

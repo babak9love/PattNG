@@ -111,8 +111,11 @@ object AetherCoreManager {
      */
     internal const val PSIPHON_CONFIG_ENV = "AETHER_PSIPHON_CONFIG"
 
-    /** Environment variable naming the file of server entries the Psiphon client starts with; see [PsiphonServerList]. */
-    internal const val PSIPHON_SERVER_ENTRIES_ENV = "AETHER_PSIPHON_SERVER_ENTRIES"
+    /** The core's flag naming the file of server entries the Psiphon client starts with; see [PsiphonServerList]. */
+    internal const val PSIPHON_SERVER_ENTRIES = "--psiphon-server-entries"
+
+    /** The word a command names the app's own list by; the real file takes its place when the core starts. */
+    internal const val SHIPPED_LIST = "shipped-list"
 
     /** Environment variable naming the directory the Psiphon client keeps its datastore in; see [psiphonStateDir]. */
     internal const val PSIPHON_DIR_ENV = "AETHER_PSIPHON_DIR"
@@ -288,6 +291,8 @@ object AetherCoreManager {
                 cdnIps?.let { addAll(listOf("--psiphon-cdn-ips", it)) }
                 if (cdnIps != null) profile.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-sni", it)) }
                 profile.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-region", it)) }
+                // The bundled list, unless the profile wants Psiphon to fetch a fresh one before it dials anything.
+                if (profile.aetherPsiphonBundledList != false) addAll(listOf(PSIPHON_SERVER_ENTRIES, SHIPPED_LIST))
             }
             addAll(listOf("--log-level", logLevel))
         }
@@ -324,9 +329,36 @@ object AetherCoreManager {
         return dir
     }
 
+    /**
+     * Forgets what the Psiphon client has learned: its datastore beside the identity directory, and
+     * one still inside it. Its next start begins from the bundled list again, or from a fresh
+     * download. For when no core runs; the caller makes sure of that. True when both are gone.
+     */
+    internal fun clearPsiphonState(filesDir: File, workDir: File): Boolean {
+        val dirs = listOf(File(filesDir, PSIPHON_STATE_DIR), File(workDir, "${AetherIdentityManager.BASE_FILE}-psiphon"))
+        dirs.forEach { it.deleteRecursively() }
+        return dirs.none { it.exists() }
+    }
+
+    /**
+     * [arguments] as the core is started with them: the word [SHIPPED_LIST] after [PSIPHON_SERVER_ENTRIES]
+     * gives way to [entries], the app's unpacked list, or the flag goes when there is no such file. A
+     * file of the command's own is left as written.
+     */
+    internal fun withShippedList(arguments: List<String>, entries: File?): List<String> {
+        val at = arguments.indexOf(PSIPHON_SERVER_ENTRIES)
+        if (at < 0 || arguments.getOrNull(at + 1) != SHIPPED_LIST) return arguments
+        return if (entries == null) {
+            arguments.filterIndexed { index, _ -> index != at && index != at + 1 }
+        } else {
+            arguments.toMutableList().also { it[at + 1] = entries.absolutePath }
+        }
+    }
+
     internal fun startProcess(context: Context, arguments: List<String>, markSession: Boolean = false): Process {
         val workDir = AetherIdentityManager.workDir(context).apply { mkdirs() }
-        val builder = ProcessBuilder(listOf(binary(context).absolutePath) + arguments)
+        val shippedList = if (PSIPHON_SERVER_ENTRIES in arguments) PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir) else null
+        val builder = ProcessBuilder(listOf(binary(context).absolutePath) + withShippedList(arguments, shippedList))
             .directory(workDir)
             .redirectErrorStream(true)
         builder.environment().apply {
@@ -338,7 +370,6 @@ object AetherCoreManager {
             }
             certificateDirectories(File::isDirectory)?.let { put(CERT_DIR_ENV, it) }
             psiphonOverlay(workDir)?.let { put(PSIPHON_CONFIG_ENV, it.absolutePath) }
-            PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), workDir)?.let { put(PSIPHON_SERVER_ENTRIES_ENV, it.absolutePath) }
             put(PSIPHON_DIR_ENV, psiphonStateDir(context.filesDir, workDir).absolutePath)
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)

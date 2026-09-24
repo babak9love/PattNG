@@ -593,6 +593,13 @@
     <string name="aether_hint_psiphon_list">Cách nhau bằng dấu phẩy; để trống để dùng danh sách có sẵn</string>
     <string name="aether_lab_psiphon_region">Quốc gia đầu ra</string>
     <string name="aether_hint_psiphon_region">Mã quốc gia như DE; để trống nếu không cần</string>
+    <string name="aether_lab_psiphon_bundled_list">Bắt đầu từ danh sách máy chủ kèm theo ứng dụng</string>
+    <string name="aether_hint_psiphon_bundled_list">Bật: Psiphon thử ngay các máy chủ trong psiphon_servers.dat và chỉ tải danh sách mới khi chúng thất bại. Tắt: tải danh sách mới trước lần kết nối đầu tiên, nên danh sách phải truy cập được, chẳng hạn qua WARP</string>
+    <string name="aether_action_clear_psiphon">Xóa dữ liệu Psiphon</string>
+    <string name="aether_hint_clear_psiphon">Quên các máy chủ Psiphon đã học và các danh sách đã tải. Lần khởi động sau bắt đầu lại từ danh sách kèm theo, hoặc từ một bản tải mới nếu công tắc bên trên tắt</string>
+    <string name="aether_log_psiphon_cleared">Đã xóa dữ liệu Psiphon</string>
+    <string name="aether_log_psiphon_clear_failed">Không xóa được dữ liệu Psiphon</string>
+    <string name="aether_psiphon_clear_blocked">Ngắt kết nối hồ sơ Aether trước khi xóa dữ liệu Psiphon; kết nối đang chạy đang dùng nó</string>
     <string name="aether_psiphon_unavailable">Bản dựng này không có ứng dụng Psiphon, nên cấu hình dùng Psiphon không thể kết nối</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP chỉ hoạt động với giao thức MASQUE</string>
     <string name="aether_next_port_taken">Khi có Tor hoặc Psiphon trên đường đi, lõi còn dùng các cổng ngay sau cổng lắng nghe; không cổng nào trong số đó được là cổng proxy cục bộ của ứng dụng</string>

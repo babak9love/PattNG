@@ -805,6 +805,50 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun psiphonStartsFromTheShippedListUnlessTheProfileSaysNo() {
+        val chain = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0)
+        assertEquals("shipped-list", valueAfter(chain, "--psiphon-server-entries"))
+        assertEquals(AetherCoreManager.SHIPPED_LIST, valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "only"), 0), AetherCoreManager.PSIPHON_SERVER_ENTRIES))
+        assertFalse(AetherCoreManager.PSIPHON_SERVER_ENTRIES in AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherPsiphonBundledList = false), 0))
+        assertFalse(AetherCoreManager.PSIPHON_SERVER_ENTRIES in AetherCoreManager.buildArguments(profile(), 0))
+        // A scan keeps a carrier around the tunnel, list and all, and drops one inside it, list and all.
+        assertEquals("shipped-list", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "reverse"), 0, scan = true), "--psiphon-server-entries"))
+        assertFalse(AetherCoreManager.PSIPHON_SERVER_ENTRIES in AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0, scan = true))
+
+        // At start the word gives way to the app's file, or goes when there is none; a file of one's own stays.
+        val entries = File("/data/app/psiphon-servers.txt")
+        assertEquals(
+            listOf("--psiphon", "--psiphon-server-entries", entries.absolutePath),
+            AetherCoreManager.withShippedList(listOf("--psiphon", "--psiphon-server-entries", "shipped-list"), entries)
+        )
+        assertEquals(listOf("--psiphon"), AetherCoreManager.withShippedList(listOf("--psiphon", "--psiphon-server-entries", "shipped-list"), null))
+        assertEquals(
+            listOf("--psiphon", "--psiphon-server-entries", "/sdcard/mine.txt"),
+            AetherCoreManager.withShippedList(listOf("--psiphon", "--psiphon-server-entries", "/sdcard/mine.txt"), entries)
+        )
+        assertEquals(listOf("--psiphon"), AetherCoreManager.withShippedList(listOf("--psiphon"), entries))
+    }
+
+    @Test
+    fun clearingThePsiphonDataRemovesTheDatastoreWhereverItIs() {
+        val files = Files.createTempDirectory("pattng-files").toFile()
+        val work = File(files, "aether").apply { mkdirs() }
+        try {
+            assertTrue(AetherCoreManager.clearPsiphonState(files, work))
+            val outside = File(files, "psiphon").apply { mkdirs() }
+            File(outside, "datastore").writeText("servers")
+            val inside = File(work, "${AetherIdentityManager.BASE_FILE}-psiphon").apply { mkdirs() }
+            File(inside, "datastore").writeText("older servers")
+            assertTrue(AetherCoreManager.clearPsiphonState(files, work))
+            assertFalse(outside.exists())
+            assertFalse(inside.exists())
+            assertTrue(work.exists())
+        } finally {
+            files.deleteRecursively()
+        }
+    }
+
+    @Test
     fun aProfileThatNamesNoIpVersionConnectsOverIPv4() {
         // IPv4 works on an IPv4-only network and on a dual-stack one; a profile says so when it wants more.
         assertEquals("v4", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherIpVersion = null), 0), "--ip"))

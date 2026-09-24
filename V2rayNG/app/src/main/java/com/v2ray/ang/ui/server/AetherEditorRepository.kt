@@ -33,6 +33,9 @@ interface AetherEditorSource {
     suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit): AetherScanResult?
     suspend fun identityStatus(protocol: AetherProtocol): AetherIdentityStatus
     suspend fun renewIdentity(profile: ProfileItem, onOutput: (String) -> Unit): AetherIdentityStatus?
+
+    /** Forgets what the Psiphon client has learned, so that its next start begins again; true when it is gone. */
+    suspend fun clearPsiphonData(): Boolean
 }
 
 class AetherEditorRepository(private val context: Context) : AetherEditorSource {
@@ -63,4 +66,8 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
 
     override suspend fun renewIdentity(profile: ProfileItem, onOutput: (String) -> Unit): AetherIdentityStatus? =
         AetherIdentityManager.renew(context, profile, onOutput)
+
+    override suspend fun clearPsiphonData(): Boolean = withContext(Dispatchers.IO) {
+        AetherCoreManager.clearPsiphonState(context.filesDir, AetherIdentityManager.workDir(context))
+    }
 }

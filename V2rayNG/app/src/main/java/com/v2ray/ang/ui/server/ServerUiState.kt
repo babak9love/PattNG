@@ -99,6 +99,7 @@ class ServerUiState(
     aetherPsiphonCdnIps: String = "",
     aetherPsiphonCdnSni: String = "",
     aetherPsiphonRegion: String = "",
+    aetherPsiphonBundledList: Boolean = true,
     aetherTor: String = AetherTor.OFF.type,
     aetherTorBridges: String = AetherTorBridges.AUTO.type,
     aetherTorBridgeLines: String = "",
@@ -175,6 +176,7 @@ class ServerUiState(
     var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
     var aetherPsiphonCdnSni by mutableStateOf(aetherPsiphonCdnSni)
     var aetherPsiphonRegion by mutableStateOf(aetherPsiphonRegion)
+    var aetherPsiphonBundledList by mutableStateOf(aetherPsiphonBundledList)
     var aetherTor by mutableStateOf(aetherTor)
     var aetherTorBridges by mutableStateOf(aetherTorBridges)
     var aetherTorBridgeLines by mutableStateOf(aetherTorBridgeLines)
@@ -289,6 +291,7 @@ class ServerUiState(
             aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
             aetherPsiphonCdnSni = if (isPsiphon) aetherPsiphonCdnSni.nullIfBlank() else null,
             aetherPsiphonRegion = if (isPsiphon) aetherPsiphonRegion.nullIfBlank() else null,
+            aetherPsiphonBundledList = if (isPsiphon && !aetherPsiphonBundledList) false else null,
             aetherTor = if (isTor) aetherTor else null,
             aetherTorBridges = if (isTor) aetherTorBridges else null,
             aetherTorBridgeLines = if (isTor) aetherTorBridgeLines.nullIfBlank() else null,
@@ -377,6 +380,7 @@ class ServerUiState(
                 aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",
                 aetherPsiphonCdnSni = initialConfig.aetherPsiphonCdnSni ?: "",
                 aetherPsiphonRegion = initialConfig.aetherPsiphonRegion ?: "",
+                aetherPsiphonBundledList = initialConfig.aetherPsiphonBundledList != false,
                 aetherTor = AetherTor.fromString(initialConfig.aetherTor).type,
                 aetherTorBridges = AetherTorBridges.fromString(initialConfig.aetherTorBridges).type,
                 aetherTorBridgeLines = initialConfig.aetherTorBridgeLines ?: "",

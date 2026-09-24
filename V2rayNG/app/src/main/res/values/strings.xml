@@ -598,6 +598,13 @@
     <string name="aether_hint_psiphon_list">Comma-separated; leave blank for the built-in list</string>
     <string name="aether_lab_psiphon_region">Exit country</string>
     <string name="aether_hint_psiphon_region">Country code such as DE; leave blank for any</string>
+    <string name="aether_lab_psiphon_bundled_list">Start from the bundled server list</string>
+    <string name="aether_hint_psiphon_bundled_list">On: Psiphon dials the servers in psiphon_servers.dat at once and fetches a fresh list only when they fail. Off: it fetches a fresh list before its first connection, so the list must be reachable, as it is behind WARP</string>
+    <string name="aether_action_clear_psiphon">Clear Psiphon data</string>
+    <string name="aether_hint_clear_psiphon">Forgets the servers Psiphon has learned and the lists it fetched. Its next start begins from the bundled list again, or from a fresh download when the switch above is off</string>
+    <string name="aether_log_psiphon_cleared">Psiphon data cleared</string>
+    <string name="aether_log_psiphon_clear_failed">Psiphon data could not be cleared</string>
+    <string name="aether_psiphon_clear_blocked">Disconnect the Aether profile before clearing Psiphon data; the running connection uses it</string>
     <string name="aether_psiphon_unavailable">This build does not include the Psiphon client, so a profile with Psiphon cannot connect</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP works with the MASQUE protocol only</string>
     <string name="aether_next_port_taken">With Tor or Psiphon in the path the core also uses the ports after the listen port; none of them can be the local proxy port of the app</string>

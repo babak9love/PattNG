@@ -82,6 +82,7 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonCdnIps = queryParam["cdn_ips"]
         config.aetherPsiphonCdnSni = queryParam["cdn_sni"]
         config.aetherPsiphonRegion = queryParam["region"]
+        config.aetherPsiphonBundledList = if (queryParam["psiphon_bundled"] == "0") false else null
         config.aetherTor = AetherTor.fromString(queryParam["tor"]).type.takeUnless { it == AetherTor.OFF.type }
         config.aetherTorBridges = queryParam["tor_bridges"]?.let { AetherTorBridges.fromString(it).type }
         config.aetherTorBridgeLines = queryParam["bridges"]?.split(';')?.joinToString("\n")
@@ -135,6 +136,7 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { query["cdn_ips"] = it }
             config.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { query["cdn_sni"] = it }
             config.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { query["region"] = it }
+            if (config.aetherPsiphonBundledList == false) query["psiphon_bundled"] = "0"
         }
         val tor = AetherTor.fromString(config.aetherTor)
         if (tor != AetherTor.OFF) {
@@ -274,6 +276,7 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonCdnIps = null
             config.aetherPsiphonCdnSni = null
             config.aetherPsiphonRegion = null
+            config.aetherPsiphonBundledList = null
             return null
         }
         // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
@@ -285,6 +288,8 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonCdnIps = commaList(config.aetherPsiphonCdnIps)
         config.aetherPsiphonCdnSni = commaList(config.aetherPsiphonCdnSni)
         config.aetherPsiphonRegion = config.aetherPsiphonRegion?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
+        // Stored only when it says no; yes is the default and needs no word.
+        config.aetherPsiphonBundledList = config.aetherPsiphonBundledList?.takeUnless { it }
         return null
     }
 

@@ -110,6 +110,8 @@ data class ProfileItem(
     var aetherPsiphonCdnIps: String? = null,
     var aetherPsiphonCdnSni: String? = null,
     var aetherPsiphonRegion: String? = null,
+    /** Whether Psiphon starts from the server list the app bundles; null means yes, false means it fetches a fresh list first. */
+    var aetherPsiphonBundledList: Boolean? = null,
 
     /** Where Tor stands in the tunnel, an AetherTor type; null means it is not used. */
     var aetherTor: String? = null,

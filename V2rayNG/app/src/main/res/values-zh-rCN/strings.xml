@@ -593,6 +593,13 @@
     <string name="aether_hint_psiphon_list">以逗号分隔；留空使用内置列表</string>
     <string name="aether_lab_psiphon_region">出口国家/地区</string>
     <string name="aether_hint_psiphon_region">国家代码，如 DE；留空则不限</string>
+    <string name="aether_lab_psiphon_bundled_list">从内置服务器列表开始</string>
+    <string name="aether_hint_psiphon_bundled_list">开启：Psiphon 立即尝试 psiphon_servers.dat 中的服务器，仅在它们失败时才获取新列表。关闭：在首次连接前先获取新列表，因此列表必须可访问，例如通过 WARP</string>
+    <string name="aether_action_clear_psiphon">清除 Psiphon 数据</string>
+    <string name="aether_hint_clear_psiphon">忘记 Psiphon 已学到的服务器及其获取的列表。下次启动将重新从内置列表开始；若上方开关关闭，则从新下载开始</string>
+    <string name="aether_log_psiphon_cleared">已清除 Psiphon 数据</string>
+    <string name="aether_log_psiphon_clear_failed">无法清除 Psiphon 数据</string>
+    <string name="aether_psiphon_clear_blocked">清除 Psiphon 数据前请先断开 Aether 配置；当前连接正在使用它</string>
     <string name="aether_psiphon_unavailable">此版本未包含 Psiphon 客户端，使用 Psiphon 的配置无法连接</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP 仅支持 MASQUE 协议</string>
     <string name="aether_next_port_taken">使用 Tor 或 Psiphon 时，内核还会占用监听端口之后的端口；它们都不能是应用的本地代理端口</string>

@@ -599,6 +599,13 @@
     <string name="aether_hint_psiphon_list">Через запятую; пусто — встроенный список</string>
     <string name="aether_lab_psiphon_region">Страна выхода</string>
     <string name="aether_hint_psiphon_region">Код страны, например DE; пусто — любая</string>
+    <string name="aether_lab_psiphon_bundled_list">Начинать со встроенного списка серверов</string>
+    <string name="aether_hint_psiphon_bundled_list">Вкл.: Psiphon сразу пробует серверы из psiphon_servers.dat и загружает свежий список, только если они не работают. Выкл.: загружает свежий список перед первым подключением, поэтому список должен быть доступен, например из-за WARP</string>
+    <string name="aether_action_clear_psiphon">Очистить данные Psiphon</string>
+    <string name="aether_hint_clear_psiphon">Забывает серверы, которые узнал Psiphon, и загруженные им списки. Следующий запуск снова начнётся со встроенного списка или со свежей загрузки, если переключатель выше выключен</string>
+    <string name="aether_log_psiphon_cleared">Данные Psiphon очищены</string>
+    <string name="aether_log_psiphon_clear_failed">Не удалось очистить данные Psiphon</string>
+    <string name="aether_psiphon_clear_blocked">Отключите профиль Aether перед очисткой данных Psiphon; текущее подключение их использует</string>
     <string name="aether_psiphon_unavailable">В этой сборке нет клиента Psiphon, поэтому профиль с Psiphon не сможет подключиться</string>
     <string name="aether_psiphon_needs_masque">Psiphon → WARP работает только с протоколом MASQUE</string>
     <string name="aether_next_port_taken">С Tor или Psiphon на пути ядро использует и порты, следующие за портом прослушивания; ни один из них не может совпадать с портом локального прокси приложения</string>

@@ -275,6 +275,26 @@ class ServerAetherActivity : BaseServerActivity() {
                     { uiState.aetherPsiphonRegion = it },
                     placeholder = stringResource(R.string.aether_hint_psiphon_region)
                 )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.aether_lab_psiphon_bundled_list),
+                    summary = stringResource(R.string.aether_hint_psiphon_bundled_list),
+                    checked = uiState.aetherPsiphonBundledList,
+                    onCheckedChange = { uiState.aetherPsiphonBundledList = it }
+                )
+                // What Psiphon has learned is shared by every profile, like the WARP key, and goes only while no session runs on it.
+                OutlinedButton(
+                    onClick = viewModel::clearPsiphonData,
+                    enabled = isCoreAvailable && !isBusy && !renewBlocked,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Text(stringResource(R.string.aether_action_clear_psiphon))
+                }
+                Text(
+                    text = stringResource(R.string.aether_hint_clear_psiphon),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
             AetherDropdownField(
                 label = R.string.aether_lab_tor,
