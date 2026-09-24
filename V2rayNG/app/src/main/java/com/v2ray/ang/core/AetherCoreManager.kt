@@ -92,6 +92,27 @@ object AetherCoreManager {
     /** Environment variable that names the pluggable transports and their program for the core, as protocol=path entries. */
     internal const val TOR_PT_ENV = "AETHER_TOR_PT"
 
+    /**
+     * Environment variable a Go program reads the system's root certificates from, as directories
+     * separated by colons. The Psiphon client and the pluggable transport are Go programs built for
+     * Linux, which look at Linux paths; Android keeps the roots in the Conscrypt module since
+     * Android 14 and on the system image before that. Without this the Psiphon client cannot verify
+     * any certificate, its server list download first of all. Remove when the programs are built for
+     * Android itself, whose Go runtime knows these places.
+     */
+    internal const val CERT_DIR_ENV = "SSL_CERT_DIR"
+    private val androidCertificateDirectories = listOf("/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts")
+
+    /**
+     * Environment variable naming a file of settings the core lays over its built-in Psiphon
+     * configuration. Android has no resolver configuration a Linux-built program could read, so
+     * Psiphon is given resolvers of its own for the names it looks up itself, alone or around the
+     * tunnel; inside the tunnel the names go to the core's proxy and are resolved there.
+     */
+    internal const val PSIPHON_CONFIG_ENV = "AETHER_PSIPHON_CONFIG"
+    private const val PSIPHON_OVERLAY_FILE = "psiphon-overlay.json"
+    internal const val PSIPHON_OVERLAY = """{"DNSResolverAlternateServers": ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]}"""
+
     /** The transports lyrebird speaks, as the core names them: the list the core itself assumes for a lyrebird it finds by name. */
     private val torTransports = listOf("obfs4", "snowflake", "webtunnel", "meek_lite", "obfs3", "scramblesuit")
 
@@ -293,6 +314,8 @@ object AetherCoreManager {
             transportBinary(context).takeIf { it.canExecute() }?.let { transport ->
                 put(TOR_PT_ENV, torTransports.joinToString(";") { "$it=${transport.absolutePath}" })
             }
+            certificateDirectories(File::isDirectory)?.let { put(CERT_DIR_ENV, it) }
+            psiphonOverlay(workDir)?.let { put(PSIPHON_CONFIG_ENV, it.absolutePath) }
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)
@@ -702,6 +725,18 @@ object AetherCoreManager {
 
     private fun transportBinary(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, TRANSPORT_BINARY_NAME)
+
+    /** The certificate directories of this device that [exists], joined the way Go reads them; null when there is none. */
+    internal fun certificateDirectories(exists: (File) -> Boolean): String? =
+        androidCertificateDirectories.filter { exists(File(it)) }.takeIf { it.isNotEmpty() }?.joinToString(":")
+
+    /** The Psiphon overlay in [workDir], written when it is missing or says something else; null when it cannot be written. */
+    private fun psiphonOverlay(workDir: File): File? = try {
+        File(workDir, PSIPHON_OVERLAY_FILE).apply { if (!isFile || readText() != PSIPHON_OVERLAY) writeText(PSIPHON_OVERLAY) }
+    } catch (e: IOException) {
+        LogUtil.w(AppConfig.TAG, "AetherCore: the Psiphon overlay could not be written", e)
+        null
+    }
 
     private fun open(target: Session, context: Context, arguments: List<String>) {
         if (session !== target) return

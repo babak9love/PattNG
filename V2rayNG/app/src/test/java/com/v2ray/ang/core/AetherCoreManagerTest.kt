@@ -758,6 +758,22 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun theGoProgramsAreToldWhereAndroidKeepsItsRootCertificates() {
+        assertEquals(
+            "/apex/com.android.conscrypt/cacerts:/system/etc/security/cacerts",
+            AetherCoreManager.certificateDirectories { true }
+        )
+        // Android 14 moved them into the Conscrypt module; older systems have the system image alone.
+        assertEquals("/apex/com.android.conscrypt/cacerts", AetherCoreManager.certificateDirectories { it.path.contains("apex") })
+        assertEquals("/system/etc/security/cacerts", AetherCoreManager.certificateDirectories { it.path.contains("system") })
+        assertNull(AetherCoreManager.certificateDirectories { false })
+        assertEquals("SSL_CERT_DIR", AetherCoreManager.CERT_DIR_ENV)
+        // What Psiphon is told beyond the core's built-in configuration: resolvers for the names it looks up itself.
+        assertTrue(AetherCoreManager.PSIPHON_OVERLAY.contains("\"DNSResolverAlternateServers\""))
+        assertTrue(AetherCoreManager.PSIPHON_OVERLAY.contains("1.1.1.1"))
+    }
+
+    @Test
     fun aScanLeavesOutACarrierInsideTheTunnelAndKeepsOneAroundIt() {
         val inside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherPsiphonRegion = "DE"), 0, scan = true)
         assertFalse(inside.any { it.startsWith("--psiphon") })
