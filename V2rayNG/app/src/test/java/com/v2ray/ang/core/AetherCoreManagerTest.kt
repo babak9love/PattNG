@@ -806,6 +806,19 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun theCdnSetsGoToTheCoreWhereverFrontingIsInPlay() {
+        val sets = profile().copy(aetherPsiphon = "chain", aetherPsiphonCdnSets = "fastly,cloudflare")
+        assertEquals("cloudflare,fastly", valueAfter(AetherCoreManager.buildArguments(sets, 0), "--psiphon-cdn-sets"))
+        // Beside addresses of one's own as well: the core scans both.
+        val own = sets.copy(aetherPsiphonMode = "cdn", aetherPsiphonCdnIps = "203.0.113.7")
+        assertEquals("cloudflare,fastly", valueAfter(AetherCoreManager.buildArguments(own, 0), "--psiphon-cdn-sets"))
+        // Not where nothing is fronted, not for a stranger, not without Psiphon.
+        assertNull(valueAfter(AetherCoreManager.buildArguments(sets.copy(aetherPsiphonMode = "direct"), 0), "--psiphon-cdn-sets"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(sets.copy(aetherPsiphonCdnSets = "nowhere"), 0), "--psiphon-cdn-sets"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherPsiphonCdnSets = "fastly"), 0), "--psiphon-cdn-sets"))
+    }
+
+    @Test
     fun psiphonStartsFromTheShippedListUnlessTheProfileSaysNo() {
         val chain = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0)
         assertEquals("shipped-list", valueAfter(chain, "--psiphon-server-entries"))

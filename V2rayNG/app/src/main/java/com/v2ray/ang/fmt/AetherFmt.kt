@@ -10,6 +10,7 @@ import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
@@ -81,6 +82,7 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonMode = queryParam["psiphon_mode"]?.let { AetherPsiphonMode.fromString(it).type }
         config.aetherPsiphonCdnIps = queryParam["cdn_ips"]
         config.aetherPsiphonCdnSni = queryParam["cdn_sni"]
+        config.aetherPsiphonCdnSets = queryParam["cdn_sets"]
         config.aetherPsiphonRegion = queryParam["region"]
         config.aetherPsiphonBundledList = if (queryParam["psiphon_bundled"] == "0") false else null
         config.aetherTor = AetherTor.fromString(queryParam["tor"]).type.takeUnless { it == AetherTor.OFF.type }
@@ -135,6 +137,7 @@ object AetherFmt : FmtBase() {
             query["psiphon_mode"] = AetherPsiphonMode.fromString(config.aetherPsiphonMode).type
             config.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { query["cdn_ips"] = it }
             config.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { query["cdn_sni"] = it }
+            config.aetherPsiphonCdnSets?.takeIf { it.isNotBlank() }?.let { query["cdn_sets"] = it }
             config.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { query["region"] = it }
             if (config.aetherPsiphonBundledList == false) query["psiphon_bundled"] = "0"
         }
@@ -275,6 +278,7 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonMode = null
             config.aetherPsiphonCdnIps = null
             config.aetherPsiphonCdnSni = null
+            config.aetherPsiphonCdnSets = null
             config.aetherPsiphonRegion = null
             config.aetherPsiphonBundledList = null
             return null
@@ -287,6 +291,7 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonMode = AetherPsiphonMode.fromString(config.aetherPsiphonMode).type
         config.aetherPsiphonCdnIps = commaList(config.aetherPsiphonCdnIps)
         config.aetherPsiphonCdnSni = commaList(config.aetherPsiphonCdnSni)
+        config.aetherPsiphonCdnSets = AetherPsiphonCdnSet.join(AetherPsiphonCdnSet.parse(config.aetherPsiphonCdnSets))
         config.aetherPsiphonRegion = config.aetherPsiphonRegion?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
         // Stored only when it says no; yes is the default and needs no word.
         config.aetherPsiphonBundledList = config.aetherPsiphonBundledList?.takeUnless { it }

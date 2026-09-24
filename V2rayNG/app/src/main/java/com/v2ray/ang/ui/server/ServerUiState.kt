@@ -17,6 +17,7 @@ import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
@@ -98,6 +99,7 @@ class ServerUiState(
     aetherPsiphonMode: String = AetherPsiphonMode.AUTO.type,
     aetherPsiphonCdnIps: String = "",
     aetherPsiphonCdnSni: String = "",
+    aetherPsiphonCdnSets: String = "",
     aetherPsiphonRegion: String = "",
     aetherPsiphonBundledList: Boolean = true,
     aetherTor: String = AetherTor.OFF.type,
@@ -175,6 +177,17 @@ class ServerUiState(
     var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)
     var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
     var aetherPsiphonCdnSni by mutableStateOf(aetherPsiphonCdnSni)
+    var aetherPsiphonCdnSets by mutableStateOf(aetherPsiphonCdnSets)
+
+    /** The CDN edge lists the Psiphon fronting scan tries, as chosen; none chosen means all of them. */
+    val aetherPsiphonCdnSetChoice: Set<AetherPsiphonCdnSet>
+        get() = AetherPsiphonCdnSet.parse(aetherPsiphonCdnSets).toSet()
+
+    /** Chooses or drops one CDN edge list; the choice is kept in the order the core tries them. */
+    fun setPsiphonCdnSet(set: AetherPsiphonCdnSet, chosen: Boolean) {
+        val choice = aetherPsiphonCdnSetChoice.let { if (chosen) it + set else it - set }
+        aetherPsiphonCdnSets = AetherPsiphonCdnSet.join(choice).orEmpty()
+    }
     var aetherPsiphonRegion by mutableStateOf(aetherPsiphonRegion)
     var aetherPsiphonBundledList by mutableStateOf(aetherPsiphonBundledList)
     var aetherTor by mutableStateOf(aetherTor)
@@ -290,6 +303,7 @@ class ServerUiState(
             aetherPsiphonMode = if (isPsiphon) aetherPsiphonMode else null,
             aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
             aetherPsiphonCdnSni = if (isPsiphon) aetherPsiphonCdnSni.nullIfBlank() else null,
+            aetherPsiphonCdnSets = if (isPsiphon) aetherPsiphonCdnSets.nullIfBlank() else null,
             aetherPsiphonRegion = if (isPsiphon) aetherPsiphonRegion.nullIfBlank() else null,
             aetherPsiphonBundledList = if (isPsiphon && !aetherPsiphonBundledList) false else null,
             aetherTor = if (isTor) aetherTor else null,
@@ -379,6 +393,7 @@ class ServerUiState(
                 aetherPsiphonMode = AetherPsiphonMode.fromString(initialConfig.aetherPsiphonMode).type,
                 aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",
                 aetherPsiphonCdnSni = initialConfig.aetherPsiphonCdnSni ?: "",
+                aetherPsiphonCdnSets = initialConfig.aetherPsiphonCdnSets ?: "",
                 aetherPsiphonRegion = initialConfig.aetherPsiphonRegion ?: "",
                 aetherPsiphonBundledList = initialConfig.aetherPsiphonBundledList != false,
                 aetherTor = AetherTor.fromString(initialConfig.aetherTor).type,

@@ -675,6 +675,20 @@
         <item>اول سایفون، بعد WARP</item>
         <item>فقط سایفون</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">فهرست‌های لبهٔ CDN برای اسکن</string>
+    <string name="aether_hint_psiphon_cdn_sets">کدام فهرست‌های لبهٔ داخلی سایفون در اسکن فرانتینگ امتحان شوند. هیچ‌کدام یعنی همه؛ در کنار IPهای خودتان، پس از آن‌ها امتحان می‌شوند</string>
+    <string name="aether_psiphon_cdn_sets_all">همهٔ فهرست‌های داخلی سایفون</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai (فهرست سایفون)</item>
+        <item>Bunny (فهرست سایفون)</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>لبه‌های گزینش‌شدهٔ فرانتینگ</item>
+        <item>بازنویسی‌های قدیمی اندروید</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>خودکار</item>
         <item>فقط از طریق CDN</item>

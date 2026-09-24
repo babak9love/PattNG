@@ -675,6 +675,20 @@
         <item>Psiphon → WARP</item>
         <item>শুধু Psiphon</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">স্ক্যানের জন্য CDN এজ তালিকা</string>
+    <string name="aether_hint_psiphon_cdn_sets">Psiphon-এর অন্তর্নির্মিত কোন এজ তালিকাগুলো ফ্রন্টিং স্ক্যান চেষ্টা করবে। কিছুই না বাছলে সবগুলো; আপনার নিজের IP-এর পাশে সেগুলোর পরে চেষ্টা করা হয়</string>
+    <string name="aether_psiphon_cdn_sets_all">Psiphon-এর অন্তর্নির্মিত সব তালিকা</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai (Psiphon তালিকা)</item>
+        <item>Bunny (Psiphon তালিকা)</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>বাছাই করা ফ্রন্টিং এজ</item>
+        <item>পুরনো Android ওভাররাইড</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>স্বয়ংক্রিয়</item>
         <item>শুধু CDN ফ্রন্টিং</item>

@@ -683,6 +683,20 @@
         <item>عبر سايفون إلى WARP</item>
         <item>سايفون فقط</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">قوائم حواف CDN للفحص</string>
+    <string name="aether_hint_psiphon_cdn_sets">أي قوائم الحواف المضمّنة في Psiphon يجرّبها فحص الواجهة. لا شيء محدد يعني جميعها؛ ومع عناوين IP الخاصة بك تُجرَّب بعدها</string>
+    <string name="aether_psiphon_cdn_sets_all">جميع القوائم المضمّنة في Psiphon</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai (قائمة Psiphon)</item>
+        <item>Bunny (قائمة Psiphon)</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>حواف واجهة منتقاة</item>
+        <item>تجاوزات أندرويد القديمة</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>تلقائي</item>
         <item>عبر CDN فقط</item>

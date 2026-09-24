@@ -109,6 +109,8 @@ data class ProfileItem(
     var aetherPsiphonMode: String? = null,
     var aetherPsiphonCdnIps: String? = null,
     var aetherPsiphonCdnSni: String? = null,
+    /** Which of the CDN edge lists built into Psiphon the fronting scan tries, AetherPsiphonCdnSet types comma separated; null means all. */
+    var aetherPsiphonCdnSets: String? = null,
     var aetherPsiphonRegion: String? = null,
     /** Whether Psiphon starts from the server list the app bundles; null means yes, false means it fetches a fresh list first. */
     var aetherPsiphonBundledList: Boolean? = null,

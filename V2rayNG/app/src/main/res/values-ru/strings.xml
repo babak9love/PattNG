@@ -679,6 +679,20 @@
         <item>Psiphon → WARP</item>
         <item>Только Psiphon</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">Списки узлов CDN для сканирования</string>
+    <string name="aether_hint_psiphon_cdn_sets">Какие встроенные в Psiphon списки узлов перебирает сканирование фронтинга. Ничего не отмечено, значит все; рядом с вашими IP они идут после них</string>
+    <string name="aether_psiphon_cdn_sets_all">Все встроенные в Psiphon списки</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai (список Psiphon)</item>
+        <item>Bunny (список Psiphon)</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>Отобранные узлы фронтинга</item>
+        <item>Старые переопределения Android</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>Автоматически</item>
         <item>Только через CDN</item>

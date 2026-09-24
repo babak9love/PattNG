@@ -91,6 +91,34 @@ enum class AetherPsiphon(val type: String) {
     }
 }
 
+/**
+ * The lists of CDN edges built into Psiphon's client, named the way its config names them and in
+ * the order the app hands them over, which is the order the scan tries them.
+ */
+enum class AetherPsiphonCdnSet(val type: String) {
+    CLOUDFLARE("cloudflare"),
+    FASTLY("fastly"),
+    CLOUDFRONT("cloudfront"),
+    AKAMAI("psiphon-akamai"),
+    BUNNY("psiphon-bunny"),
+    VERCEL("vercel"),
+    GITHUB("github"),
+    CURATED("curated-fronting"),
+    LEGACY("legacy-android-overrides");
+
+    companion object {
+        /** The sets named in [text], a comma or space separated list: in the order above, once each, strangers left out. */
+        fun parse(text: String?): List<AetherPsiphonCdnSet> {
+            val named = text.orEmpty().split(Regex("[,\\s]+")).filter { it.isNotEmpty() }.toSet()
+            return entries.filter { it.type in named }
+        }
+
+        /** [sets] as the core and the profile take them, comma separated; null for none. */
+        fun join(sets: Collection<AetherPsiphonCdnSet>): String? =
+            entries.filter { it in sets }.joinToString(",") { it.type }.ifEmpty { null }
+    }
+}
+
 /** How Psiphon reaches its servers. */
 enum class AetherPsiphonMode(val type: String) {
     AUTO("auto"),

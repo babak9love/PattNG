@@ -10,6 +10,7 @@ import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
@@ -301,6 +302,10 @@ object AetherCoreManager {
                 val cdnIps = profile.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() && shape != AetherPsiphonMode.DIRECT }
                 cdnIps?.let { addAll(listOf("--psiphon-cdn-ips", it)) }
                 if (cdnIps != null) profile.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-sni", it)) }
+                // Which of the edge lists built into Psiphon the fronting scan tries; beside addresses of one's own, after them.
+                if (shape != AetherPsiphonMode.DIRECT) {
+                    AetherPsiphonCdnSet.join(AetherPsiphonCdnSet.parse(profile.aetherPsiphonCdnSets))?.let { addAll(listOf("--psiphon-cdn-sets", it)) }
+                }
                 profile.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-region", it)) }
                 // The bundled list, unless the profile wants Psiphon to fetch a fresh one before it dials anything.
                 if (profile.aetherPsiphonBundledList != false) addAll(listOf(PSIPHON_SERVER_ENTRIES, SHIPPED_LIST))

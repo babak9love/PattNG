@@ -673,6 +673,20 @@
         <item>Psiphon → WARP</item>
         <item>仅 Psiphon</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">要扫描的 CDN 边缘列表</string>
+    <string name="aether_hint_psiphon_cdn_sets">前置扫描尝试 Psiphon 内置的哪些边缘列表。都不勾选表示全部；与你自己的 IP 一起时，在这些 IP 之后尝试</string>
+    <string name="aether_psiphon_cdn_sets_all">Psiphon 内置的全部列表</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai（Psiphon 列表）</item>
+        <item>Bunny（Psiphon 列表）</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>精选前置边缘</item>
+        <item>旧版 Android 覆盖</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>自动</item>
         <item>仅 CDN 前置</item>

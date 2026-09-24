@@ -10,15 +10,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -53,6 +58,7 @@ import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTorBridges
@@ -267,6 +273,49 @@ class ServerAetherActivity : BaseServerActivity() {
                             { uiState.aetherPsiphonCdnSni = it },
                             placeholder = stringResource(R.string.aether_hint_psiphon_list)
                         )
+                    }
+                    // Which of the edge lists built into Psiphon the fronting scan tries. Nine of them, so they stay
+                    // folded behind a line that names the choice, and open by themselves only when a choice was made.
+                    val cdnSetLabels = stringArrayResource(R.array.aether_psiphon_cdn_set_entries)
+                    val chosenSets = uiState.aetherPsiphonCdnSetChoice
+                    var showCdnSets by rememberSaveable { mutableStateOf(chosenSets.isNotEmpty()) }
+                    CollapsiblePreferenceGroupHeader(
+                        title = stringResource(R.string.aether_lab_psiphon_cdn_sets),
+                        expanded = showCdnSets,
+                        onExpandedChange = { showCdnSets = it }
+                    )
+                    Text(
+                        text = if (chosenSets.isEmpty()) {
+                            stringResource(R.string.aether_psiphon_cdn_sets_all)
+                        } else {
+                            AetherPsiphonCdnSet.entries.filter { it in chosenSets }.joinToString(", ") { set -> cdnSetLabels.getOrElse(set.ordinal) { _ -> set.type } }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    if (showCdnSets) {
+                        Text(
+                            text = stringResource(R.string.aether_hint_psiphon_cdn_sets),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
+                        )
+                        AetherPsiphonCdnSet.entries.forEach { set ->
+                            val chosen = set in chosenSets
+                            // One node per row: the row toggles, the box only shows.
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .toggleable(value = chosen, role = Role.Checkbox, onValueChange = { uiState.setPsiphonCdnSet(set, it) })
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = chosen, onCheckedChange = null)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(text = cdnSetLabels.getOrElse(set.ordinal) { _ -> set.type }, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                     }
                 }
                 FormTextField(

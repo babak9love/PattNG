@@ -675,6 +675,20 @@
         <item>اول سایفون، بعد WARP</item>
         <item>فقط سایفون</item>
     </string-array>
+    <string name="aether_lab_psiphon_cdn_sets">لیست‌های لبه CDN سی اسکن</string>
+    <string name="aether_hint_psiphon_cdn_sets">کدوم لیست‌های لبه داخلی سایفون تو اسکن فرانتینگ امتحان بوهن. هیچ‌کدوم یعنی همه؛ کنار IPهای خوتون، بعد زه اونا امتحان ایبون</string>
+    <string name="aether_psiphon_cdn_sets_all">همه لیست‌های داخلی سایفون</string>
+    <string-array name="aether_psiphon_cdn_set_entries">
+        <item>Cloudflare</item>
+        <item>Fastly</item>
+        <item>CloudFront</item>
+        <item>Akamai (لیست سایفون)</item>
+        <item>Bunny (لیست سایفون)</item>
+        <item>Vercel</item>
+        <item>GitHub</item>
+        <item>لبه‌های دست‌چین فرانتینگ</item>
+        <item>بازنویسی‌های قدیمی اندروید</item>
+    </string-array>
     <string-array name="aether_psiphon_mode_entries">
         <item>خودکار</item>
         <item>فقط زه راه CDN</item>

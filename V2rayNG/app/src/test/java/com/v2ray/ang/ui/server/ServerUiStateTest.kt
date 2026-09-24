@@ -5,11 +5,13 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ServerUiStateTest {
@@ -175,6 +177,29 @@ class ServerUiStateTest {
         assertEquals("1.1.1.1", reloaded.aetherDns)
         assertEquals("!IR", reloaded.aetherExitLoc)
         assertEquals("only", reloaded.aetherTorRelays)
+    }
+
+    @Test
+    fun theCdnSetsAreChosenOneByOneAndStoredInTheOrderTheCoreTriesThem() {
+        val blank = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(blank.apply { aetherPsiphon = "chain" })
+        assertTrue(state.aetherPsiphonCdnSetChoice.isEmpty())
+
+        state.setPsiphonCdnSet(AetherPsiphonCdnSet.FASTLY, true)
+        state.setPsiphonCdnSet(AetherPsiphonCdnSet.CLOUDFLARE, true)
+        assertEquals(setOf(AetherPsiphonCdnSet.CLOUDFLARE, AetherPsiphonCdnSet.FASTLY), state.aetherPsiphonCdnSetChoice)
+        assertEquals("cloudflare,fastly", state.toProfileItem(blank).aetherPsiphonCdnSets)
+
+        state.setPsiphonCdnSet(AetherPsiphonCdnSet.FASTLY, false)
+        assertEquals("cloudflare", state.aetherPsiphonCdnSets)
+        state.setPsiphonCdnSet(AetherPsiphonCdnSet.CLOUDFLARE, false)
+        assertNull(state.toProfileItem(blank).aetherPsiphonCdnSets)
+
+        // A choice from before comes back as it was, and goes with Psiphon when Psiphon goes.
+        val reloaded = ServerUiState.from(blank.apply { aetherPsiphonCdnSets = "github,vercel" })
+        assertEquals(setOf(AetherPsiphonCdnSet.VERCEL, AetherPsiphonCdnSet.GITHUB), reloaded.aetherPsiphonCdnSetChoice)
+        reloaded.aetherPsiphon = "off"
+        assertNull(reloaded.toProfileItem(blank).aetherPsiphonCdnSets)
     }
 
     @Test

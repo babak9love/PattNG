@@ -77,6 +77,7 @@ class AetherFmtTest {
             aetherPsiphonCdnSni = "a.example,b.example"
             aetherPsiphonRegion = "DE"
             aetherPsiphonBundledList = false
+            aetherPsiphonCdnSets = "cloudflare,fastly"
         }
         val parsed = AetherFmt.parse(link(chained))
         assertEquals("chain", parsed?.aetherPsiphon)
@@ -85,6 +86,7 @@ class AetherFmtTest {
         assertEquals("a.example,b.example", parsed?.aetherPsiphonCdnSni)
         assertEquals("DE", parsed?.aetherPsiphonRegion)
         assertEquals(false, parsed?.aetherPsiphonBundledList)
+        assertEquals("cloudflare,fastly", parsed?.aetherPsiphonCdnSets)
 
         val plain = AetherFmt.toUri(profile {})
         assertFalse(plain.contains("psiphon"))
@@ -106,8 +108,11 @@ class AetherFmtTest {
             aetherPsiphonCdnSni = ""
             aetherPsiphonRegion = " de "
             aetherPsiphonBundledList = true
+            aetherPsiphonCdnSets = " fastly, nowhere cloudflare fastly "
         }
         assertNull(AetherFmt.normalize(chained))
+        // The sets come out in the order the core tries them, once each, strangers left out.
+        assertEquals("cloudflare,fastly", chained.aetherPsiphonCdnSets)
         assertEquals("auto", chained.aetherPsiphonMode)
         assertEquals("1.1.1.1,1.0.0.1,8.8.8.8", chained.aetherPsiphonCdnIps)
         assertNull(chained.aetherPsiphonCdnSni)
@@ -118,12 +123,13 @@ class AetherFmtTest {
         assertNull(AetherFmt.normalize(fresh))
         assertEquals(false, fresh.aetherPsiphonBundledList)
 
-        val off = profile { aetherPsiphon = "off"; aetherPsiphonMode = "cdn"; aetherPsiphonRegion = "DE"; aetherPsiphonBundledList = false }
+        val off = profile { aetherPsiphon = "off"; aetherPsiphonMode = "cdn"; aetherPsiphonRegion = "DE"; aetherPsiphonBundledList = false; aetherPsiphonCdnSets = "fastly" }
         assertNull(AetherFmt.normalize(off))
         assertNull(off.aetherPsiphon)
         assertNull(off.aetherPsiphonMode)
         assertNull(off.aetherPsiphonRegion)
         assertNull(off.aetherPsiphonBundledList)
+        assertNull(off.aetherPsiphonCdnSets)
     }
 
     @Test
