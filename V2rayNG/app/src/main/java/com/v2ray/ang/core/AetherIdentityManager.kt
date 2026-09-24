@@ -34,6 +34,9 @@ object AetherIdentityManager {
     private const val PREVIOUS_DIR = "aether-previous"
     private const val RENEW_TIMEOUT_MS = 2 * 60_000L
 
+    /** A renewal through Tor or Psiphon around the tunnel waits for the carrier to come up first, which takes what a scan may take. */
+    private const val RENEW_THROUGH_CARRIER_TIMEOUT_MS = 8 * 60_000L
+
     private val identityField = Regex("""^(device_id|ipv4|ipv6)\s*=\s*"([^"]*)"$""")
     private val multilineDelimiter = Regex("\"\"\"|'''")
     private val identityReady = Regex("""identity ready: device=\S+""")
@@ -51,11 +54,12 @@ object AetherIdentityManager {
     ): AetherIdentityStatus? {
         val protocol = AetherProtocol.fromString(profile.aetherProtocol)
         val workDir = workDir(context)
+        val port = withContext(Dispatchers.IO) { AetherCoreManager.scanPort(profile) }
         val renewed = replaceIdentities(workDir, File(context.filesDir, PREVIOUS_DIR)) {
             AetherCoreManager.runUntil(
                 context = context,
-                arguments = AetherCoreManager.buildArguments(profile, 0, scan = true),
-                timeoutMs = RENEW_TIMEOUT_MS,
+                arguments = AetherCoreManager.buildArguments(profile, port, scan = true),
+                timeoutMs = if (AetherCoreManager.reachesWarpThroughCarrier(profile)) RENEW_THROUGH_CARRIER_TIMEOUT_MS else RENEW_TIMEOUT_MS,
                 source = "aether-key",
                 onOutput = onOutput,
             ) { line -> line.takeIf { isReady(protocol, it) } } != null

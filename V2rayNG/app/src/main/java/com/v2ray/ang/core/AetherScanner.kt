@@ -4,6 +4,8 @@ import android.content.Context
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class AetherScanResult(
     val endpoint: AetherEndpoint,
@@ -18,6 +20,8 @@ object AetherScanner {
     private val wireguardEndpoint = Regex("""selected WireGuard endpoint (\S+)""")
     private val goolHops = Regex("""using cloudflare edge (\S+) \(outer\) and (\S+) \(inner\)""")
     private val mimHops = Regex("""masque-in-masque ready: (\S+) \(outer\) and (\S+) \(inner\)""")
+    private val exitAccepted = Regex("""exit location \S+ accepted""")
+    private val exitRejected = Regex("""exit location \S+ rejected""")
 
     suspend fun scan(
         context: Context,
@@ -25,13 +29,43 @@ object AetherScanner {
         onOutput: (String) -> Unit = {},
     ): AetherScanResult? {
         val protocol = AetherProtocol.fromString(profile.aetherProtocol)
+        val port = withContext(Dispatchers.IO) { AetherCoreManager.scanPort(profile) }
         return AetherCoreManager.runUntil(
             context = context,
-            arguments = AetherCoreManager.buildArguments(profile, 0, scan = true),
+            arguments = AetherCoreManager.buildArguments(profile, port, scan = true),
             timeoutMs = SCAN_TIMEOUT_MS,
             source = "aether-scan",
             onOutput = onOutput,
-        ) { line -> parse(protocol, line) }
+            match = matcher(protocol, exitRuled = !profile.aetherExitLoc.isNullOrBlank()),
+        )
+    }
+
+    /**
+     * What ends a scan, line by line. Without an exit rule, the line that names the endpoint. With
+     * one, the core names its endpoint before it checks the exit behind it and looks again when the
+     * rule refuses it, so the endpoint named last counts only once the core has accepted its exit.
+     * Masque-in-masque names its hops after that check, so its line stands on its own either way.
+     */
+    internal fun matcher(protocol: AetherProtocol, exitRuled: Boolean): (String) -> AetherScanResult? {
+        if (!exitRuled || protocol == AetherProtocol.MIM) return { line -> parse(protocol, line) }
+        var named: AetherScanResult? = null
+        return { line ->
+            val found = parse(protocol, line)
+            when {
+                found != null -> {
+                    named = found
+                    null
+                }
+
+                exitAccepted.containsMatchIn(line) -> named
+                exitRejected.containsMatchIn(line) -> {
+                    named = null
+                    null
+                }
+
+                else -> null
+            }
+        }
     }
 
     fun parse(protocol: AetherProtocol, line: String): AetherScanResult? = when (protocol) {

@@ -684,11 +684,11 @@ class AetherCoreManagerTest {
         assertNull(valueAfter(AetherCoreManager.buildArguments(tuned.copy(aetherProtocol = "wg"), 10819), "--ech"))
         assertNull(valueAfter(AetherCoreManager.buildArguments(profile(), 10819), "--ech"))
 
-        // A scan keeps the handshake it will use, but it is after endpoints, not exits or names.
+        // A scan runs under the same conditions, the exit rule included, so it ends on an endpoint the session will accept.
         val scan = AetherCoreManager.buildArguments(tuned, 0, scan = true)
         assertEquals("auto", valueAfter(scan, "--ech"))
-        assertNull(valueAfter(scan, "--dns"))
-        assertNull(valueAfter(scan, "--exit-loc"))
+        assertEquals("1.1.1.1,10.0.0.1:5353", valueAfter(scan, "--dns"))
+        assertEquals("!IR,RU", valueAfter(scan, "--exit-loc"))
 
         // Without a WARP tunnel there is nothing for them to apply to.
         val alone = AetherCoreManager.buildArguments(tuned.copy(aetherPsiphon = "only"), 10819)
@@ -736,10 +736,36 @@ class AetherCoreManagerTest {
     }
 
     @Test
-    fun aScanLooksForWarpEndpointsWithoutPsiphon() {
-        val scan = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0, scan = true)
-        assertFalse(scan.any { it.startsWith("--psiphon") })
-        assertEquals("127.0.0.1:0", valueAfter(scan, "--bind"))
+    fun aScanLeavesOutACarrierInsideTheTunnelAndKeepsOneAroundIt() {
+        val inside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherPsiphonRegion = "DE"), 0, scan = true)
+        assertFalse(inside.any { it.startsWith("--psiphon") })
+        assertEquals("127.0.0.1:0", valueAfter(inside, "--bind"))
+        assertFalse("--tor" in AetherCoreManager.buildArguments(profile().copy(aetherTor = "chain"), 0, scan = true))
+
+        // Around the tunnel the carrier is where the session looks from, so the scan looks from there as well.
+        val around = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "reverse", aetherPsiphonMode = "cdn"), 0, scan = true)
+        assertTrue("--psiphon-reverse" in around)
+        assertEquals("cdn", valueAfter(around, "--psiphon-mode"))
+        assertEquals("127.0.0.1:0", valueAfter(around, "--psiphon-bind"))
+        assertEquals("127.0.0.1:0", valueAfter(around, "--bind"))
+        val torAround = AetherCoreManager.buildArguments(profile().copy(aetherTor = "reverse", aetherTorBridges = "first"), 41234, scan = true)
+        assertTrue("--tor-reverse" in torAround)
+        assertTrue("--tor-bridges" in torAround)
+        assertEquals("127.0.0.1:41234", valueAfter(torAround, "--bind"))
+        assertEquals("127.0.0.1:41235", valueAfter(torAround, "--tor-bind"))
+    }
+
+    @Test
+    fun aScanBindsNoPortUnlessTorAroundTheTunnelNeedsARealOne() {
+        assertEquals(0, AetherCoreManager.scanPort(profile()))
+        assertEquals(0, AetherCoreManager.scanPort(profile().copy(aetherPsiphon = "reverse")))
+        assertEquals(0, AetherCoreManager.scanPort(profile().copy(aetherTor = "chain")))
+        assertTrue(AetherCoreManager.scanPort(profile().copy(aetherTor = "reverse")) > 0)
+
+        assertFalse(AetherCoreManager.reachesWarpThroughCarrier(profile()))
+        assertFalse(AetherCoreManager.reachesWarpThroughCarrier(profile().copy(aetherPsiphon = "chain", aetherTor = "chain")))
+        assertTrue(AetherCoreManager.reachesWarpThroughCarrier(profile().copy(aetherPsiphon = "reverse")))
+        assertTrue(AetherCoreManager.reachesWarpThroughCarrier(profile().copy(aetherTor = "reverse")))
     }
 
     @Test

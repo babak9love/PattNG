@@ -19,6 +19,7 @@ import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -111,6 +112,18 @@ object AetherCoreManager {
     /** The loopback port the session core of [profile] listens on, and the one its SOCKS outbound dials. */
     fun listenPort(profile: ProfileItem): Int = AetherFmt.listenPortOf(profile.aetherListenPort) ?: socksPort
 
+    /**
+     * The port a scan or a key renewal of [profile] binds: none, since nothing dials it, unless Tor
+     * around the tunnel comes along, whose own listener follows the tunnel's and needs a real port,
+     * because the core dials the address Tor was told to listen on. Opens a socket to find one.
+     */
+    fun scanPort(profile: ProfileItem): Int =
+        if (AetherTor.fromString(profile.aetherTor) == AetherTor.REVERSE) Utils.findRandomFreePort() else 0
+
+    /** True when [profile] reaches WARP through Tor or Psiphon, which then has to come up before anything else can. */
+    fun reachesWarpThroughCarrier(profile: ProfileItem): Boolean =
+        AetherTor.fromString(profile.aetherTor) == AetherTor.REVERSE || AetherPsiphon.fromString(profile.aetherPsiphon) == AetherPsiphon.REVERSE
+
     @Volatile
     private var session: Session? = null
 
@@ -131,9 +144,10 @@ object AetherCoreManager {
         logLevel: String = DEFAULT_LOG_LEVEL,
     ): List<String> {
         val protocol = AetherProtocol.fromString(profile.aetherProtocol)
-        // A scan looks for WARP endpoints, which Tor and Psiphon have no part in.
-        val tor = if (scan) AetherTor.OFF else AetherTor.fromString(profile.aetherTor)
-        val psiphon = if (scan) AetherPsiphon.OFF else AetherPsiphon.fromString(profile.aetherPsiphon)
+        // A scan looks for WARP endpoints from where the session will look: a carrier around the tunnel
+        // stays, since the session reaches WARP from its exit, while one inside the tunnel has no part in it.
+        val tor = AetherTor.fromString(profile.aetherTor).takeUnless { scan && it != AetherTor.REVERSE } ?: AetherTor.OFF
+        val psiphon = AetherPsiphon.fromString(profile.aetherPsiphon).takeUnless { scan && it != AetherPsiphon.REVERSE } ?: AetherPsiphon.OFF
         // The listener the app dials takes [port]: Psiphon's or Tor's when one of them runs inside the
         // tunnel and is what the app reaches, the tunnel's own otherwise. Every other listener takes the
         // ports after it, in the order [AetherCore.on] hands them out: the tunnel's own, then Tor's, then
@@ -164,11 +178,9 @@ object AetherCoreManager {
                 AetherObfuscation.fromString(profile.aetherObfuscation).takeUnless { it == AetherObfuscation.AUTO }
                     ?.let { addAll(listOf("--noize", it.type)) }
                 addAll(listOf("--ip", AetherIpVersion.fromString(profile.aetherIpVersion).type))
-                if (!scan) {
-                    profile.aetherDns?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--dns", it)) }
-                    // A scan is after endpoints; an exit rule would only send it looking again.
-                    profile.aetherExitLoc?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--exit-loc", it)) }
-                }
+                profile.aetherDns?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--dns", it)) }
+                // A scan keeps the exit rule as well, so that it ends on an endpoint the session will accept.
+                profile.aetherExitLoc?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--exit-loc", it)) }
 
                 if (protocol.overMasque &&
                     AetherTransport.fromString(profile.aetherTransport) == AetherTransport.HTTP2
