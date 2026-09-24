@@ -853,6 +853,22 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun theHelpersACoreLeftBehindAreToldApartByTheirParent() {
+        // /proc/<pid>/stat: the command name sits in parentheses and may hold spaces and parentheses of its own.
+        assertEquals(1200, AetherCoreManager.parentPidOf("1234 (libpsiphon-tunnel-core.so) S 1200 1200 0 -1 4194560 0"))
+        assertEquals(7, AetherCoreManager.parentPidOf("55 (a (weird) name) R 7 55 0"))
+        assertNull(AetherCoreManager.parentPidOf("no stat at all"))
+        assertNull(AetherCoreManager.parentPidOf("9 (x) S"))
+
+        // A helper whose parent is a living core stays; one whose parent is gone, or unknown, is an orphan.
+        assertEquals(
+            listOf(11, 12),
+            AetherCoreManager.orphanedHelpers(listOf(10 to 5, 11 to 6, 12 to null), liveCores = setOf(5))
+        )
+        assertTrue(AetherCoreManager.orphanedHelpers(emptyList(), liveCores = emptySet()).isEmpty())
+    }
+
+    @Test
     fun aSessionStartWaitsForTheCoresOfTestsAndScansButNotForever() {
         // A probe: a living process's core without the session mark. The session's own, a dead owner's
         // and one whose environment could not be read are not waited for.

@@ -22,6 +22,7 @@ import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
@@ -125,6 +126,11 @@ object AetherCoreManager {
     /** How long a session start waits for the cores of cancelled tests to be gone, and how often it looks. */
     private const val PROBE_EXIT_WAIT_MS = 3_000L
     private const val PROBE_POLL_MS = 100L
+
+    /** How long a stop waits for a core, and then for the programs it started, to be gone before force is used. */
+    private const val EXIT_WAIT_MS = 2_000L
+    private const val EXIT_POLL_MS = 50L
+    private const val SIGTERM = 15
     private const val PSIPHON_OVERLAY_FILE = "psiphon-overlay.json"
     internal const val PSIPHON_OVERLAY = """{"DNSResolverAlternateServers": ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]}"""
 
@@ -464,7 +470,8 @@ object AetherCoreManager {
             ensureActive()
             block(output)
         } finally {
-            process.destroy()
+            // The ending waits for the core and its helpers to be gone; a scan or a renewal calls from the main thread.
+            withContext(NonCancellable + Dispatchers.IO) { end(process, context) }
         }
     }
 
@@ -492,7 +499,7 @@ object AetherCoreManager {
         // The ready word is an info line; a quieter setting must not leave a Psiphon session waiting for it.
         if (readyNeedsWord(core.arguments) && logLevel !in infoLevels) logLevel = DEFAULT_LOG_LEVEL
         val arguments = withLogLevel(core.arguments, logLevel)
-        val next = Session(core.port, needsWord = readyNeedsWord(arguments) && showsInfo(arguments), onExit)
+        val next = Session(core.port, needsWord = readyNeedsWord(arguments) && showsInfo(arguments), context = appContext, onExit = onExit)
         session = next
         lifecycle.execute { open(next, appContext, arguments, afterProbes) }
     }
@@ -511,11 +518,16 @@ object AetherCoreManager {
     internal fun showsInfo(arguments: List<String>): Boolean =
         "--verbose" in arguments || (valueAfter(arguments, "--log-level") ?: DEFAULT_LOG_LEVEL) in infoLevels
 
+    /**
+     * Stops the session core and whatever it started. The work runs on the core's executor, so a
+     * start that follows queues behind it and comes up only once the old core and its helpers are
+     * gone, with their listeners and Psiphon's datastore lock.
+     */
     @Synchronized
     fun stop() {
         val current = session ?: return
         session = null
-        lifecycle.execute { current.process?.destroy() }
+        lifecycle.execute { current.process?.let { end(it, current.context) } }
     }
 
     suspend fun awaitListening(timeoutMs: Long): Boolean =
@@ -616,6 +628,7 @@ object AetherCoreManager {
      * survivor on the session port would otherwise make every later start fail until a reboot.
      */
     internal fun reapStale(context: Context, bindAddress: String?) {
+        val killed = mutableSetOf<Int>()
         for (core in coreProcesses(context)) {
             if (!isStale(core.argv, core.ownerAlive, bindAddress)) continue
             LogUtil.w(
@@ -623,6 +636,67 @@ object AetherCoreManager {
                 "AetherCore: killing a leftover core process, pid=${core.pid} bind=${bindAddressOf(core.argv)} ownerAlive=${core.ownerAlive}"
             )
             android.os.Process.killProcess(core.pid)
+            killed += core.pid
+        }
+        reapOrphans(context, killed)
+    }
+
+    /**
+     * Ends [process], a core, and then whatever it started. The core has no signal handling, so
+     * the term that ends it takes nothing with it: Psiphon's client and the pluggable transport
+     * would live on, holding their listeners and, Psiphon, its datastore lock, until they noticed
+     * their pipes gone, and a core started meanwhile would fail on them.
+     */
+    private fun end(process: Process, context: Context) {
+        process.destroy()
+        if (!awaitUntil(EXIT_WAIT_MS, EXIT_POLL_MS) { !isAlive(process) }) {
+            LogUtil.w(AppConfig.TAG, "AetherCore: the core did not end on request; what it started is ended regardless")
+        }
+        reapOrphans(context)
+    }
+
+    private fun isAlive(process: Process): Boolean = try {
+        process.exitValue()
+        false
+    } catch (_: IllegalThreadStateException) {
+        true
+    }
+
+    /**
+     * Ends the helper processes of the app, Psiphon's client and the pluggable transport, that no
+     * living core has as a parent, [gone] cores not counting as living: a term first, for Psiphon
+     * to close its tunnel and datastore, and a kill for one that has not gone in time.
+     */
+    internal fun reapOrphans(context: Context, gone: Set<Int> = emptySet()) {
+        val live = coreProcesses(context).map { it.pid }.toSet() - gone
+        val orphans = orphanedHelpers(helperProcesses(context), live)
+        if (orphans.isEmpty()) return
+        LogUtil.w(AppConfig.TAG, "AetherCore: ending ${orphans.size} helper process(es) left behind by a core, pids=$orphans")
+        orphans.forEach { android.os.Process.sendSignal(it, SIGTERM) }
+        awaitUntil(EXIT_WAIT_MS, EXIT_POLL_MS) { orphans.none { File(procDir, it.toString()).isDirectory } }
+        orphans.filter { File(procDir, it.toString()).isDirectory }.forEach { android.os.Process.killProcess(it) }
+    }
+
+    /** The pids among [helpers], each with its parent pid, whose parent is none of [liveCores]; a parent that could not be read counts as none. */
+    internal fun orphanedHelpers(helpers: List<Pair<Int, Int?>>, liveCores: Set<Int>): List<Int> =
+        helpers.filter { (_, parent) -> parent == null || parent !in liveCores }.map { it.first }
+
+    /** The parent pid in [stat], the text of /proc/<pid>/stat: the second field after the command name in parentheses. */
+    internal fun parentPidOf(stat: String): Int? {
+        val close = stat.lastIndexOf(')')
+        if (close < 0) return null
+        return stat.substring(close + 1).trim().split(' ').getOrNull(1)?.toIntOrNull()
+    }
+
+    /** The helper processes of the app found in /proc, each with its parent pid when it could be read. */
+    private fun helperProcesses(context: Context): List<Pair<Int, Int?>> {
+        val helpers = setOf(psiphonBinary(context).absolutePath, transportBinary(context).absolutePath)
+        val entries = procDir.listFiles() ?: return emptyList()
+        return entries.mapNotNull { entry ->
+            val pid = entry.name.toIntOrNull() ?: return@mapNotNull null
+            val argv = readNulSeparated(File(entry, "cmdline")) ?: return@mapNotNull null
+            if (argv.firstOrNull() !in helpers) return@mapNotNull null
+            pid to runCatching { File(entry, "stat").readText() }.getOrNull()?.let(::parentPidOf)
         }
     }
 
@@ -892,6 +966,7 @@ object AetherCoreManager {
         }
         val exitCode = process.waitFor()
         if (!release(target)) return
+        reapOrphans(target.context)
         LogUtil.e(AppConfig.TAG, "AetherCore: the core exited on its own with code $exitCode")
         target.onExit()
     }
@@ -904,7 +979,7 @@ object AetherCoreManager {
     }
 
     /** [wordSeen] starts true where no word is needed, so the listener alone decides there. */
-    private class Session(val port: Int, needsWord: Boolean, val onExit: () -> Unit) {
+    private class Session(val port: Int, needsWord: Boolean, val context: Context, val onExit: () -> Unit) {
         var process: Process? = null
 
         @Volatile
