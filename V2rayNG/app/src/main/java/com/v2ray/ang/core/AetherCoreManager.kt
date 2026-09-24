@@ -230,9 +230,13 @@ object AetherCoreManager {
             }
             psiphonBind?.let { addAll(listOf(PSIPHON_BIND, "${AppConfig.LOOPBACK}:$it")) }
             if (psiphon != AetherPsiphon.OFF) {
-                addAll(listOf("--psiphon-mode", AetherPsiphonMode.fromString(profile.aetherPsiphonMode).type))
-                profile.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-ips", it)) }
-                profile.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-sni", it)) }
+                val shape = AetherPsiphonMode.fromString(profile.aetherPsiphonMode)
+                addAll(listOf("--psiphon-mode", shape.type))
+                // The CDN lists feed the fronted transports alone, which the direct shape never uses; the
+                // server names count only beside an IP list of one's own, since the built-in list comes whole.
+                val cdnIps = profile.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() && shape != AetherPsiphonMode.DIRECT }
+                cdnIps?.let { addAll(listOf("--psiphon-cdn-ips", it)) }
+                if (cdnIps != null) profile.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-cdn-sni", it)) }
                 profile.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--psiphon-region", it)) }
             }
             addAll(listOf("--log-level", logLevel))

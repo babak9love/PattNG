@@ -53,6 +53,7 @@ import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTorBridges
 import com.v2ray.ang.enums.AetherTorRelays
@@ -114,6 +115,7 @@ class ServerAetherActivity : BaseServerActivity() {
 
         val protocol = AetherProtocol.fromString(uiState.aetherProtocol)
         val psiphon = AetherPsiphon.fromString(uiState.aetherPsiphon)
+        val psiphonMode = AetherPsiphonMode.fromString(uiState.aetherPsiphonMode)
         val tor = AetherTor.fromString(uiState.aetherTor)
         val torBridges = AetherTorBridges.fromString(uiState.aetherTorBridges)
         // With Psiphon or Tor alone there is no WARP tunnel, and nothing about one to set.
@@ -266,18 +268,24 @@ class ServerAetherActivity : BaseServerActivity() {
                     values = R.array.aether_psiphon_mode_values,
                     onValueChange = { uiState.aetherPsiphonMode = it }
                 )
-                FormTextField(
-                    stringResource(R.string.aether_lab_psiphon_cdn_ips),
-                    uiState.aetherPsiphonCdnIps,
-                    { uiState.aetherPsiphonCdnIps = it },
-                    placeholder = stringResource(R.string.aether_hint_psiphon_list)
-                )
-                FormTextField(
-                    stringResource(R.string.aether_lab_psiphon_cdn_sni),
-                    uiState.aetherPsiphonCdnSni,
-                    { uiState.aetherPsiphonCdnSni = it },
-                    placeholder = stringResource(R.string.aether_hint_psiphon_list)
-                )
+                // The CDN lists feed the fronted transports alone, which the direct shape never uses; the
+                // server names count only beside an IP list of one's own, since the built-in list comes whole.
+                if (psiphonMode != AetherPsiphonMode.DIRECT) {
+                    FormTextField(
+                        stringResource(R.string.aether_lab_psiphon_cdn_ips),
+                        uiState.aetherPsiphonCdnIps,
+                        { uiState.aetherPsiphonCdnIps = it },
+                        placeholder = stringResource(R.string.aether_hint_psiphon_list)
+                    )
+                    if (uiState.aetherPsiphonCdnIps.isNotBlank()) {
+                        FormTextField(
+                            stringResource(R.string.aether_lab_psiphon_cdn_sni),
+                            uiState.aetherPsiphonCdnSni,
+                            { uiState.aetherPsiphonCdnSni = it },
+                            placeholder = stringResource(R.string.aether_hint_psiphon_list)
+                        )
+                    }
+                }
                 FormTextField(
                     stringResource(R.string.aether_lab_psiphon_region),
                     uiState.aetherPsiphonRegion,

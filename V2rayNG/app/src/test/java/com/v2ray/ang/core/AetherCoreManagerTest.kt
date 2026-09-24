@@ -485,6 +485,25 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun theCdnListsReachTheCoreOnlyWhereAFrontedTransportCanReadThem() {
+        val fronted = profile().copy(aetherPsiphon = "only", aetherPsiphonCdnIps = "1.1.1.1", aetherPsiphonCdnSni = "a.example")
+        assertEquals("1.1.1.1", valueAfter(AetherCoreManager.buildArguments(fronted, 10819), "--psiphon-cdn-ips"))
+        assertEquals("a.example", valueAfter(AetherCoreManager.buildArguments(fronted, 10819), "--psiphon-cdn-sni"))
+        assertEquals("1.1.1.1", valueAfter(AetherCoreManager.buildArguments(fronted.copy(aetherPsiphonMode = "cdn"), 10819), "--psiphon-cdn-ips"))
+
+        // The direct shape never fronts, so the lists would only be carried for nothing.
+        val direct = AetherCoreManager.buildArguments(fronted.copy(aetherPsiphonMode = "direct"), 10819)
+        assertEquals("direct", valueAfter(direct, "--psiphon-mode"))
+        assertNull(valueAfter(direct, "--psiphon-cdn-ips"))
+        assertNull(valueAfter(direct, "--psiphon-cdn-sni"))
+
+        // Without an IP list of one's own the built-in list comes whole, names included.
+        val namesAlone = AetherCoreManager.buildArguments(fronted.copy(aetherPsiphonCdnIps = null), 10819)
+        assertNull(valueAfter(namesAlone, "--psiphon-cdn-ips"))
+        assertNull(valueAfter(namesAlone, "--psiphon-cdn-sni"))
+    }
+
+    @Test
     fun psiphonAroundTheTunnelKeepsTheTunnelOnTheListenPortAndLetsPsiphonPickItsOwn() {
         val reverse = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "reverse"), 10819)
         assertEquals("127.0.0.1:10819", valueAfter(reverse, "--bind"))
