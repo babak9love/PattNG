@@ -79,6 +79,54 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun psiphonIsOffByDefaultAndItsSettingsAreStoredOnlyWhileItIsOn() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals("off", state.aetherPsiphon)
+        assertEquals("auto", state.aetherPsiphonMode)
+        assertNull(state.toProfileItem(profile).aetherPsiphon)
+        assertNull(state.toProfileItem(profile).aetherPsiphonMode)
+
+        state.aetherPsiphonMode = "cdn"
+        state.aetherPsiphonRegion = "DE"
+        // Settings of a Psiphon that is off are not kept.
+        assertNull(state.toProfileItem(profile).aetherPsiphonMode)
+        assertNull(state.toProfileItem(profile).aetherPsiphonRegion)
+
+        state.aetherPsiphon = "chain"
+        val stored = state.toProfileItem(profile)
+        assertEquals("chain", stored.aetherPsiphon)
+        assertEquals("cdn", stored.aetherPsiphonMode)
+        assertEquals("DE", stored.aetherPsiphonRegion)
+        assertNull(stored.aetherPsiphonCdnIps)
+
+        val reloaded = ServerUiState.from(stored)
+        assertEquals("chain", reloaded.aetherPsiphon)
+        assertEquals("cdn", reloaded.aetherPsiphonMode)
+        assertEquals("DE", reloaded.aetherPsiphonRegion)
+        assertEquals("", reloaded.aetherPsiphonCdnIps)
+    }
+
+    @Test
+    fun aCommandIsStoredOnlyWhenItSaysMoreThanTheSettings() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals("", state.aetherCommand)
+        assertNull(state.toProfileItem(profile).aetherCommand)
+
+        // The command the settings build, typed back in, is no command of its own.
+        val built = com.v2ray.ang.core.AetherCore.of(state.toProfileItem(profile)).command
+        state.aetherCommand = " $built "
+        assertNull(state.toProfileItem(profile).aetherCommand)
+
+        state.aetherCommand = "$built --dns 1.1.1.1"
+        assertEquals("$built --dns 1.1.1.1", state.toProfileItem(profile).aetherCommand)
+
+        val reloaded = ServerUiState.from(state.toProfileItem(profile))
+        assertEquals("$built --dns 1.1.1.1", reloaded.aetherCommand)
+    }
+
+    @Test
     fun theListenPortBelongsToAetherProfilesOnly() {
         val vless = ProfileItem.create(EConfigType.VLESS)
         val state = ServerUiState.from(vless).apply { aetherListenPort = "20808" }

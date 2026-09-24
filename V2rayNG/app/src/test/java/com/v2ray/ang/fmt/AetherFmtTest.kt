@@ -37,7 +37,7 @@ class AetherFmtTest {
             server = "162.159.198.1"
             serverPort = "443"
             aetherTransport = AetherTransport.HTTP2.type
-            aetherScanMode = AetherScanMode.STEALTH.type
+            aetherScanMode = AetherScanMode.VERIFIED.type
             aetherObfuscation = AetherObfuscation.AGGRESSIVE.type
             aetherIpVersion = AetherIpVersion.DUAL.type
             aetherFragment = true
@@ -52,10 +52,106 @@ class AetherFmtTest {
         assertEquals("443", parsed?.serverPort)
         assertEquals("masque", parsed?.aetherProtocol)
         assertEquals("h2", parsed?.aetherTransport)
-        assertEquals("stealth", parsed?.aetherScanMode)
+        assertEquals("verified", parsed?.aetherScanMode)
         assertEquals("aggressive", parsed?.aetherObfuscation)
         assertEquals("both", parsed?.aetherIpVersion)
         assertEquals(true, parsed?.aetherFragment)
+    }
+
+    @Test
+    fun theOldNameOfTheVerifiedScanModeStillReads() {
+        assertEquals(AetherScanMode.VERIFIED, AetherScanMode.fromString("stealth"))
+        assertEquals(AetherScanMode.VERIFIED, AetherScanMode.fromString("verified"))
+        assertEquals(AetherScanMode.BALANCED, AetherScanMode.fromString("quiet"))
+        // A link written before the rename.
+        val parsed = AetherFmt.parse(link(profile {}).replace("scan=balanced", "scan=stealth"))
+        assertEquals("verified", parsed?.aetherScanMode)
+    }
+
+    @Test
+    fun psiphonSurvivesTheRoundTripAndStaysOutOfALinkWithoutIt() {
+        val chained = profile {
+            aetherPsiphon = "chain"
+            aetherPsiphonMode = "cdn"
+            aetherPsiphonCdnIps = "1.1.1.1,1.0.0.1"
+            aetherPsiphonCdnSni = "a.example,b.example"
+            aetherPsiphonRegion = "DE"
+        }
+        val parsed = AetherFmt.parse(link(chained))
+        assertEquals("chain", parsed?.aetherPsiphon)
+        assertEquals("cdn", parsed?.aetherPsiphonMode)
+        assertEquals("1.1.1.1,1.0.0.1", parsed?.aetherPsiphonCdnIps)
+        assertEquals("a.example,b.example", parsed?.aetherPsiphonCdnSni)
+        assertEquals("DE", parsed?.aetherPsiphonRegion)
+
+        val plain = AetherFmt.toUri(profile {})
+        assertFalse(plain.contains("psiphon"))
+        val parsedPlain = AetherFmt.parse(link(profile {}))
+        assertNull(parsedPlain?.aetherPsiphon)
+        assertNull(parsedPlain?.aetherPsiphonMode)
+    }
+
+    @Test
+    fun psiphonSettingsAreNormalizedAndClearedWhenPsiphonIsOff() {
+        val chained = profile {
+            aetherPsiphon = "chain"
+            aetherPsiphonMode = "made-up"
+            aetherPsiphonCdnIps = " 1.1.1.1, 1.0.0.1  8.8.8.8 "
+            aetherPsiphonCdnSni = ""
+            aetherPsiphonRegion = " de "
+        }
+        assertNull(AetherFmt.normalize(chained))
+        assertEquals("auto", chained.aetherPsiphonMode)
+        assertEquals("1.1.1.1,1.0.0.1,8.8.8.8", chained.aetherPsiphonCdnIps)
+        assertNull(chained.aetherPsiphonCdnSni)
+        assertEquals("DE", chained.aetherPsiphonRegion)
+
+        val off = profile { aetherPsiphon = "off"; aetherPsiphonMode = "cdn"; aetherPsiphonRegion = "DE" }
+        assertNull(AetherFmt.normalize(off))
+        assertNull(off.aetherPsiphon)
+        assertNull(off.aetherPsiphonMode)
+        assertNull(off.aetherPsiphonRegion)
+    }
+
+    @Test
+    fun psiphonAroundTheTunnelNeedsMasqueAndPsiphonInsideItNeedsThePortAfterTheListenPort() {
+        assertEquals(
+            AetherFmt.Problem.PSIPHON_NEEDS_MASQUE,
+            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "reverse" })
+        )
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MASQUE.type; aetherPsiphon = "reverse" }))
+        // WireGuard inside Psiphon is fine: Psiphon carries the tunnel only the other way round.
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "chain" }))
+
+        assertEquals(AetherFmt.Problem.NEXT_PORT_TAKEN, AetherFmt.normalize(profile { aetherPsiphon = "chain" }, takenPorts = setOf(10820)))
+        assertEquals(AetherFmt.Problem.LISTEN_PORT_TAKEN, AetherFmt.normalize(profile { aetherPsiphon = "chain" }, takenPorts = setOf(10819)))
+        assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain" }, takenPorts = setOf(10821)))
+        assertEquals(AetherFmt.Problem.INVALID_LISTEN_PORT, AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherListenPort = "65535" }))
+        // Without Psiphon inside, the port after the listen port is nobody's business.
+        assertNull(AetherFmt.normalize(profile {}, takenPorts = setOf(10820)))
+    }
+
+    @Test
+    fun aCommandWrittenInPlaceOfTheSettingsIsCheckedAndTrimmed() {
+        val trimmed = profile { aetherCommand = "  aether --wg --bind 127.0.0.1:20808  " }
+        assertNull(AetherFmt.normalize(trimmed))
+        assertEquals("aether --wg --bind 127.0.0.1:20808", trimmed.aetherCommand)
+
+        val blank = profile { aetherCommand = "   " }
+        assertNull(AetherFmt.normalize(blank))
+        assertNull(blank.aetherCommand)
+
+        assertEquals(AetherFmt.Problem.INVALID_COMMAND, AetherFmt.normalize(profile { aetherCommand = "aether" }))
+        assertEquals(AetherFmt.Problem.INVALID_COMMAND, AetherFmt.normalize(profile { aetherCommand = "aether --wg --bind 20808" }))
+        // The ports a command names are held to the same rule as a listen port.
+        assertEquals(
+            AetherFmt.Problem.LISTEN_PORT_TAKEN,
+            AetherFmt.normalize(profile { aetherCommand = "aether --wg --bind 127.0.0.1:10808" }, takenPorts = setOf(10808))
+        )
+        assertEquals(
+            AetherFmt.Problem.LISTEN_PORT_TAKEN,
+            AetherFmt.normalize(profile { aetherCommand = "aether --psiphon --bind 127.0.0.1:10808 --psiphon-bind 127.0.0.1:10819" }, takenPorts = setOf(10808))
+        )
     }
 
     @Test
@@ -408,7 +504,7 @@ class AetherFmtTest {
             server = "162.159.198.1"
             serverPort = "443"
             aetherTransport = AetherTransport.HTTP2.type
-            aetherScanMode = AetherScanMode.STEALTH.type
+            aetherScanMode = AetherScanMode.VERIFIED.type
             aetherObfuscation = AetherObfuscation.AGGRESSIVE.type
             aetherIpVersion = AetherIpVersion.DUAL.type
             aetherFragment = true
@@ -416,7 +512,8 @@ class AetherFmtTest {
             aetherFragmentDelay = "5"
         }
 
-        // As a full configuration wrote them into its SOCKS outbound before aetherCommand.
+        // As a full configuration wrote them into its SOCKS outbound before aetherCommand; the scan mode
+        // still carries the name it had then.
         val parsed = valid(
             """{"address":"162.159.198.1","port":"443","protocol":"masque","transport":"h2","scan":"stealth",""" +
                 """"noize":"aggressive","ip":"both","fragment":true,"fragmentSize":"16-32","fragmentDelay":"5"}"""

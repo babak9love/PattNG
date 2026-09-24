@@ -588,6 +588,20 @@
     <string name="aether_invalid_fragment">একটি সংখ্যা বা 16-32 এর মতো পরিসর লিখুন: আকার 1–4096 বাইট, বিলম্ব 0–1000 মিলিসেকেন্ড</string>
     <string name="aether_invalid_listen_port">1 থেকে 65535 এর মধ্যে একটি লিসেন পোর্ট দিন, অথবা ডিফল্ট পোর্টের জন্য খালি রাখুন</string>
     <string name="aether_listen_port_taken">লিসেন পোর্ট অ্যাপের স্থানীয় প্রক্সি পোর্টের সমান হতে পারবে না</string>
+    <string name="aether_lab_psiphon">Psiphon</string>
+    <string name="aether_lab_psiphon_mode">Psiphon সংযোগ</string>
+    <string name="aether_lab_psiphon_cdn_ips">CDN ফ্রন্টিং IP</string>
+    <string name="aether_lab_psiphon_cdn_sni">CDN ফ্রন্টিং সার্ভার নাম (SNI)</string>
+    <string name="aether_hint_psiphon_list">কমা দিয়ে আলাদা করুন; খালি রাখলে অন্তর্নির্মিত তালিকা ব্যবহৃত হবে</string>
+    <string name="aether_lab_psiphon_region">প্রস্থান দেশ</string>
+    <string name="aether_hint_psiphon_region">দেশের কোড যেমন DE; খালি রাখলে যেকোনো</string>
+    <string name="aether_psiphon_unavailable">এই বিল্ডে Psiphon ক্লায়েন্ট নেই, তাই Psiphon সহ প্রোফাইল সংযোগ করতে পারবে না</string>
+    <string name="aether_psiphon_needs_masque">Psiphon → WARP শুধু MASQUE প্রোটোকলের সাথে কাজ করে</string>
+    <string name="aether_next_port_taken">WARP → Psiphon-এ কোর শোনার পোর্টের পরের পোর্টটিও ব্যবহার করে; সেটি অ্যাপের লোকাল প্রক্সি পোর্ট হতে পারবে না</string>
+    <string name="aether_lab_command">Aether কমান্ড</string>
+    <string name="aether_command_custom">হাতে সম্পাদিত: এই কমান্ড যেমন লেখা তেমনই চলে, উপরের সেটিংস প্রয়োগ হয় না</string>
+    <string name="aether_action_use_settings">সেটিংস ব্যবহার করুন</string>
+    <string name="aether_invalid_command">কমান্ডে Aether কোরের আর্গুমেন্ট থাকতে হবে, --bind এর পরে শোনার পোর্টসহ</string>
     <string name="aether_unsupported_abi">এই ডিভাইসের জন্য Aether কোর উপলব্ধ নয়</string>
     <string name="aether_core_stopped">Aether কোর চলা বন্ধ হয়ে গেছে</string>
     <string name="aether_core_connecting">Aether কোর এখনও সংযোগ করছে</string>
@@ -627,8 +641,19 @@
         <item>টার্বো</item>
         <item>ভারসাম্যপূর্ণ</item>
         <item>পুঙ্খানুপুঙ্খ</item>
-        <item>গোপন</item>
+        <item>যাচাইকৃত</item>
         <item>নিশ্চিত</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>বন্ধ</item>
+        <item>WARP → Psiphon</item>
+        <item>Psiphon → WARP</item>
+        <item>শুধু Psiphon</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>স্বয়ংক্রিয়</item>
+        <item>শুধু CDN ফ্রন্টিং</item>
+        <item>শুধু সরাসরি</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>বন্ধ</item>

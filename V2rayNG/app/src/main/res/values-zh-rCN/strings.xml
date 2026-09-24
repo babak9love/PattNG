@@ -586,6 +586,20 @@
     <string name="aether_invalid_fragment">请填写数字或范围，例如 16-32：大小 1–4096 字节，间隔 0–1000 毫秒</string>
     <string name="aether_invalid_listen_port">请填写 1 到 65535 之间的监听端口，或留空使用默认端口</string>
     <string name="aether_listen_port_taken">监听端口不能与应用的本地代理端口相同</string>
+    <string name="aether_lab_psiphon">Psiphon</string>
+    <string name="aether_lab_psiphon_mode">Psiphon 连接方式</string>
+    <string name="aether_lab_psiphon_cdn_ips">CDN 前置 IP</string>
+    <string name="aether_lab_psiphon_cdn_sni">CDN 前置服务器名 (SNI)</string>
+    <string name="aether_hint_psiphon_list">以逗号分隔；留空使用内置列表</string>
+    <string name="aether_lab_psiphon_region">出口国家/地区</string>
+    <string name="aether_hint_psiphon_region">国家代码，如 DE；留空则不限</string>
+    <string name="aether_psiphon_unavailable">此版本未包含 Psiphon 客户端，使用 Psiphon 的配置无法连接</string>
+    <string name="aether_psiphon_needs_masque">Psiphon → WARP 仅支持 MASQUE 协议</string>
+    <string name="aether_next_port_taken">使用 WARP → Psiphon 时，内核还会占用监听端口之后的一个端口；它不能是应用的本地代理端口</string>
+    <string name="aether_lab_command">Aether 命令</string>
+    <string name="aether_command_custom">已手动编辑：此命令按原样运行，上面的设置不再生效</string>
+    <string name="aether_action_use_settings">使用上方设置</string>
+    <string name="aether_invalid_command">命令必须包含 Aether 内核的参数，并在 --bind 后给出监听端口</string>
     <string name="aether_unsupported_abi">此设备不支持 Aether 内核</string>
     <string name="aether_core_stopped">Aether 内核已停止运行</string>
     <string name="aether_core_connecting">Aether 内核仍在连接中</string>
@@ -625,8 +639,19 @@
         <item>极速</item>
         <item>均衡</item>
         <item>全面</item>
-        <item>隐蔽</item>
+        <item>已验证</item>
         <item>可靠</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>关闭</item>
+        <item>WARP → Psiphon</item>
+        <item>Psiphon → WARP</item>
+        <item>仅 Psiphon</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>自动</item>
+        <item>仅 CDN 前置</item>
+        <item>仅直连</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>关闭</item>

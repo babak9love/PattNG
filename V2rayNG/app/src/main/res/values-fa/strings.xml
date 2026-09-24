@@ -588,6 +588,20 @@
     <string name="aether_invalid_fragment">یک عدد یا بازه مثل 16-32 بنویسید: اندازه 1 تا 4096 بایت، تأخیر 0 تا 1000 میلی‌ثانیه</string>
     <string name="aether_invalid_listen_port">یک پورت شنود از 1 تا 65535 وارد کنید، یا برای پورت پیش‌فرض آن را خالی بگذارید</string>
     <string name="aether_listen_port_taken">پورت شنود نباید با پورت پروکسی محلی برنامه یکسان باشد</string>
+    <string name="aether_lab_psiphon">سایفون</string>
+    <string name="aether_lab_psiphon_mode">نحوه اتصال سایفون</string>
+    <string name="aether_lab_psiphon_cdn_ips">آی‌پی‌های CDN</string>
+    <string name="aether_lab_psiphon_cdn_sni">نام سرورهای CDN (SNI)</string>
+    <string name="aether_hint_psiphon_list">با کاما جدا کنید؛ خالی بگذارید تا فهرست داخلی استفاده شود</string>
+    <string name="aether_lab_psiphon_region">کشور خروجی</string>
+    <string name="aether_hint_psiphon_region">کد کشور مانند DE؛ خالی یعنی هر کشوری</string>
+    <string name="aether_psiphon_unavailable">این نسخه کلاینت سایفون را ندارد؛ پروفایلی که از سایفون استفاده کند نمی‌تواند وصل شود</string>
+    <string name="aether_psiphon_needs_masque">حالت «اول سایفون، بعد WARP» فقط با پروتکل MASQUE کار می‌کند</string>
+    <string name="aether_next_port_taken">در حالت «اول WARP، بعد سایفون» هسته پورت بعد از پورت گوش‌دادن را هم استفاده می‌کند؛ آن پورت نمی‌تواند پورت پروکسی محلی برنامه باشد</string>
+    <string name="aether_lab_command">فرمان Aether</string>
+    <string name="aether_command_custom">دستی ویرایش شده: این فرمان همان‌طور که نوشته شده اجرا می‌شود و تنظیمات بالا اعمال نمی‌شوند</string>
+    <string name="aether_action_use_settings">استفاده از تنظیمات</string>
+    <string name="aether_invalid_command">فرمان باید آرگومان‌های هسته Aether را داشته باشد و پورت گوش‌دادن پس از --bind بیاید</string>
     <string name="aether_unsupported_abi">هسته Aether برای این دستگاه در دسترس نیست</string>
     <string name="aether_core_stopped">هسته Aether متوقف شده است</string>
     <string name="aether_core_connecting">هسته Aether هنوز در حال اتصال است</string>
@@ -627,8 +641,19 @@
         <item>توربو</item>
         <item>متعادل</item>
         <item>دقیق</item>
-        <item>پنهانی</item>
+        <item>تأییدشده</item>
         <item>تضمینی</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>خاموش</item>
+        <item>اول WARP، بعد سایفون</item>
+        <item>اول سایفون، بعد WARP</item>
+        <item>فقط سایفون</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>خودکار</item>
+        <item>فقط از طریق CDN</item>
+        <item>فقط مستقیم</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>خاموش</item>

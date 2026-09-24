@@ -11,10 +11,13 @@ import com.v2ray.ang.AppConfig.TARGET_STRATEGY_AS_IS
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_REMOTE_DNS
+import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
@@ -84,7 +87,13 @@ class ServerUiState(
     aetherFragment: Boolean = false,
     aetherFragmentSize: String = "",
     aetherFragmentDelay: String = "",
-    aetherListenPort: String = PORT_AETHER_SOCKS
+    aetherListenPort: String = PORT_AETHER_SOCKS,
+    aetherPsiphon: String = AetherPsiphon.OFF.type,
+    aetherPsiphonMode: String = AetherPsiphonMode.AUTO.type,
+    aetherPsiphonCdnIps: String = "",
+    aetherPsiphonCdnSni: String = "",
+    aetherPsiphonRegion: String = "",
+    aetherCommand: String = ""
 ) {
     var configType by mutableStateOf(configType)
     var remarks by mutableStateOf(remarks)
@@ -148,6 +157,12 @@ class ServerUiState(
     var aetherFragmentSize by mutableStateOf(aetherFragmentSize)
     var aetherFragmentDelay by mutableStateOf(aetherFragmentDelay)
     var aetherListenPort by mutableStateOf(aetherListenPort)
+    var aetherPsiphon by mutableStateOf(aetherPsiphon)
+    var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)
+    var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
+    var aetherPsiphonCdnSni by mutableStateOf(aetherPsiphonCdnSni)
+    var aetherPsiphonRegion by mutableStateOf(aetherPsiphonRegion)
+    var aetherCommand by mutableStateOf(aetherCommand)
 
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)
@@ -162,8 +177,9 @@ class ServerUiState(
         val isWireguard = configType == EConfigType.WIREGUARD
         val isHysteria2 = configType == EConfigType.HYSTERIA2
         val isAether = configType == EConfigType.AETHER
+        val isPsiphon = isAether && aetherPsiphon != AetherPsiphon.OFF.type
 
-        return initialConfig.copy(
+        val profile = initialConfig.copy(
             configType = configType,
             remarks = remarks,
             server = address,
@@ -236,8 +252,18 @@ class ServerUiState(
             aetherFragmentDelay = if (isAether) aetherFragmentDelay.nullIfBlank() else null,
             // Stored only when it is not the default, the way AetherFmt.normalize stores it; text that is
             // no port goes through as written, for normalize to refuse.
-            aetherListenPort = if (isAether) aetherListenPort.trim().takeUnless { it.isEmpty() || it == PORT_AETHER_SOCKS } else null
+            aetherListenPort = if (isAether) aetherListenPort.trim().takeUnless { it.isEmpty() || it == PORT_AETHER_SOCKS } else null,
+            aetherPsiphon = if (isPsiphon) aetherPsiphon else null,
+            aetherPsiphonMode = if (isPsiphon) aetherPsiphonMode else null,
+            aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
+            aetherPsiphonCdnSni = if (isPsiphon) aetherPsiphonCdnSni.nullIfBlank() else null,
+            aetherPsiphonRegion = if (isPsiphon) aetherPsiphonRegion.nullIfBlank() else null,
+            aetherCommand = null,
         )
+        if (!isAether) return profile
+        // A command that says what the settings say is no command of its own: the profile follows the settings.
+        val command = aetherCommand.trim()
+        return if (command.isEmpty() || command == AetherCore.of(profile).command) profile else profile.copy(aetherCommand = command)
     }
 
     companion object {
@@ -307,7 +333,13 @@ class ServerUiState(
                 aetherFragment = initialConfig.aetherFragment ?: false,
                 aetherFragmentSize = initialConfig.aetherFragmentSize ?: "",
                 aetherFragmentDelay = initialConfig.aetherFragmentDelay ?: "",
-                aetherListenPort = initialConfig.aetherListenPort ?: PORT_AETHER_SOCKS
+                aetherListenPort = initialConfig.aetherListenPort ?: PORT_AETHER_SOCKS,
+                aetherPsiphon = AetherPsiphon.fromString(initialConfig.aetherPsiphon).type,
+                aetherPsiphonMode = AetherPsiphonMode.fromString(initialConfig.aetherPsiphonMode).type,
+                aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",
+                aetherPsiphonCdnSni = initialConfig.aetherPsiphonCdnSni ?: "",
+                aetherPsiphonRegion = initialConfig.aetherPsiphonRegion ?: "",
+                aetherCommand = initialConfig.aetherCommand ?: ""
             )
 
         fun from(

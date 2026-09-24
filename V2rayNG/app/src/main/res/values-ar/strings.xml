@@ -596,6 +596,20 @@
     <string name="aether_invalid_fragment">اكتب رقمًا أو نطاقًا مثل 16-32: الحجم من 1 إلى 4096 بايت، والتأخير من 0 إلى 1000 مللي ثانية</string>
     <string name="aether_invalid_listen_port">استخدم منفذ استماع من 1 إلى 65535، أو اتركه فارغًا لاستخدام المنفذ الافتراضي</string>
     <string name="aether_listen_port_taken">لا يمكن أن يكون منفذ الاستماع هو نفسه منفذ البروكسي المحلي للتطبيق</string>
+    <string name="aether_lab_psiphon">سايفون</string>
+    <string name="aether_lab_psiphon_mode">طريقة اتصال سايفون</string>
+    <string name="aether_lab_psiphon_cdn_ips">عناوين IP لشبكة CDN</string>
+    <string name="aether_lab_psiphon_cdn_sni">أسماء خوادم CDN (SNI)</string>
+    <string name="aether_hint_psiphon_list">افصل بفواصل؛ اتركه فارغًا لاستخدام القائمة المضمنة</string>
+    <string name="aether_lab_psiphon_region">بلد الخروج</string>
+    <string name="aether_hint_psiphon_region">رمز البلد مثل DE؛ اتركه فارغًا لأي بلد</string>
+    <string name="aether_psiphon_unavailable">هذا الإصدار لا يتضمن عميل سايفون، لذا لا يمكن لملف تعريف يستخدم سايفون الاتصال</string>
+    <string name="aether_psiphon_needs_masque">وضع «عبر سايفون إلى WARP» يعمل مع بروتوكول MASQUE فقط</string>
+    <string name="aether_next_port_taken">في وضع «عبر WARP إلى سايفون» تستخدم النواة أيضًا المنفذ التالي لمنفذ الاستماع؛ ولا يمكن أن يكون منفذ الوكيل المحلي للتطبيق</string>
+    <string name="aether_lab_command">أمر Aether</string>
+    <string name="aether_command_custom">مُعدَّل يدويًا: يُنفَّذ هذا الأمر كما هو مكتوب، ولا تُطبَّق الإعدادات أعلاه</string>
+    <string name="aether_action_use_settings">استخدام الإعدادات</string>
+    <string name="aether_invalid_command">يجب أن يحتوي الأمر على وسائط نواة Aether، مع منفذ الاستماع بعد --bind</string>
     <string name="aether_unsupported_abi">نواة Aether غير متوفرة لهذا الجهاز</string>
     <string name="aether_core_stopped">توقفت نواة Aether عن العمل</string>
     <string name="aether_core_connecting">لا تزال نواة Aether قيد الاتصال</string>
@@ -635,8 +649,19 @@
         <item>توربو</item>
         <item>متوازن</item>
         <item>شامل</item>
-        <item>خفي</item>
+        <item>مُتحقَّق منه</item>
         <item>مضمون</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>إيقاف</item>
+        <item>عبر WARP إلى سايفون</item>
+        <item>عبر سايفون إلى WARP</item>
+        <item>سايفون فقط</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>تلقائي</item>
+        <item>عبر CDN فقط</item>
+        <item>مباشر فقط</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>إيقاف</item>

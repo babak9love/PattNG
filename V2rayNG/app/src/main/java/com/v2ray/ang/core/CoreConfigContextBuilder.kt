@@ -283,17 +283,17 @@ object CoreConfigContextBuilder {
      * so a conflict there is reported instead.
      */
     internal fun withOneAetherProfile(members: List<ProfileItem>): Pair<List<ProfileItem>, List<ProfileItem>> {
-        var kept: List<String>? = null
+        var kept: AetherCore? = null
         return members.partition { member ->
             if (member.configType != EConfigType.AETHER) return@partition true
-            val arguments = AetherCoreManager.buildArguments(member, AetherCoreManager.listenPort(member))
+            val core = AetherCore.of(member)
             when (kept) {
                 null -> {
-                    kept = arguments
+                    kept = core
                     true
                 }
 
-                arguments -> true
+                core -> true
                 else -> false
             }
         }

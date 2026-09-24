@@ -592,6 +592,20 @@
     <string name="aether_invalid_fragment">Укажите число или диапазон, например 16-32: размер 1–4096 байт, задержка 0–1000 мс</string>
     <string name="aether_invalid_listen_port">Укажите порт прослушивания от 1 до 65535 или оставьте поле пустым для порта по умолчанию</string>
     <string name="aether_listen_port_taken">Порт прослушивания не должен совпадать с портом локального прокси приложения</string>
+    <string name="aether_lab_psiphon">Psiphon</string>
+    <string name="aether_lab_psiphon_mode">Подключение Psiphon</string>
+    <string name="aether_lab_psiphon_cdn_ips">IP-адреса CDN</string>
+    <string name="aether_lab_psiphon_cdn_sni">Имена серверов CDN (SNI)</string>
+    <string name="aether_hint_psiphon_list">Через запятую; пусто — встроенный список</string>
+    <string name="aether_lab_psiphon_region">Страна выхода</string>
+    <string name="aether_hint_psiphon_region">Код страны, например DE; пусто — любая</string>
+    <string name="aether_psiphon_unavailable">В этой сборке нет клиента Psiphon, поэтому профиль с Psiphon не сможет подключиться</string>
+    <string name="aether_psiphon_needs_masque">Psiphon → WARP работает только с протоколом MASQUE</string>
+    <string name="aether_next_port_taken">В режиме WARP → Psiphon ядро использует и следующий за портом прослушивания порт; он не может совпадать с портом локального прокси приложения</string>
+    <string name="aether_lab_command">Команда Aether</string>
+    <string name="aether_command_custom">Изменено вручную: эта команда выполняется как написана, настройки выше не применяются</string>
+    <string name="aether_action_use_settings">Использовать настройки</string>
+    <string name="aether_invalid_command">Команда должна содержать аргументы ядра Aether, с портом прослушивания после --bind</string>
     <string name="aether_unsupported_abi">Ядро Aether недоступно для этого устройства</string>
     <string name="aether_core_stopped">Ядро Aether остановлено</string>
     <string name="aether_core_connecting">Ядро Aether ещё подключается</string>
@@ -631,8 +645,19 @@
         <item>Турбо</item>
         <item>Сбалансированный</item>
         <item>Тщательный</item>
-        <item>Скрытный</item>
+        <item>Проверенный</item>
         <item>Надёжный</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>Выключено</item>
+        <item>WARP → Psiphon</item>
+        <item>Psiphon → WARP</item>
+        <item>Только Psiphon</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>Автоматически</item>
+        <item>Только через CDN</item>
+        <item>Только напрямую</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>Выкл.</item>

@@ -586,6 +586,20 @@
     <string name="aether_invalid_fragment">Nhập một số hoặc khoảng như 16-32: kích thước 1–4096 byte, độ trễ 0–1000 ms</string>
     <string name="aether_invalid_listen_port">Nhập cổng lắng nghe từ 1 đến 65535, hoặc để trống để dùng cổng mặc định</string>
     <string name="aether_listen_port_taken">Cổng lắng nghe không được trùng với cổng proxy cục bộ của ứng dụng</string>
+    <string name="aether_lab_psiphon">Psiphon</string>
+    <string name="aether_lab_psiphon_mode">Kết nối Psiphon</string>
+    <string name="aether_lab_psiphon_cdn_ips">IP CDN fronting</string>
+    <string name="aether_lab_psiphon_cdn_sni">Tên máy chủ CDN fronting (SNI)</string>
+    <string name="aether_hint_psiphon_list">Cách nhau bằng dấu phẩy; để trống để dùng danh sách có sẵn</string>
+    <string name="aether_lab_psiphon_region">Quốc gia đầu ra</string>
+    <string name="aether_hint_psiphon_region">Mã quốc gia như DE; để trống nếu không cần</string>
+    <string name="aether_psiphon_unavailable">Bản dựng này không có ứng dụng Psiphon, nên cấu hình dùng Psiphon không thể kết nối</string>
+    <string name="aether_psiphon_needs_masque">Psiphon → WARP chỉ hoạt động với giao thức MASQUE</string>
+    <string name="aether_next_port_taken">Với WARP → Psiphon, lõi còn dùng cổng ngay sau cổng lắng nghe; cổng đó không được là cổng proxy cục bộ của ứng dụng</string>
+    <string name="aether_lab_command">Lệnh Aether</string>
+    <string name="aether_command_custom">Đã sửa tay: lệnh này chạy đúng như đã viết, các thiết lập bên trên không được áp dụng</string>
+    <string name="aether_action_use_settings">Dùng thiết lập</string>
+    <string name="aether_invalid_command">Lệnh phải có các tham số cho lõi Aether, với cổng lắng nghe đặt sau --bind</string>
     <string name="aether_unsupported_abi">Lõi Aether không khả dụng cho thiết bị này</string>
     <string name="aether_core_stopped">Lõi Aether đã dừng chạy</string>
     <string name="aether_core_connecting">Lõi Aether vẫn đang kết nối</string>
@@ -625,8 +639,19 @@
         <item>Siêu tốc</item>
         <item>Cân bằng</item>
         <item>Kỹ lưỡng</item>
-        <item>Ẩn</item>
+        <item>Đã xác minh</item>
         <item>Chắc chắn</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>Tắt</item>
+        <item>WARP → Psiphon</item>
+        <item>Psiphon → WARP</item>
+        <item>Chỉ Psiphon</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>Tự động</item>
+        <item>Chỉ qua CDN</item>
+        <item>Chỉ trực tiếp</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>Tắt</item>

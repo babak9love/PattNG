@@ -102,11 +102,11 @@ object AetherDelayTester {
      */
     private fun liveSession(context: Context, activeGuid: String?): LiveSession? {
         AetherCoreManager.sessionArguments(context)?.let { arguments ->
-            val port = AetherCoreManager.bindPortOf(arguments) ?: AetherCoreManager.socksPort
+            val port = AetherCoreManager.listenerPortOf(arguments) ?: AetherCoreManager.socksPort
             return LiveSession(AetherCoreManager.protocolOf(arguments), arguments, port, AetherCoreManager.acceptsConnections(port))
         }
         val active = activeGuid?.let(MmkvManager::decodeServerConfig)?.takeIf { it.configType == EConfigType.AETHER } ?: return null
-        val port = AetherCoreManager.listenPort(active)
+        val port = AetherCore.of(active).port
         if (!AetherCoreManager.acceptsConnections(port)) return null
         return LiveSession(AetherProtocol.fromString(active.aetherProtocol), arguments = null, port = port, listening = true)
     }

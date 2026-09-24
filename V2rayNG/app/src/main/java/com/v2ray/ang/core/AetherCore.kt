@@ -4,27 +4,52 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 
 /**
- * The Aether core a configuration runs on, as the arguments its process is started with, the SOCKS
- * listener among them. The core of a profile is built from the profile's settings; the core of a
- * custom configuration is the command line it carries as aetherCommand, read as written and run as
- * written, so that what the configuration says is what runs. Two cores with the same arguments are
- * one core, which is how one process comes to serve several outbounds.
+ * The Aether core a configuration runs on, as the arguments its process is started with, the
+ * listeners among them. The core of a profile is built from the profile's settings, or is the
+ * command line the profile carries in their place; the core of a custom configuration is the
+ * command line it carries as aetherCommand. A command line is read as written and run as written,
+ * so that what the profile or the configuration says is what runs. Two cores with the same
+ * arguments are one core, which is how one process comes to serve several outbounds.
  */
 data class AetherCore(val arguments: List<String>) {
 
-    /** The loopback port the core listens on, the one the Aether outbounds of the configuration dial. */
-    val port: Int get() = AetherCoreManager.bindPortOf(arguments) ?: AetherCoreManager.socksPort
+    /**
+     * The loopback port the app dials: Psiphon's listener when Psiphon runs inside the tunnel and is
+     * what the app reaches, the core's own listener otherwise.
+     */
+    val port: Int get() = AetherCoreManager.listenerPortOf(arguments) ?: AetherCoreManager.socksPort
+
+    /** Every loopback port the core is told to listen on; an inbound of the configuration cannot share one. */
+    val ports: List<Int>
+        get() = listOf("--bind", AetherCoreManager.PSIPHON_BIND)
+            .mapNotNull { AetherCoreManager.portAfter(arguments, it) }
+            .filter { it != 0 }
+            .distinct()
 
     /** The protocol, which tells whose identity files the core uses. */
     val protocol: AetherProtocol get() = AetherCoreManager.protocolOf(arguments)
 
-    /** The command line a custom configuration carries for this core; [ofCommand] reads it back. */
+    /** The command line a profile or a custom configuration carries for this core; [ofCommand] reads it back. */
     val command: String get() = (listOf(COMMAND_NAME) + arguments).joinToString(" ", transform = ::quoted)
 
-    /** This core behind a listener on [port] instead, as a latency test opens it on a port of its own. */
-    fun on(port: Int): AetherCore = AetherCore(AetherCoreManager.withBind(arguments, port))
+    /**
+     * This core dialled on [port] instead, as a latency test opens it on a port of its own. With
+     * Psiphon inside the tunnel, the tunnel's own listener, which Psiphon leaves through, moves to
+     * the port after it, where [AetherCoreManager.buildArguments] puts it.
+     */
+    fun on(port: Int): AetherCore = AetherCore(
+        if (AetherCoreManager.dialsPsiphon(arguments)) {
+            AetherCoreManager.withListener(
+                AetherCoreManager.withListener(arguments, "--bind", port + 1),
+                AetherCoreManager.PSIPHON_BIND,
+                port,
+            )
+        } else {
+            AetherCoreManager.withListener(arguments, "--bind", port)
+        }
+    )
 
-    /** True when a process started with [processArguments] runs this core, on whatever port and at whatever log level. */
+    /** True when a process started with [processArguments] runs this core, on whatever ports and at whatever log level. */
     fun runsAs(processArguments: List<String>): Boolean =
         AetherCoreManager.tunnelArguments(processArguments) == AetherCoreManager.tunnelArguments(arguments)
 
@@ -33,27 +58,35 @@ data class AetherCore(val arguments: List<String>) {
         /** The name a command line starts with; the app runs its own copy of the core whatever the name says. */
         const val COMMAND_NAME = "aether"
 
-        /** The core of [profile]: its settings as arguments, listening on its port. The log level is the session's to add. */
-        fun of(profile: ProfileItem): AetherCore = AetherCore(
-            AetherCoreManager.withoutOption(
-                AetherCoreManager.buildArguments(profile, AetherCoreManager.listenPort(profile)),
-                "--log-level",
-            )
-        )
+        /**
+         * The core of [profile]: the command line it carries, or its settings as arguments on its
+         * listen port. The log level is the session's to add. A command the app cannot read is
+         * left aside for the settings; the profile editor refuses to store one.
+         */
+        fun of(profile: ProfileItem): AetherCore =
+            profile.aetherCommand?.takeIf { it.isNotBlank() }?.let(::ofCommand)
+                ?: AetherCore(
+                    AetherCoreManager.withoutOption(
+                        AetherCoreManager.buildArguments(profile, AetherCoreManager.listenPort(profile)),
+                        "--log-level",
+                    )
+                )
 
         /**
          * The core [command] describes, or null when it names nothing the app can run: no argument
-         * at all, or a --bind whose port cannot be read. Words are split on whitespace, quotes keep a
-         * word together, and a program name in front is dropped. A command without --bind listens on
-         * [AetherCoreManager.socksPort], the port the Aether outbounds of the app dial unless told
-         * otherwise; the core's own default is another port, which nothing in the app dials.
+         * at all, or a listener whose port cannot be read. Words are split on whitespace, quotes keep a
+         * word together, and a program name in front is dropped. A command that names no listener for
+         * the app to dial gets one on [AetherCoreManager.socksPort], the port the Aether outbounds of
+         * the app dial unless told otherwise; the core's own defaults are other ports, which nothing
+         * in the app dials.
          */
         fun ofCommand(command: String): AetherCore? {
             val words = words(command)
             val arguments = if (words.firstOrNull()?.startsWith("-") == false) words.drop(1) else words
             if (arguments.isEmpty()) return null
-            if ("--bind" !in arguments) return AetherCore(AetherCoreManager.withBind(arguments, AetherCoreManager.socksPort))
-            return AetherCore(arguments).takeIf { AetherCoreManager.bindPortOf(arguments) != null }
+            val listener = if (AetherCoreManager.dialsPsiphon(arguments)) AetherCoreManager.PSIPHON_BIND else "--bind"
+            if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, AetherCoreManager.socksPort))
+            return AetherCore(arguments).takeIf { AetherCoreManager.portAfter(arguments, listener) != null }
         }
 
         /** The words of a command line: split on whitespace, with single or double quotes keeping a word together. */

@@ -244,15 +244,15 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * A SOCKS outbound to the Aether core, on the port the core of the profile listens on. The core
-     * itself is named at the top of the configuration, as aetherCommand, once the configuration is built.
+     * A SOCKS outbound to the Aether core, on the port the app dials the core of the profile on. The
+     * core itself is named at the top of the configuration, as aetherCommand, once the configuration is built.
      */
     private fun toOutboundAether(profileItem: ProfileItem): OutboundBean? {
         val outboundBean = createInitOutbound(EConfigType.SOCKS)
 
         outboundBean?.settings?.let { settings ->
             settings.address = AppConfig.LOOPBACK
-            settings.port = AetherCoreManager.listenPort(profileItem)
+            settings.port = AetherCore.of(profileItem).port
         }
 
         return outboundBean

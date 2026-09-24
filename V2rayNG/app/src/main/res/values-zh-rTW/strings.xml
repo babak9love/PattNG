@@ -586,6 +586,20 @@
     <string name="aether_invalid_fragment">請填寫數字或範圍，例如 16-32：大小 1–4096 位元組，間隔 0–1000 毫秒</string>
     <string name="aether_invalid_listen_port">請填寫 1 到 65535 之間的監聽連接埠，或留空使用預設連接埠</string>
     <string name="aether_listen_port_taken">監聽連接埠不能與應用程式的本機代理埠相同</string>
+    <string name="aether_lab_psiphon">Psiphon</string>
+    <string name="aether_lab_psiphon_mode">Psiphon 連線方式</string>
+    <string name="aether_lab_psiphon_cdn_ips">CDN 前置 IP</string>
+    <string name="aether_lab_psiphon_cdn_sni">CDN 前置伺服器名稱 (SNI)</string>
+    <string name="aether_hint_psiphon_list">以逗號分隔；留空使用內建清單</string>
+    <string name="aether_lab_psiphon_region">出口國家/地區</string>
+    <string name="aether_hint_psiphon_region">國家代碼，如 DE；留空則不限</string>
+    <string name="aether_psiphon_unavailable">此版本未包含 Psiphon 用戶端，使用 Psiphon 的設定檔無法連線</string>
+    <string name="aether_psiphon_needs_masque">Psiphon → WARP 僅支援 MASQUE 協定</string>
+    <string name="aether_next_port_taken">使用 WARP → Psiphon 時，核心還會使用監聽連接埠之後的一個連接埠；它不能是應用程式的本機代理連接埠</string>
+    <string name="aether_lab_command">Aether 命令</string>
+    <string name="aether_command_custom">已手動編輯：此命令按原樣執行，上方的設定不再生效</string>
+    <string name="aether_action_use_settings">使用上方設定</string>
+    <string name="aether_invalid_command">命令必須包含 Aether 核心的參數，並在 --bind 後給出監聽連接埠</string>
     <string name="aether_unsupported_abi">此裝置不支援 Aether 核心</string>
     <string name="aether_core_stopped">Aether 核心已停止執行</string>
     <string name="aether_core_connecting">Aether 核心仍在連線中</string>
@@ -625,8 +639,19 @@
         <item>極速</item>
         <item>均衡</item>
         <item>全面</item>
-        <item>隱蔽</item>
+        <item>已驗證</item>
         <item>可靠</item>
+    </string-array>
+    <string-array name="aether_psiphon_entries">
+        <item>關閉</item>
+        <item>WARP → Psiphon</item>
+        <item>Psiphon → WARP</item>
+        <item>僅 Psiphon</item>
+    </string-array>
+    <string-array name="aether_psiphon_mode_entries">
+        <item>自動</item>
+        <item>僅 CDN 前置</item>
+        <item>僅直連</item>
     </string-array>
     <string-array name="aether_obfuscation_entries">
         <item>關閉</item>

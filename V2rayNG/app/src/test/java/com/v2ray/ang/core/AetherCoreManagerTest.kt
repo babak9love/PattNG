@@ -32,7 +32,7 @@ class AetherCoreManagerTest {
         serverPort = port,
         aetherProtocol = protocol.type,
         aetherTransport = transport.type,
-        aetherScanMode = AetherScanMode.STEALTH.type,
+        aetherScanMode = AetherScanMode.VERIFIED.type,
         aetherObfuscation = AetherObfuscation.AGGRESSIVE.type,
         aetherIpVersion = AetherIpVersion.DUAL.type,
         aetherWiwOuter = outer,
@@ -53,7 +53,7 @@ class AetherCoreManagerTest {
     fun theChosenModesAreForwarded() {
         val arguments = AetherCoreManager.buildArguments(profile(), 10819)
         assertEquals("masque", valueAfter(arguments, "--protocol"))
-        assertEquals("stealth", valueAfter(arguments, "--scan"))
+        assertEquals("verified", valueAfter(arguments, "--scan"))
         assertEquals("aggressive", valueAfter(arguments, "--noize"))
         assertEquals("both", valueAfter(arguments, "--ip"))
         assertEquals("info", valueAfter(arguments, "--log-level"))
@@ -387,13 +387,68 @@ class AetherCoreManagerTest {
 
     @Test
     fun theListenerIsReplacedWhereverItStands() {
-        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withBind(listOf("--bind", "127.0.0.1:10819", "--wg"), 41234))
-        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withBind(listOf("--wg"), 41234))
+        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withListener(listOf("--bind", "127.0.0.1:10819", "--wg"), "--bind", 41234))
+        assertEquals(listOf("--wg", "--bind", "127.0.0.1:41234"), AetherCoreManager.withListener(listOf("--wg"), "--bind", 41234))
         assertEquals(
             listOf("--wg", "--bind", "127.0.0.1:41234"),
-            AetherCoreManager.withBind(listOf("--wg", "--bind", "127.0.0.1:1", "--bind", "127.0.0.1:2"), 41234)
+            AetherCoreManager.withListener(listOf("--wg", "--bind", "127.0.0.1:1", "--bind", "127.0.0.1:2"), "--bind", 41234)
         )
-        assertEquals(41234, AetherCoreManager.bindPortOf(AetherCoreManager.withBind(listOf("--bind", "127.0.0.1:10819", "--wg"), 41234)))
+        assertEquals(41234, AetherCoreManager.bindPortOf(AetherCoreManager.withListener(listOf("--bind", "127.0.0.1:10819", "--wg"), "--bind", 41234)))
+    }
+
+    @Test
+    fun psiphonInsideTheTunnelIsWhatTheAppDialsAndTheTunnelTakesThePortAfterIt() {
+        val chain = AetherCoreManager.buildArguments(
+            profile().copy(aetherPsiphon = "chain", aetherPsiphonMode = "cdn", aetherPsiphonCdnIps = "1.1.1.1,1.0.0.1", aetherPsiphonRegion = "DE"),
+            10819,
+        )
+        assertEquals("127.0.0.1:10820", valueAfter(chain, "--bind"))
+        assertTrue("--psiphon" in chain)
+        assertEquals("127.0.0.1:10819", valueAfter(chain, "--psiphon-bind"))
+        assertEquals("cdn", valueAfter(chain, "--psiphon-mode"))
+        assertEquals("1.1.1.1,1.0.0.1", valueAfter(chain, "--psiphon-cdn-ips"))
+        assertEquals("DE", valueAfter(chain, "--psiphon-region"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(chain))
+        assertEquals("127.0.0.1:10819", AetherCoreManager.listenerAddressOf(chain))
+        // WARP is still set up underneath.
+        assertEquals("masque", valueAfter(chain, "--protocol"))
+        assertTrue("--quick-reconnect" in chain)
+    }
+
+    @Test
+    fun psiphonAroundTheTunnelKeepsTheTunnelOnTheListenPortAndLetsPsiphonPickItsOwn() {
+        val reverse = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "reverse"), 10819)
+        assertEquals("127.0.0.1:10819", valueAfter(reverse, "--bind"))
+        assertTrue("--psiphon-reverse" in reverse)
+        assertEquals("127.0.0.1:0", valueAfter(reverse, "--psiphon-bind"))
+        assertEquals("auto", valueAfter(reverse, "--psiphon-mode"))
+        assertEquals(10819, AetherCoreManager.listenerPortOf(reverse))
+    }
+
+    @Test
+    fun psiphonAloneLeavesWarpOut() {
+        val only = AetherCoreManager.buildArguments(profile(server = "162.159.198.1", port = "443").copy(aetherPsiphon = "only"), 10819)
+        assertEquals("127.0.0.1:10819", valueAfter(only, "--bind"))
+        assertTrue("--psiphon-only" in only)
+        assertFalse("--protocol" in only)
+        assertFalse("--peer" in only)
+        assertFalse("--quick-reconnect" in only)
+        assertEquals("info", valueAfter(only, "--log-level"))
+    }
+
+    @Test
+    fun aScanLooksForWarpEndpointsWithoutPsiphon() {
+        val scan = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0, scan = true)
+        assertFalse(scan.any { it.startsWith("--psiphon") })
+        assertEquals("127.0.0.1:0", valueAfter(scan, "--bind"))
+    }
+
+    @Test
+    fun theListenersAreLeftOutWhenTunnelsAreCompared() {
+        val session = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 10819)
+        val elsewhere = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 20808)
+        assertEquals(AetherCoreManager.tunnelArguments(session), AetherCoreManager.tunnelArguments(elsewhere))
+        assertFalse("--psiphon-bind" in AetherCoreManager.tunnelArguments(session))
     }
 
     @Test

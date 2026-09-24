@@ -94,6 +94,16 @@ data class ProfileItem(
 
     /** Loopback port the Aether core of this profile listens on; null means the default, AppConfig.PORT_AETHER_SOCKS. */
     var aetherListenPort: String? = null,
+
+    /** Where Psiphon stands in the tunnel, an AetherPsiphon type; null means it is not used. */
+    var aetherPsiphon: String? = null,
+    var aetherPsiphonMode: String? = null,
+    var aetherPsiphonCdnIps: String? = null,
+    var aetherPsiphonCdnSni: String? = null,
+    var aetherPsiphonRegion: String? = null,
+
+    /** The command line of this profile's core, written by hand in place of the one built from the settings; null follows the settings. */
+    var aetherCommand: String? = null,
 ) {
 
     companion object {

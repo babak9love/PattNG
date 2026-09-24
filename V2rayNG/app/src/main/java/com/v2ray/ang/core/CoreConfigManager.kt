@@ -539,6 +539,9 @@ object CoreConfigManager {
                         AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
                         AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
                         AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
+                        AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque
+                        AetherFmt.Problem.NEXT_PORT_TAKEN -> R.string.aether_next_port_taken
+                        AetherFmt.Problem.INVALID_COMMAND -> R.string.aether_invalid_command
                     }
                 )
             }

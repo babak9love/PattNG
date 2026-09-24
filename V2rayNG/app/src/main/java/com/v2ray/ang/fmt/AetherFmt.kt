@@ -2,12 +2,15 @@ package com.v2ray.ang.fmt
 
 import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.AetherRange
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
@@ -25,6 +28,9 @@ object AetherFmt : FmtBase() {
         INVALID_FRAGMENT,
         INVALID_LISTEN_PORT,
         LISTEN_PORT_TAKEN,
+        PSIPHON_NEEDS_MASQUE,
+        NEXT_PORT_TAKEN,
+        INVALID_COMMAND,
     }
 
     /** Every key of aetherSettings, the form a custom configuration named its core in before aetherCommand. */
@@ -37,7 +43,7 @@ object AetherFmt : FmtBase() {
     private val settingsModes = mapOf(
         "protocol" to AetherProtocol.entries.map { it.type },
         "transport" to AetherTransport.entries.map { it.type },
-        "scan" to AetherScanMode.entries.map { it.type },
+        "scan" to AetherScanMode.entries.map { it.type } + AetherScanMode.STEALTH,
         "noize" to AetherObfuscation.entries.map { it.type },
         "ip" to AetherIpVersion.entries.map { it.type },
         "fragment" to listOf("true", "false"),
@@ -60,6 +66,11 @@ object AetherFmt : FmtBase() {
         config.aetherFragmentSize = AetherRange.parse(queryParam["fragment_size"], AetherRange.FRAGMENT_SIZE)?.toString()
         config.aetherFragmentDelay = AetherRange.parse(queryParam["fragment_delay"], AetherRange.FRAGMENT_DELAY)?.toString()
         config.aetherListenPort = listenPortOf(queryParam["listen"])?.let(::storedListenPort)
+        config.aetherPsiphon = AetherPsiphon.fromString(queryParam["psiphon"]).type.takeUnless { it == AetherPsiphon.OFF.type }
+        config.aetherPsiphonMode = queryParam["psiphon_mode"]?.let { AetherPsiphonMode.fromString(it).type }
+        config.aetherPsiphonCdnIps = queryParam["cdn_ips"]
+        config.aetherPsiphonCdnSni = queryParam["cdn_sni"]
+        config.aetherPsiphonRegion = queryParam["region"]
 
         if (protocol == AetherProtocol.GOOL) {
             val outer = AetherEndpoint.parse(queryParam["outer"])
@@ -98,6 +109,14 @@ object AetherFmt : FmtBase() {
             AetherEndpoint.parse(config.aetherWiwInner)?.let { query["inner"] = it.toString() }
         }
         listenPortOf(config.aetherListenPort)?.let(::storedListenPort)?.let { query["listen"] = it }
+        val psiphon = AetherPsiphon.fromString(config.aetherPsiphon)
+        if (psiphon != AetherPsiphon.OFF) {
+            query["psiphon"] = psiphon.type
+            query["psiphon_mode"] = AetherPsiphonMode.fromString(config.aetherPsiphonMode).type
+            config.aetherPsiphonCdnIps?.takeIf { it.isNotBlank() }?.let { query["cdn_ips"] = it }
+            config.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { query["cdn_sni"] = it }
+            config.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { query["region"] = it }
+        }
         val endpoint = AetherEndpoint.of(config.server, config.serverPort).takeUnless { protocol == AetherProtocol.GOOL }
 
         val queryText = query.entries.joinToString("&") { "${it.key}=${Utils.encodeURIComponent(it.value)}" }
@@ -168,16 +187,61 @@ object AetherFmt : FmtBase() {
      * all; the core of the profile cannot listen there as well.
      */
     fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet()): Problem? =
-        normalizeFragment(config) ?: normalizeEndpoints(config) ?: normalizeListenPort(config, takenPorts)
+        normalizeFragment(config)
+            ?: normalizeEndpoints(config)
+            ?: normalizePsiphon(config)
+            ?: normalizeListenPort(config, takenPorts)
+            ?: normalizeCommand(config, takenPorts)
 
     private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>): Problem? {
         val text = config.aetherListenPort?.trim().orEmpty()
         val port = listenPortOf(text)
         if (text.isNotEmpty() && port == null) return Problem.INVALID_LISTEN_PORT
         // The default port can be taken too, once the local proxy has been moved onto it.
-        if ((port ?: AppConfig.PORT_AETHER_SOCKS.toInt()) in takenPorts) return Problem.LISTEN_PORT_TAKEN
+        val listen = port ?: AppConfig.PORT_AETHER_SOCKS.toInt()
+        if (listen in takenPorts) return Problem.LISTEN_PORT_TAKEN
+        if (AetherPsiphon.fromString(config.aetherPsiphon) == AetherPsiphon.CHAIN) {
+            // The tunnel's own listener takes the port after the one the app dials.
+            if (listen == 65535) return Problem.INVALID_LISTEN_PORT
+            if (listen + 1 in takenPorts) return Problem.NEXT_PORT_TAKEN
+        }
         config.aetherListenPort = port?.let(::storedListenPort)
         return null
+    }
+
+    private fun normalizePsiphon(config: ProfileItem): Problem? {
+        val psiphon = AetherPsiphon.fromString(config.aetherPsiphon)
+        if (psiphon == AetherPsiphon.OFF) {
+            config.aetherPsiphon = null
+            config.aetherPsiphonMode = null
+            config.aetherPsiphonCdnIps = null
+            config.aetherPsiphonCdnSni = null
+            config.aetherPsiphonRegion = null
+            return null
+        }
+        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
+        if (psiphon == AetherPsiphon.REVERSE && AetherProtocol.fromString(config.aetherProtocol) != AetherProtocol.MASQUE) {
+            return Problem.PSIPHON_NEEDS_MASQUE
+        }
+        config.aetherPsiphon = psiphon.type
+        config.aetherPsiphonMode = AetherPsiphonMode.fromString(config.aetherPsiphonMode).type
+        config.aetherPsiphonCdnIps = commaList(config.aetherPsiphonCdnIps)
+        config.aetherPsiphonCdnSni = commaList(config.aetherPsiphonCdnSni)
+        config.aetherPsiphonRegion = config.aetherPsiphonRegion?.trim()?.uppercase(Locale.ROOT)?.ifEmpty { null }
+        return null
+    }
+
+    /** A list as the core reads it, entries separated by commas or spaces, written back with commas alone. */
+    private fun commaList(text: String?): String? =
+        text?.split(Regex("[,\\s]+"))?.filter { it.isNotEmpty() }?.joinToString(",")?.ifEmpty { null }
+
+    /** A command written in place of the settings has to be one the app can run, on ports nothing else of the app holds. */
+    private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>): Problem? {
+        val text = config.aetherCommand?.trim().orEmpty()
+        config.aetherCommand = text.ifEmpty { null }
+        if (text.isEmpty()) return null
+        val core = AetherCore.ofCommand(text) ?: return Problem.INVALID_COMMAND
+        return if (core.ports.any { it in takenPorts }) Problem.LISTEN_PORT_TAKEN else null
     }
 
     private fun normalizeFragment(config: ProfileItem): Problem? {

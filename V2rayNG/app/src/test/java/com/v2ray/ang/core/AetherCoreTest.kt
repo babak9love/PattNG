@@ -21,6 +21,9 @@ class AetherCoreTest {
 
     private val pinned = profile(listen = "20808") { server = "188.114.96.77"; serverPort = "443" }
 
+    private fun valueAfter(arguments: List<String>, flag: String): String? =
+        arguments.indexOf(flag).takeIf { it >= 0 }?.let { arguments.getOrNull(it + 1) }
+
     @Test
     fun theCoreOfAProfileIsItsSettingsOnItsPortWithoutALogLevel() {
         val core = AetherCore.of(pinned)
@@ -113,6 +116,47 @@ class AetherCoreTest {
         assertTrue(core.runsAs(moved.arguments + listOf("--log-level", "debug")))
         assertFalse(core.runsAs(AetherCore.ofCommand("aether --wg --bind 127.0.0.1:20808 --scan thorough")!!.arguments))
         assertFalse(core.runsAs(emptyList()))
+    }
+
+    @Test
+    fun aProfileWithACommandOfItsOwnRunsThatCommand() {
+        val core = AetherCore.of(pinned.copy(aetherCommand = "aether --wg --dns 1.1.1.1 --bind 127.0.0.1:20808"))
+        assertEquals(listOf("--wg", "--dns", "1.1.1.1", "--bind", "127.0.0.1:20808"), core.arguments)
+        assertEquals(20808, core.port)
+        // A command the app cannot read is left aside for the settings; the editor refuses to store one.
+        assertEquals(AetherCore.of(pinned), AetherCore.of(pinned.copy(aetherCommand = "aether")))
+        assertEquals(AetherCore.of(pinned), AetherCore.of(pinned.copy(aetherCommand = "   ")))
+    }
+
+    @Test
+    fun withPsiphonInsideTheTunnelTheAppDialsPsiphon() {
+        val chain = AetherCore.of(pinned.copy(aetherPsiphon = "chain"))
+        assertEquals(20808, chain.port)
+        assertEquals(listOf(20809, 20808), chain.ports)
+
+        val moved = chain.on(41234)
+        assertEquals(41234, moved.port)
+        assertEquals("127.0.0.1:41235", valueAfter(moved.arguments, "--bind"))
+        assertEquals("127.0.0.1:41234", valueAfter(moved.arguments, "--psiphon-bind"))
+        assertTrue(chain.runsAs(moved.arguments))
+
+        // A hand-written command with Psiphon inside gets the app's port for Psiphon when it names none, and keeps its own otherwise.
+        assertEquals(listOf("--psiphon", "--wg", "--psiphon-bind", "127.0.0.1:10819"), AetherCore.ofCommand("aether --psiphon --wg")!!.arguments)
+        assertEquals(1821, AetherCore.ofCommand("aether --psiphon --bind 127.0.0.1:10819 --psiphon-bind 127.0.0.1:1821")!!.port)
+        assertNull(AetherCore.ofCommand("aether --psiphon --psiphon-bind 1821"))
+    }
+
+    @Test
+    fun withPsiphonAroundTheTunnelTheAppDialsTheTunnel() {
+        val reverse = AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherPsiphon = "reverse"))
+        assertEquals(20808, reverse.port)
+        assertEquals(listOf(20808), reverse.ports)
+        assertEquals(41234, reverse.on(41234).port)
+        assertEquals("127.0.0.1:0", valueAfter(reverse.on(41234).arguments, "--psiphon-bind"))
+
+        val only = AetherCore.of(pinned.copy(aetherPsiphon = "only"))
+        assertEquals(20808, only.port)
+        assertEquals(listOf(20808), only.ports)
     }
 
     @Test

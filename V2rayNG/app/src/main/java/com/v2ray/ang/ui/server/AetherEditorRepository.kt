@@ -22,6 +22,9 @@ data class AetherSession(val protocol: AetherProtocol?) {
 interface AetherEditorSource {
     suspend fun isCoreAvailable(): Boolean
 
+    /** Whether the Psiphon client is shipped with this build; a profile with Psiphon cannot connect without it. */
+    suspend fun isPsiphonAvailable(): Boolean
+
     /** The daemon's live Aether session, scanning or connected, or null; every Aether profile shares its key files. */
     suspend fun activeSession(): AetherSession?
     suspend fun scan(profile: ProfileItem, onOutput: (String) -> Unit): AetherScanResult?
@@ -33,6 +36,9 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
 
     override suspend fun isCoreAvailable(): Boolean =
         withContext(Dispatchers.IO) { AetherCoreManager.isSupported(context) }
+
+    override suspend fun isPsiphonAvailable(): Boolean =
+        withContext(Dispatchers.IO) { AetherCoreManager.isPsiphonSupported(context) }
 
     // The daemon is the only authority on its state, so this looks for its core process and its
     // listener instead of a UI-side flag. The process check covers the scanning phase, before the

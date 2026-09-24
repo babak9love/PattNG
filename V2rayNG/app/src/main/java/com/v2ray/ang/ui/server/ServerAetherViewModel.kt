@@ -46,6 +46,10 @@ class ServerAetherViewModel(
     private val _isCoreAvailable = MutableStateFlow(true)
     val isCoreAvailable: StateFlow<Boolean> = _isCoreAvailable.asStateFlow()
 
+    /** Whether this build ships the Psiphon client; false until looked up, so nothing claims it does. */
+    private val _isPsiphonAvailable = MutableStateFlow(false)
+    val isPsiphonAvailable: StateFlow<Boolean> = _isPsiphonAvailable.asStateFlow()
+
     private val _scanState = MutableStateFlow<AetherScanState>(AetherScanState.Idle)
     val scanState: StateFlow<AetherScanState> = _scanState.asStateFlow()
 
@@ -68,6 +72,7 @@ class ServerAetherViewModel(
 
     init {
         viewModelScope.launch { _isCoreAvailable.value = source.isCoreAvailable() }
+        viewModelScope.launch { _isPsiphonAvailable.value = source.isPsiphonAvailable() }
         refreshSession()
     }
 
