@@ -170,7 +170,7 @@
         <activity
             android:name=".ui.shortcut.ScSwitchActivity"
             android:excludeFromRecents="true"
-            android:exported="false"
+            android:exported="true"
             android:process=":daemon"
             android:theme="@style/AppThemeDayNight.NoActionBar.Translucent" />
         <activity
