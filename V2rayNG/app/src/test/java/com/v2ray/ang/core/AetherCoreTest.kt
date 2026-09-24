@@ -30,7 +30,7 @@ class AetherCoreTest {
         // Obfuscation left automatic is the core's own choice, so the arguments say nothing about it.
         assertEquals(
             listOf(
-                "--bind", "127.0.0.1:20808", "--protocol", "wg", "--scan", "balanced", "--ip", "both",
+                "--bind", "127.0.0.1:20808", "--protocol", "wg", "--scan", "balanced", "--ip", "v4",
                 "--peer", "188.114.96.77:443", "--quick-reconnect",
             ),
             core.arguments
@@ -44,7 +44,7 @@ class AetherCoreTest {
     fun theCommandOfAProfileReadsBackAsTheSameCore() {
         val core = AetherCore.of(pinned)
         assertEquals(
-            "aether --bind 127.0.0.1:20808 --protocol wg --scan balanced --ip both --peer 188.114.96.77:443 --quick-reconnect",
+            "aether --bind 127.0.0.1:20808 --protocol wg --scan balanced --ip v4 --peer 188.114.96.77:443 --quick-reconnect",
             core.command
         )
         assertEquals(core, AetherCore.ofCommand(core.command))

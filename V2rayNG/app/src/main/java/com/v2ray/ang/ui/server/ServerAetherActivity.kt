@@ -219,6 +219,13 @@ class ServerAetherActivity : BaseServerActivity() {
                     values = R.array.aether_obfuscation_values,
                     onValueChange = { uiState.aetherObfuscation = it }
                 )
+                AetherDropdownField(
+                    label = R.string.aether_lab_ip_version,
+                    value = uiState.aetherIpVersion,
+                    entries = R.array.aether_ip_entries,
+                    values = R.array.aether_ip_values,
+                    onValueChange = { uiState.aetherIpVersion = it }
+                )
             }
             AetherDropdownField(
                 label = R.string.aether_lab_psiphon,
@@ -401,13 +408,6 @@ class ServerAetherActivity : BaseServerActivity() {
             )
             if (showAdvanced) {
                 if (warpUsed) {
-                    AetherDropdownField(
-                        label = R.string.aether_lab_ip_version,
-                        value = uiState.aetherIpVersion,
-                        entries = R.array.aether_ip_entries,
-                        values = R.array.aether_ip_values,
-                        onValueChange = { uiState.aetherIpVersion = it }
-                    )
                     FormTextField(
                         stringResource(R.string.aether_lab_dns),
                         uiState.aetherDns,

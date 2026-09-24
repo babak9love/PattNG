@@ -805,6 +805,14 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun aProfileThatNamesNoIpVersionConnectsOverIPv4() {
+        // IPv4 works on an IPv4-only network and on a dual-stack one; a profile says so when it wants more.
+        assertEquals("v4", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherIpVersion = null), 0), "--ip"))
+        assertEquals("v4", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherIpVersion = null), 0, scan = true), "--ip"))
+        assertEquals("both", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherIpVersion = "both"), 0), "--ip"))
+    }
+
+    @Test
     fun aScanLeavesOutACarrierInsideTheTunnelAndKeepsOneAroundIt() {
         val inside = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain", aetherPsiphonRegion = "DE"), 0, scan = true)
         assertFalse(inside.any { it.startsWith("--psiphon") })

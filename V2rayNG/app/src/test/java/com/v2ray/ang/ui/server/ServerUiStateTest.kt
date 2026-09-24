@@ -172,11 +172,11 @@ class ServerUiStateTest {
     @Test
     fun theFoldedSettingsAnnounceThemselvesOnlyWhenOneHoldsAValue() {
         val state = ServerUiState.from(ProfileItem.create(EConfigType.AETHER))
-        assertEquals(AetherIpVersion.DUAL.type, state.aetherIpVersion)
+        assertEquals(AetherIpVersion.V4.type, state.aetherIpVersion)
         assertEquals(false, state.hasAdvancedAetherSettings)
 
-        // The IP version does not count: profiles from before the dual-stack default all carry IPv4.
-        state.aetherIpVersion = AetherIpVersion.V4.type
+        // The IP version stands outside the fold, so it does not count.
+        state.aetherIpVersion = AetherIpVersion.DUAL.type
         assertEquals(false, state.hasAdvancedAetherSettings)
         state.aetherListenPort = " ${AppConfig.PORT_AETHER_SOCKS} "
         assertEquals(false, state.hasAdvancedAetherSettings)

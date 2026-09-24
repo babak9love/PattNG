@@ -501,7 +501,7 @@ class AetherFmtTest {
         assertEquals("h3", parsed?.aetherTransport)
         assertEquals("balanced", parsed?.aetherScanMode)
         assertEquals("auto", parsed?.aetherObfuscation)
-        assertEquals("both", parsed?.aetherIpVersion)
+        assertEquals("v4", parsed?.aetherIpVersion)
         assertEquals(false, parsed?.aetherFragment)
     }
 
@@ -516,7 +516,7 @@ class AetherFmtTest {
 
         assertEquals("masque", parsed?.aetherProtocol)
         assertEquals("balanced", parsed?.aetherScanMode)
-        assertEquals("both", parsed?.aetherIpVersion)
+        assertEquals("v4", parsed?.aetherIpVersion)
     }
 
     @Test
@@ -794,7 +794,7 @@ class AetherFmtTest {
         assertEquals(AetherTransport.HTTP3.type, parsed.aetherTransport)
         assertEquals(AetherScanMode.BALANCED.type, parsed.aetherScanMode)
         assertEquals(AetherObfuscation.AUTO.type, parsed.aetherObfuscation)
-        assertEquals(AetherIpVersion.DUAL.type, parsed.aetherIpVersion)
+        assertEquals(AetherIpVersion.V4.type, parsed.aetherIpVersion)
         assertEquals(false, parsed.aetherFragment)
         assertNull(parsed.server)
         assertNull(parsed.serverPort)

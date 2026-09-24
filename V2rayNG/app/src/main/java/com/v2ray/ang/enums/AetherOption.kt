@@ -59,14 +59,17 @@ enum class AetherObfuscation(val type: String) {
     }
 }
 
-/** The IP versions the core scans and connects over; both unless a profile says otherwise. */
+/**
+ * The IP versions the core scans and connects over; IPv4 unless a profile says otherwise, so that a
+ * profile connects on an IPv4-only network and on a dual-stack one alike.
+ */
 enum class AetherIpVersion(val type: String) {
     V4("v4"),
     V6("v6"),
     DUAL("both");
 
     companion object {
-        fun fromString(type: String?) = entries.find { it.type == type } ?: DUAL
+        fun fromString(type: String?) = entries.find { it.type == type } ?: V4
     }
 }
 

@@ -84,7 +84,7 @@ class ServerUiState(
     aetherTransport: String = AetherTransport.HTTP3.type,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
     aetherObfuscation: String = AetherObfuscation.AUTO.type,
-    aetherIpVersion: String = AetherIpVersion.DUAL.type,
+    aetherIpVersion: String = AetherIpVersion.V4.type,
     aetherWiwOuter: String = "",
     aetherWiwInner: String = "",
     aetherFragment: Boolean = false,
@@ -183,8 +183,7 @@ class ServerUiState(
 
     /**
      * Whether an Aether setting the editor keeps folded away holds a value of its own, so that the
-     * folded section opens by itself and nothing set stays out of sight. The IP version is left
-     * out: profiles saved before both versions became the default carry IPv4 explicitly.
+     * folded section opens by itself and nothing set stays out of sight.
      */
     val hasAdvancedAetherSettings: Boolean
         get() = aetherDns.isNotBlank() ||
