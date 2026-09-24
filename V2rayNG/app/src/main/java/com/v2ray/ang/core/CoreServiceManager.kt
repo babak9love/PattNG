@@ -179,6 +179,13 @@ object CoreServiceManager {
         }
 
         cancelAetherWarmUp()
+        // Starting a configuration ends the config tests, whatever the configuration: that is what a start
+        // means to the user, and the tests spawn Aether cores of their own, which a session's core must not
+        // come up beside, on the same key or with Psiphon on the same datastore. A reload keeps the
+        // session's place and leaves the tests alone.
+        if (!isReload) {
+            MessageHelper.sendMsg2TestService(service, TestServiceMessage(key = AppConfig.MSG_MEASURE_CONFIG_CANCEL))
+        }
         // One core serves every Aether outbound of the configuration: the selected profile itself, the
         // entry hop of its chain, a routing target, a policy-group member, or the SOCKS outbounds of a
         // custom configuration that asks for it with aetherCommand. It listens on the port its arguments name.
@@ -199,12 +206,7 @@ object CoreServiceManager {
                 AetherCoreManager.stop()
                 throw StartFailure(service.getString(R.string.aether_listen_port_taken))
             }
-            // The tests spawn cores of their own, which this core must not come up beside: on the same key,
-            // or with Psiphon on the same datastore. A start tells the test service to stop them and waits for
-            // their cores to be gone; a reload keeps the session's place and leaves the tests alone.
-            if (!isReload) {
-                MessageHelper.sendMsg2TestService(service, TestServiceMessage(key = AppConfig.MSG_MEASURE_CONFIG_CANCEL))
-            }
+            // The tests were told to stop above; the session's core waits for their cores to be gone.
             aetherExitHandled = false
             AetherCoreManager.start(service, aether, afterProbes = !isReload) { onAetherExit(guid) }
         } else {
