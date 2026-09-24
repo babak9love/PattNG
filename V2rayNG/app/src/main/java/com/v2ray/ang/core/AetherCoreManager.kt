@@ -120,6 +120,11 @@ object AetherCoreManager {
     /** Environment variable naming the directory the Psiphon client keeps its datastore in; see [psiphonStateDir]. */
     internal const val PSIPHON_DIR_ENV = "AETHER_PSIPHON_DIR"
     private const val PSIPHON_STATE_DIR = "psiphon"
+    private const val PSIPHON_PROBE_DIR = "psiphon-probe"
+
+    /** How long a session start waits for the cores of cancelled tests to be gone, and how often it looks. */
+    private const val PROBE_EXIT_WAIT_MS = 3_000L
+    private const val PROBE_POLL_MS = 100L
     private const val PSIPHON_OVERLAY_FILE = "psiphon-overlay.json"
     internal const val PSIPHON_OVERLAY = """{"DNSResolverAlternateServers": ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]}"""
 
@@ -330,15 +335,56 @@ object AetherCoreManager {
     }
 
     /**
-     * Forgets what the Psiphon client has learned: its datastore beside the identity directory, and
-     * one still inside it. Its next start begins from the bundled list again, or from a fresh
-     * download. For when no core runs; the caller makes sure of that. True when both are gone.
+     * Where the Psiphon client of a test, a scan or a renewal keeps its datastore: apart from the
+     * session's, since the client holds its datastore under a lock and a second client on the same
+     * one gives up after a second, which is how a session started beside a test came down at once.
+     */
+    internal fun psiphonProbeDir(filesDir: File): File = File(filesDir, PSIPHON_PROBE_DIR)
+
+    /**
+     * Forgets what the Psiphon client has learned: the session's datastore beside the identity
+     * directory, one still inside it, and the one the probes keep. Its next start begins from the
+     * bundled list again, or from a fresh download. For when no core runs; the caller makes sure of
+     * that. True when all are gone.
      */
     internal fun clearPsiphonState(filesDir: File, workDir: File): Boolean {
-        val dirs = listOf(File(filesDir, PSIPHON_STATE_DIR), File(workDir, "${AetherIdentityManager.BASE_FILE}-psiphon"))
+        val dirs = listOf(
+            File(filesDir, PSIPHON_STATE_DIR),
+            File(workDir, "${AetherIdentityManager.BASE_FILE}-psiphon"),
+            psiphonProbeDir(filesDir),
+        )
         dirs.forEach { it.deleteRecursively() }
         return dirs.none { it.exists() }
     }
+
+    /**
+     * True for a core that a test, a scan or a renewal of a living app process runs: owned by a
+     * process that is not known to be dead, and not marked as the session. A core whose
+     * environment could not be read is not counted; it cannot be told apart.
+     */
+    internal fun isProbe(ownerAlive: Boolean?, sessionMarked: Boolean?): Boolean =
+        ownerAlive != false && sessionMarked == false
+
+    /**
+     * Waits until [done] holds, looking every [pollMs], for at most [timeoutMs]; true when it held
+     * in time. A bounded wait at a start, not a watch: it ends with the condition or the deadline.
+     */
+    internal fun awaitUntil(timeoutMs: Long, pollMs: Long, done: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        while (!done()) {
+            if (System.nanoTime() >= deadline) return false
+            Thread.sleep(pollMs)
+        }
+        return true
+    }
+
+    /**
+     * Waits, briefly, until no probe core is left, see [isProbe]. The daemon has just asked the test
+     * service to cancel its workers; the session's core must not come up beside one of theirs, on
+     * the same key or, with Psiphon, on the same datastore. True when none is left in time.
+     */
+    private fun awaitProbeCores(context: Context): Boolean =
+        awaitUntil(PROBE_EXIT_WAIT_MS, PROBE_POLL_MS) { coreProcesses(context).none { isProbe(it.ownerAlive, it.sessionMarked) } }
 
     /**
      * [arguments] as the core is started with them: the word [SHIPPED_LIST] after [PSIPHON_SERVER_ENTRIES]
@@ -370,7 +416,7 @@ object AetherCoreManager {
             }
             certificateDirectories(File::isDirectory)?.let { put(CERT_DIR_ENV, it) }
             psiphonOverlay(workDir)?.let { put(PSIPHON_CONFIG_ENV, it.absolutePath) }
-            put(PSIPHON_DIR_ENV, psiphonStateDir(context.filesDir, workDir).absolutePath)
+            put(PSIPHON_DIR_ENV, (if (markSession) psiphonStateDir(context.filesDir, workDir) else psiphonProbeDir(context.filesDir)).absolutePath)
             put("HOME", workDir.absolutePath)
             put("TMPDIR", context.cacheDir.absolutePath)
             put("AETHER_CONFIG", File(workDir, AetherIdentityManager.BASE_FILE).absolutePath)
@@ -427,9 +473,13 @@ object AetherCoreManager {
         withTimeoutOrNull(timeoutMs) { output.receiveAsFlow().mapNotNull(match).firstOrNull() }
     }
 
-    /** Starts the session core [core], at the log level of the app setting unless its arguments name one. */
+    /**
+     * Starts the session core [core], at the log level of the app setting unless its arguments name
+     * one. With [afterProbes], the start first waits for the cores of tests and scans to be gone,
+     * for the caller has just told the test service to cancel them.
+     */
     @Synchronized
-    fun start(context: Context, core: AetherCore, onExit: () -> Unit) {
+    fun start(context: Context, core: AetherCore, afterProbes: Boolean = false, onExit: () -> Unit) {
         stop()
         val appContext = context.applicationContext
         var logLevel = coreLogLevel(MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL))
@@ -438,7 +488,7 @@ object AetherCoreManager {
         val arguments = withLogLevel(core.arguments, logLevel)
         val next = Session(core.port, needsWord = readyNeedsWord(arguments) && showsInfo(arguments), onExit)
         session = next
-        lifecycle.execute { open(next, appContext, arguments) }
+        lifecycle.execute { open(next, appContext, arguments, afterProbes) }
     }
 
     /**
@@ -793,7 +843,11 @@ object AetherCoreManager {
         null
     }
 
-    private fun open(target: Session, context: Context, arguments: List<String>) {
+    private fun open(target: Session, context: Context, arguments: List<String>, afterProbes: Boolean) {
+        if (session !== target) return
+        if (afterProbes && !awaitProbeCores(context)) {
+            LogUtil.w(AppConfig.TAG, "AetherCore: a core of a test or scan is still up; the session starts beside it")
+        }
         if (session !== target) return
         reapStale(context, listenerAddressOf(arguments))
         val process = try {

@@ -17,6 +17,7 @@ import com.v2ray.ang.contracts.IDialerService
 import com.v2ray.ang.contracts.ServiceControl
 import com.v2ray.ang.dto.ConnectionTestResult
 import com.v2ray.ang.dto.OutboundTrafficStat
+import com.v2ray.ang.dto.TestServiceMessage
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BrowserDialerMode
 import com.v2ray.ang.extension.delay
@@ -198,8 +199,14 @@ object CoreServiceManager {
                 AetherCoreManager.stop()
                 throw StartFailure(service.getString(R.string.aether_listen_port_taken))
             }
+            // The tests spawn cores of their own, which this core must not come up beside: on the same key,
+            // or with Psiphon on the same datastore. A start tells the test service to stop them and waits for
+            // their cores to be gone; a reload keeps the session's place and leaves the tests alone.
+            if (!isReload) {
+                MessageHelper.sendMsg2TestService(service, TestServiceMessage(key = AppConfig.MSG_MEASURE_CONFIG_CANCEL))
+            }
             aetherExitHandled = false
-            AetherCoreManager.start(service, aether) { onAetherExit(guid) }
+            AetherCoreManager.start(service, aether, afterProbes = !isReload) { onAetherExit(guid) }
         } else {
             AetherCoreManager.stop()
         }

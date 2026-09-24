@@ -13,6 +13,7 @@ import com.v2ray.ang.enums.EConfigType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -839,13 +840,37 @@ class AetherCoreManagerTest {
             File(outside, "datastore").writeText("servers")
             val inside = File(work, "${AetherIdentityManager.BASE_FILE}-psiphon").apply { mkdirs() }
             File(inside, "datastore").writeText("older servers")
+            val probe = AetherCoreManager.psiphonProbeDir(files).apply { mkdirs() }
+            File(probe, "datastore").writeText("a test's servers")
             assertTrue(AetherCoreManager.clearPsiphonState(files, work))
             assertFalse(outside.exists())
             assertFalse(inside.exists())
+            assertFalse(probe.exists())
             assertTrue(work.exists())
         } finally {
             files.deleteRecursively()
         }
+    }
+
+    @Test
+    fun aSessionStartWaitsForTheCoresOfTestsAndScansButNotForever() {
+        // A probe: a living process's core without the session mark. The session's own, a dead owner's
+        // and one whose environment could not be read are not waited for.
+        assertTrue(AetherCoreManager.isProbe(ownerAlive = true, sessionMarked = false))
+        assertTrue(AetherCoreManager.isProbe(ownerAlive = null, sessionMarked = false))
+        assertFalse(AetherCoreManager.isProbe(ownerAlive = true, sessionMarked = true))
+        assertFalse(AetherCoreManager.isProbe(ownerAlive = false, sessionMarked = false))
+        assertFalse(AetherCoreManager.isProbe(ownerAlive = true, sessionMarked = null))
+
+        var looks = 0
+        assertTrue(AetherCoreManager.awaitUntil(timeoutMs = 2_000, pollMs = 5) { ++looks >= 3 })
+        assertEquals(3, looks)
+        assertTrue(AetherCoreManager.awaitUntil(timeoutMs = 0, pollMs = 5) { true })
+        assertFalse(AetherCoreManager.awaitUntil(timeoutMs = 40, pollMs = 5) { false })
+        // The probes' Psiphon datastore is not the session's.
+        val files = File("/data/files")
+        assertEquals(File(files, "psiphon-probe"), AetherCoreManager.psiphonProbeDir(files))
+        assertNotEquals(AetherCoreManager.psiphonStateDir(files, File(files, "aether")), AetherCoreManager.psiphonProbeDir(files))
     }
 
     @Test
