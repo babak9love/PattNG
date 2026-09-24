@@ -63,10 +63,11 @@ class AetherCoreManagerTest {
     fun eachProtocolIsNamedToTheCore() {
         assertEquals("wg", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WIREGUARD), 10819), "--protocol"))
         assertEquals("gool", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL), 10819), "--protocol"))
+        assertEquals("mim", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.MIM), 10819), "--protocol"))
     }
 
     @Test
-    fun http2AndFragmentationOnlyApplyToMasque() {
+    fun http2AndFragmentationOnlyApplyToTunnelsOverMasque() {
         assertFalse(AetherCoreManager.buildArguments(profile(fragment = true), 10819).contains("--h2"))
         assertFalse(AetherCoreManager.buildArguments(profile(fragment = true), 10819).contains("--fragment"))
 
@@ -83,6 +84,12 @@ class AetherCoreManagerTest {
         )
         assertFalse(wireguard.contains("--h2"))
         assertFalse(wireguard.contains("--fragment"))
+
+        // Both masque-in-masque hops ride on the carrier chosen here.
+        val mim = AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, AetherTransport.HTTP2, fragment = true), 10819)
+        assertTrue(mim.contains("--h2"))
+        assertTrue(mim.contains("--fragment"))
+        assertFalse(AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, fragment = true), 10819).contains("--h2"))
     }
 
     @Test
@@ -180,6 +187,49 @@ class AetherCoreManagerTest {
         assertTrue(scan.contains("--no-quick-reconnect"))
         assertFalse(scan.contains("--quick-reconnect"))
         assertFalse(scan.contains("--peer"))
+    }
+
+    @Test
+    fun mimHopsReachTheCoreUnderTheirOwnFlags() {
+        val both = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.MIM, outer = "162.159.192.1:443", inner = "188.114.96.1:443"),
+            10819
+        )
+        assertEquals("162.159.192.1:443", valueAfter(both, "--mim-outer"))
+        assertEquals("188.114.96.1:443", valueAfter(both, "--mim-inner"))
+        assertFalse(both.contains("--mim-scan"))
+        assertFalse(both.contains("--peer"))
+        assertFalse(both.contains("--wiw-outer"))
+
+        val innerOnly = AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, inner = "188.114.96.1:443"), 10819)
+        assertNull(valueAfter(innerOnly, "--mim-outer"))
+        assertEquals("188.114.96.1:443", valueAfter(innerOnly, "--mim-inner"))
+        assertFalse(innerOnly.contains("--mim-scan"))
+    }
+
+    @Test
+    fun mimScansForHopsItCannotUse() {
+        assertTrue(AetherCoreManager.buildArguments(profile(AetherProtocol.MIM), 10819).contains("--mim-scan"))
+
+        val malformed = AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, outer = "162.159.192.1"), 10819)
+        assertNull(valueAfter(malformed, "--mim-outer"))
+        assertTrue(malformed.contains("--mim-scan"))
+
+        val pinnedEndpoint = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.MIM, server = "162.159.198.1", port = "443"),
+            10819
+        )
+        assertFalse(pinnedEndpoint.contains("--peer"))
+        assertTrue(pinnedEndpoint.contains("--mim-scan"))
+
+        val scan = AetherCoreManager.buildArguments(
+            profile(AetherProtocol.MIM, outer = "162.159.192.1:443", inner = "188.114.96.1:443"),
+            0,
+            scan = true
+        )
+        assertFalse(scan.contains("--mim-outer"))
+        assertFalse(scan.contains("--mim-inner"))
+        assertTrue(scan.contains("--mim-scan"))
     }
 
     @Test
@@ -364,9 +414,14 @@ class AetherCoreManagerTest {
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--wg")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--warp")))
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wiw")))
-        // Masque-in-masque uses the masque identity, which is all that is told apart here.
-        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim")))
-        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "mim")))
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--mim")))
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--masque-in-masque")))
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "mim")))
+        // After --protocol the core takes other names as well, in any case; an unknown one is masque.
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "M2")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "warp-in-warp")))
+        assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "WireGuard")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "something-else")))
         // The last word wins, as it does for the core.
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--protocol", "gool")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--protocol", "gool", "--wg")))
@@ -376,6 +431,13 @@ class AetherCoreManagerTest {
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw-peers", "auto")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--wiw-scan")))
         assertEquals(AetherProtocol.WIREGUARD, AetherCoreManager.protocolOf(listOf(bin, "--wg", "--wiw-outer", "162.159.192.1:2408")))
+        // A masque-in-masque hop selects mim the same way, and a warp-in-warp hop comes first when both are named.
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "162.159.192.1:443")))
+        assertEquals(AetherProtocol.MIM, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", "162.159.192.1:443,188.114.96.1:443")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", "auto")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-scan")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "162.159.192.1:443", "--wiw-inner", "188.114.96.1:894")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--masque", "--mim-outer", "162.159.192.1:443")))
     }
 
     @Test

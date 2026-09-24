@@ -118,7 +118,7 @@ object AetherCoreManager {
                 addAll(listOf("--noize", AetherObfuscation.fromString(profile.aetherObfuscation).type))
                 addAll(listOf("--ip", AetherIpVersion.fromString(profile.aetherIpVersion).type))
 
-                if (protocol == AetherProtocol.MASQUE &&
+                if (protocol.overMasque &&
                     AetherTransport.fromString(profile.aetherTransport) == AetherTransport.HTTP2
                 ) {
                     add("--h2")
@@ -131,12 +131,13 @@ object AetherCoreManager {
                     }
                 }
 
-                if (protocol == AetherProtocol.GOOL) {
+                if (protocol.twoHops) {
+                    val hop = if (protocol == AetherProtocol.MIM) "--mim" else "--wiw"
                     val outer = AetherEndpoint.parse(profile.aetherWiwOuter).takeUnless { scan }
                     val inner = AetherEndpoint.parse(profile.aetherWiwInner).takeUnless { scan }
-                    outer?.let { addAll(listOf("--wiw-outer", it.toString())) }
-                    inner?.let { addAll(listOf("--wiw-inner", it.toString())) }
-                    if (outer == null && inner == null) add("--wiw-scan")
+                    outer?.let { addAll(listOf("$hop-outer", it.toString())) }
+                    inner?.let { addAll(listOf("$hop-inner", it.toString())) }
+                    if (outer == null && inner == null) add("$hop-scan")
                 } else if (!scan) {
                     AetherEndpoint.of(profile.server, profile.serverPort)?.let { addAll(listOf("--peer", it.toString())) }
                 }
@@ -462,30 +463,45 @@ object AetherCoreManager {
 
     /**
      * The protocol [argv] selects, read the way the core reads it: the last of --protocol and the
-     * protocol flags wins, a warp-in-warp hop named without any of them selects gool, and nothing at
-     * all is masque. Only what the identity files depend on is told apart, so the core's other
-     * protocols count as masque, whose identity they use.
+     * protocol flags wins, a hop named without any of them selects the two-hop protocol it belongs
+     * to, warp-in-warp before masque-in-masque, and nothing at all is masque.
      */
     internal fun protocolOf(argv: List<String>): AetherProtocol {
         var chosen: AetherProtocol? = null
-        var hopNamed = false
+        var wiwHopNamed = false
+        var mimHopNamed = false
         for ((index, word) in argv.withIndex()) {
             when (word) {
-                "--protocol" -> chosen = argv.getOrNull(index + 1)?.let(AetherProtocol::fromString) ?: chosen
-                "--masque", "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MASQUE
+                "--protocol" -> chosen = argv.getOrNull(index + 1)?.let(::protocolNamed) ?: chosen
+                "--masque" -> chosen = AetherProtocol.MASQUE
                 "--wg", "--wireguard", "--warp" -> chosen = AetherProtocol.WIREGUARD
                 "--gool", "--wiw" -> chosen = AetherProtocol.GOOL
-                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> hopNamed = true
-                "--wiw-peers", "--gool-peers" -> {
-                    val peers = argv.getOrNull(index + 1)?.lowercase(Locale.US)
-                    if (peers != null && peers !in scanKeywords) hopNamed = true
-                }
+                "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MIM
+                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> wiwHopNamed = true
+                "--wiw-peers", "--gool-peers" -> if (namesHops(argv.getOrNull(index + 1))) wiwHopNamed = true
+                "--mim-outer", "--mim-inner" -> mimHopNamed = true
+                "--mim-peers" -> if (namesHops(argv.getOrNull(index + 1))) mimHopNamed = true
             }
         }
-        return chosen ?: if (hopNamed) AetherProtocol.GOOL else AetherProtocol.MASQUE
+        return chosen ?: when {
+            wiwHopNamed -> AetherProtocol.GOOL
+            mimHopNamed -> AetherProtocol.MIM
+            else -> AetherProtocol.MASQUE
+        }
     }
 
-    /** The values of --wiw-peers that ask for a scan instead of naming hops, as the core reads them. */
+    /** The protocol the core selects for [name] after --protocol, under any of the names it accepts. */
+    private fun protocolNamed(name: String): AetherProtocol = when (name.trim().lowercase(Locale.US)) {
+        "wg", "wireguard" -> AetherProtocol.WIREGUARD
+        "gool", "wiw", "warp-in-warp", "warpinwarp" -> AetherProtocol.GOOL
+        "mim", "m2", "masque-in-masque", "masqueinmasque" -> AetherProtocol.MIM
+        else -> AetherProtocol.MASQUE
+    }
+
+    /** Whether a value of --wiw-peers or --mim-peers names hops rather than asking for a scan, as the core reads it. */
+    private fun namesHops(value: String?): Boolean = value != null && value.lowercase(Locale.US) !in scanKeywords
+
+    /** The values of --wiw-peers and --mim-peers that ask for a scan instead of naming hops, as the core reads them. */
     private val scanKeywords = setOf("auto", "scan", "none", "off", "0")
 
     /** The value after the last [flag] in [argv]; the last one is the one the core keeps. */

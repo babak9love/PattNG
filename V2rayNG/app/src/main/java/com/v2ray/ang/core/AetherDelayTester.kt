@@ -125,7 +125,7 @@ object AetherDelayTester {
     }
 
     internal fun probeHost(profile: ProfileItem): String? =
-        if (AetherProtocol.fromString(profile.aetherProtocol) == AetherProtocol.GOOL) {
+        if (AetherProtocol.fromString(profile.aetherProtocol).twoHops) {
             AetherEndpoint.parse(profile.aetherWiwOuter)?.host
         } else {
             AetherEndpoint.of(profile.server, profile.serverPort)?.host

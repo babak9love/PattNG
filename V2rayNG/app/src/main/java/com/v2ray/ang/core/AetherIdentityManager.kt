@@ -26,6 +26,7 @@ object AetherIdentityManager {
 
     const val BASE_FILE = "aether.toml"
     const val MASQUE_FILE = "aether-masque.toml"
+    const val MASQUE_INNER_FILE = "aether-masque-secondary.toml"
     const val WIREGUARD_FILE = "aether-wg.toml"
     const val WIREGUARD_INNER_FILE = "aether-wg-secondary.toml"
 
@@ -36,7 +37,7 @@ object AetherIdentityManager {
     private val identityField = Regex("""^(device_id|ipv4|ipv6)\s*=\s*"([^"]*)"$""")
     private val multilineDelimiter = Regex("\"\"\"|'''")
     private val identityReady = Regex("""identity ready: device=\S+""")
-    private val goolIdentitiesReady = Regex("""outer device=\S+ .*\| inner device=\S+""")
+    private val hopIdentitiesReady = Regex("""outer device=\S+ .*\| inner device=\S+""")
 
     fun workDir(context: Context): File = File(context.filesDir, WORK_DIR)
 
@@ -70,6 +71,12 @@ object AetherIdentityManager {
             read(File(workDir, WIREGUARD_FILE)),
             read(File(workDir, WIREGUARD_INNER_FILE)),
         )
+
+        AetherProtocol.MIM -> AetherIdentityStatus(
+            protocol,
+            read(File(workDir, MASQUE_FILE)),
+            read(File(workDir, MASQUE_INNER_FILE)),
+        )
     }
 
     internal fun parse(text: String): AetherIdentity? {
@@ -88,11 +95,12 @@ object AetherIdentityManager {
         return AetherIdentity(deviceId, fields["ipv4"].orEmpty(), fields["ipv6"].orEmpty())
     }
 
+    /** The tunnels over MASQUE share the MASQUE key and the others the WireGuard key; a two-hop tunnel adds a second key of its kind. */
     fun sharesIdentity(first: AetherProtocol, second: AetherProtocol): Boolean =
-        (first == AetherProtocol.MASQUE) == (second == AetherProtocol.MASQUE)
+        first.overMasque == second.overMasque
 
     internal fun isReady(protocol: AetherProtocol, line: String): Boolean = when (protocol) {
-        AetherProtocol.GOOL -> goolIdentitiesReady.containsMatchIn(line)
+        AetherProtocol.GOOL, AetherProtocol.MIM -> hopIdentitiesReady.containsMatchIn(line)
         AetherProtocol.MASQUE, AetherProtocol.WIREGUARD -> identityReady.containsMatchIn(line)
     }
 

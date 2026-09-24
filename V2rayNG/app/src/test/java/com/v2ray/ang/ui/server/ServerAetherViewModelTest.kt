@@ -238,16 +238,18 @@ class ServerAetherViewModelTest {
     }
 
     @Test
-    fun goolReportsBothHopKeys() {
-        val status = AetherIdentityStatus(AetherProtocol.GOOL, oldKey, null)
+    fun aTwoHopProtocolReportsBothHopKeys() {
+        for (protocol in listOf(AetherProtocol.GOOL, AetherProtocol.MIM)) {
+            val status = AetherIdentityStatus(protocol, oldKey, null)
 
-        assertEquals(
-            listOf(
-                resource(R.string.aether_log_outer_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
-                resource(R.string.aether_log_inner_key_missing),
-            ),
-            ServerAetherViewModel.identityLines(status)
-        )
+            assertEquals(
+                listOf(
+                    resource(R.string.aether_log_outer_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
+                    resource(R.string.aether_log_inner_key_missing),
+                ),
+                ServerAetherViewModel.identityLines(status)
+            )
+        }
     }
 
     @Test

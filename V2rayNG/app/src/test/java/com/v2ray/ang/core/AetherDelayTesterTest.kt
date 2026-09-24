@@ -69,12 +69,17 @@ class AetherDelayTesterTest {
         assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "b", live))
         assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.WIREGUARD)))
         assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.WIREGUARD)), "a", session(AetherProtocol.GOOL)))
+        // Masque-in-masque runs on the MASQUE key.
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MIM)), "a", live))
+        assertEquals(Route.SKIP, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "a", session(AetherProtocol.MIM)))
     }
 
     @Test
     fun aProfileWithADifferentKeyGetsItsOwnTunnel() {
         assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MASQUE)), "a", session(AetherProtocol.WIREGUARD)))
         assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.MASQUE)))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.MIM)), "a", session(AetherProtocol.WIREGUARD)))
+        assertEquals(Route.NEW_TUNNEL, AetherDelayTester.route("b", AetherCore.of(aether(AetherProtocol.GOOL)), "a", session(AetherProtocol.MIM)))
     }
 
     @Test
@@ -92,6 +97,11 @@ class AetherDelayTesterTest {
         assertEquals(listOf("162.159.192.1" to 443), probed)
 
         probed.clear()
+        val masqueHops = aether(AetherProtocol.MIM).apply { aetherWiwOuter = "162.159.197.3:443"; aetherWiwInner = "188.114.96.1:443" }
+        assertEquals(42L, AetherDelayTester.reachability(masqueHops, connect))
+        assertEquals(listOf("162.159.197.3" to 443), probed)
+
+        probed.clear()
         val unreachable = { _: String, _: Int -> -1L }
         assertEquals(-1L, AetherDelayTester.reachability(pinned, unreachable))
     }
@@ -102,6 +112,7 @@ class AetherDelayTesterTest {
 
         assertEquals(AetherDelayTester.UNTESTED, AetherDelayTester.reachability(aether(AetherProtocol.MASQUE), probes))
         assertEquals(AetherDelayTester.UNTESTED, AetherDelayTester.reachability(aether(AetherProtocol.GOOL), probes))
+        assertEquals(AetherDelayTester.UNTESTED, AetherDelayTester.reachability(aether(AetherProtocol.MIM), probes))
         val halfPinned = aether(AetherProtocol.WIREGUARD).apply { server = "162.159.198.1" }
         assertEquals(AetherDelayTester.UNTESTED, AetherDelayTester.reachability(halfPinned, probes))
         val hostName = aether(AetherProtocol.WIREGUARD).apply { server = "engage.cloudflareclient.com"; serverPort = "2408" }

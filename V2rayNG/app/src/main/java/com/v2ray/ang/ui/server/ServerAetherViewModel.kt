@@ -187,7 +187,7 @@ class ServerAetherViewModel(
                 keyLine(status.primary, R.string.aether_log_wireguard_key_ready, R.string.aether_log_wireguard_key_missing)
             )
 
-            AetherProtocol.GOOL -> listOf(
+            AetherProtocol.GOOL, AetherProtocol.MIM -> listOf(
                 keyLine(status.primary, R.string.aether_log_outer_key_ready, R.string.aether_log_outer_key_missing),
                 keyLine(status.secondary, R.string.aether_log_inner_key_ready, R.string.aether_log_inner_key_missing),
             )

@@ -55,6 +55,42 @@ class AetherScannerTest {
     }
 
     @Test
+    fun readsBothMimHopsOutOfTheReadyLine() {
+        val found = AetherScanner.parse(
+            AetherProtocol.MIM,
+            logLine("[+] masque-in-masque ready: 162.159.192.1:443 (outer) and 188.114.96.1:443 (inner)")
+        )
+        assertEquals(AetherEndpoint("162.159.192.1", 443), found?.endpoint)
+        assertEquals(AetherEndpoint("188.114.96.1", 443), found?.innerHop)
+
+        val ipv6 = AetherScanner.parse(
+            AetherProtocol.MIM,
+            logLine("[+] masque-in-masque ready: [2606:4700:102::3]:443 (outer) and [2606:4700:103::4]:443 (inner)")
+        )
+        assertEquals(AetherEndpoint("2606:4700:102::3", 443), ipv6?.endpoint)
+        assertEquals(AetherEndpoint("2606:4700:103::4", 443), ipv6?.innerHop)
+    }
+
+    @Test
+    fun mimWaitsForThePairToCarryTrafficInsteadOfTheFirstHop() {
+        assertNull(AetherScanner.parse(AetherProtocol.MIM, logLine("[+] selected MASQUE gateway 162.159.192.1:443 (rtt 84ms)")))
+        assertNull(AetherScanner.parse(AetherProtocol.MIM, logLine("[*] establishing outer MASQUE tunnel to 162.159.192.1:443...")))
+        assertNull(AetherScanner.parse(AetherProtocol.MIM, logLine("[+] inner MASQUE tunnel established through 188.114.96.1:443")))
+        assertNull(
+            AetherScanner.parse(
+                AetherProtocol.MIM,
+                logLine("[+] using cloudflare edge 162.159.192.1:2408 (outer) and 188.114.96.1:894 (inner)")
+            )
+        )
+        assertNull(
+            AetherScanner.parse(
+                AetherProtocol.GOOL,
+                logLine("[+] masque-in-masque ready: 162.159.192.1:443 (outer) and 188.114.96.1:443 (inner)")
+            )
+        )
+    }
+
+    @Test
     fun eachProtocolOnlyReadsItsOwnResult() {
         val masque = logLine("[+] selected MASQUE gateway 162.159.197.3:443 (rtt 84ms)")
         val wireguard = logLine("[+] selected WireGuard endpoint 162.159.192.1:894 (rtt 61ms)")

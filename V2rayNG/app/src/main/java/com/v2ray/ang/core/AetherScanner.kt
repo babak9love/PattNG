@@ -17,6 +17,7 @@ object AetherScanner {
     private val masqueGateway = Regex("""selected MASQUE gateway (\S+)""")
     private val wireguardEndpoint = Regex("""selected WireGuard endpoint (\S+)""")
     private val goolHops = Regex("""using cloudflare edge (\S+) \(outer\) and (\S+) \(inner\)""")
+    private val mimHops = Regex("""masque-in-masque ready: (\S+) \(outer\) and (\S+) \(inner\)""")
 
     suspend fun scan(
         context: Context,
@@ -34,14 +35,16 @@ object AetherScanner {
     }
 
     fun parse(protocol: AetherProtocol, line: String): AetherScanResult? = when (protocol) {
-        AetherProtocol.GOOL -> goolHops.find(line)?.let { match ->
-            val outer = endpointOf(match.groupValues[1])
-            val inner = endpointOf(match.groupValues[2])
-            if (outer != null && inner != null) AetherScanResult(outer, inner) else null
-        }
-
+        AetherProtocol.GOOL -> hopsOf(goolHops, line)
+        AetherProtocol.MIM -> hopsOf(mimHops, line)
         AetherProtocol.MASQUE -> masqueGateway.find(line)?.let { endpointOf(it.groupValues[1]) }?.let(::AetherScanResult)
         AetherProtocol.WIREGUARD -> wireguardEndpoint.find(line)?.let { endpointOf(it.groupValues[1]) }?.let(::AetherScanResult)
+    }
+
+    private fun hopsOf(hops: Regex, line: String): AetherScanResult? = hops.find(line)?.let { match ->
+        val outer = endpointOf(match.groupValues[1])
+        val inner = endpointOf(match.groupValues[2])
+        if (outer != null && inner != null) AetherScanResult(outer, inner) else null
     }
 
     private fun endpointOf(text: String): AetherEndpoint? {

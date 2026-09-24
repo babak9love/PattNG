@@ -226,11 +226,13 @@
         <item>MASQUE</item>
         <item>WireGuard</item>
         <item>WARP-in-WARP</item>
+        <item>MASQUE-in-MASQUE</item>
     </string-array>
     <string-array name="aether_protocol_values" translatable="false">
         <item>masque</item>
         <item>wg</item>
         <item>gool</item>
+        <item>mim</item>
     </string-array>
     <string-array name="aether_transport_entries" translatable="false">
         <item>HTTP/3</item>

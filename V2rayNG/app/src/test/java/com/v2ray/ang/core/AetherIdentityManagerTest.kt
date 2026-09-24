@@ -61,16 +61,22 @@ class AetherIdentityManagerTest {
     fun eachProtocolReadsItsOwnKeyFiles() {
         val dir = workDir(
             AetherIdentityManager.MASQUE_FILE to keyFile("masque"),
+            AetherIdentityManager.MASQUE_INNER_FILE to keyFile("masque-inner"),
             AetherIdentityManager.WIREGUARD_FILE to keyFile("outer"),
             AetherIdentityManager.WIREGUARD_INNER_FILE to keyFile("inner"),
         )
 
         assertEquals("masque", AetherIdentityManager.status(dir, AetherProtocol.MASQUE).primary?.deviceId)
+        assertNull(AetherIdentityManager.status(dir, AetherProtocol.MASQUE).secondary)
         assertEquals("outer", AetherIdentityManager.status(dir, AetherProtocol.WIREGUARD).primary?.deviceId)
 
         val gool = AetherIdentityManager.status(dir, AetherProtocol.GOOL)
         assertEquals("outer", gool.primary?.deviceId)
         assertEquals("inner", gool.secondary?.deviceId)
+
+        val mim = AetherIdentityManager.status(dir, AetherProtocol.MIM)
+        assertEquals("masque", mim.primary?.deviceId)
+        assertEquals("masque-inner", mim.secondary?.deviceId)
     }
 
     @Test
@@ -79,16 +85,22 @@ class AetherIdentityManagerTest {
 
         assertNull(AetherIdentityManager.status(dir, AetherProtocol.MASQUE).primary)
         assertNull(AetherIdentityManager.status(dir, AetherProtocol.GOOL).secondary)
+        assertNull(AetherIdentityManager.status(dir, AetherProtocol.MIM).primary)
+        assertNull(AetherIdentityManager.status(dir, AetherProtocol.MIM).secondary)
         assertNull(AetherIdentityManager.status(File(folder.root, "absent"), AetherProtocol.WIREGUARD).primary)
     }
 
     @Test
-    fun wireguardAndGoolShareAKeyWhileMasqueHasItsOwn() {
+    fun theTunnelsOverMasqueShareAKeyAndTheOthersAnother() {
         assertTrue(AetherIdentityManager.sharesIdentity(AetherProtocol.MASQUE, AetherProtocol.MASQUE))
+        assertTrue(AetherIdentityManager.sharesIdentity(AetherProtocol.MASQUE, AetherProtocol.MIM))
+        assertTrue(AetherIdentityManager.sharesIdentity(AetherProtocol.MIM, AetherProtocol.MIM))
         assertTrue(AetherIdentityManager.sharesIdentity(AetherProtocol.WIREGUARD, AetherProtocol.GOOL))
         assertTrue(AetherIdentityManager.sharesIdentity(AetherProtocol.GOOL, AetherProtocol.GOOL))
         assertFalse(AetherIdentityManager.sharesIdentity(AetherProtocol.MASQUE, AetherProtocol.WIREGUARD))
         assertFalse(AetherIdentityManager.sharesIdentity(AetherProtocol.GOOL, AetherProtocol.MASQUE))
+        assertFalse(AetherIdentityManager.sharesIdentity(AetherProtocol.MIM, AetherProtocol.GOOL))
+        assertFalse(AetherIdentityManager.sharesIdentity(AetherProtocol.WIREGUARD, AetherProtocol.MIM))
     }
 
     @Test
@@ -100,6 +112,9 @@ class AetherIdentityManagerTest {
         assertTrue(AetherIdentityManager.isReady(AetherProtocol.WIREGUARD, single))
         assertTrue(AetherIdentityManager.isReady(AetherProtocol.GOOL, pair))
         assertFalse(AetherIdentityManager.isReady(AetherProtocol.GOOL, single))
+        // Masque-in-masque announces its two keys on the same line as gool.
+        assertTrue(AetherIdentityManager.isReady(AetherProtocol.MIM, pair))
+        assertFalse(AetherIdentityManager.isReady(AetherProtocol.MIM, single))
         assertFalse(AetherIdentityManager.isReady(AetherProtocol.MASQUE, "[+] no masque identity found; provisioning"))
     }
 

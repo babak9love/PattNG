@@ -51,6 +51,10 @@ class AetherCoreTest {
         val gool = AetherCore.of(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherWiwOuter = "162.159.192.1:2408" })
         assertEquals(gool, AetherCore.ofCommand(gool.command))
         assertEquals(AetherProtocol.GOOL, AetherCore.ofCommand(gool.command)!!.protocol)
+
+        val mim = AetherCore.of(profile { aetherProtocol = AetherProtocol.MIM.type; aetherWiwInner = "188.114.96.1:443" })
+        assertEquals(mim, AetherCore.ofCommand(mim.command))
+        assertEquals(AetherProtocol.MIM, AetherCore.ofCommand(mim.command)!!.protocol)
     }
 
     @Test

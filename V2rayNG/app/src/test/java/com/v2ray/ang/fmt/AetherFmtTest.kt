@@ -120,6 +120,11 @@ class AetherFmtTest {
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "reverse" })
         )
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MASQUE.type; aetherPsiphon = "reverse" }))
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MIM.type; aetherPsiphon = "reverse" }))
+        assertEquals(
+            AetherFmt.Problem.PSIPHON_NEEDS_MASQUE,
+            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherPsiphon = "reverse" })
+        )
         // WireGuard inside Psiphon is fine: Psiphon carries the tunnel only the other way round.
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "chain" }))
 
@@ -192,6 +197,13 @@ class AetherFmtTest {
         val unused = used.copy(aetherTransport = AetherTransport.HTTP3.type, aetherFragmentDelay = "5000")
         assertNull(AetherFmt.normalize(unused))
         assertNull(unused.aetherFragmentDelay)
+
+        // Masque-in-masque fragments on the HTTP/2 carrier as MASQUE does; WireGuard never does.
+        assertEquals(
+            AetherFmt.Problem.INVALID_FRAGMENT,
+            AetherFmt.normalize(used.copy(aetherProtocol = AetherProtocol.MIM.type, aetherFragmentDelay = "5000"))
+        )
+        assertNull(AetherFmt.normalize(used.copy(aetherProtocol = AetherProtocol.WIREGUARD.type, aetherFragmentDelay = "5000")))
     }
 
     @Test
@@ -238,7 +250,29 @@ class AetherFmtTest {
     }
 
     @Test
-    fun theHopsOnlyRideAlongWithGool() {
+    fun bothMimHopsAndTheTransportSurviveTheRoundTrip() {
+        val original = profile {
+            remarks = "Mim"
+            aetherProtocol = AetherProtocol.MIM.type
+            aetherTransport = AetherTransport.HTTP2.type
+            aetherFragment = true
+            aetherWiwOuter = "162.159.192.1:443"
+            aetherWiwInner = "[2606:4700:d0::a29f:c001]:443"
+        }
+
+        val parsed = AetherFmt.parse(link(original))
+
+        assertEquals("mim", parsed?.aetherProtocol)
+        assertEquals("h2", parsed?.aetherTransport)
+        assertEquals(true, parsed?.aetherFragment)
+        assertEquals("162.159.192.1:443", parsed?.aetherWiwOuter)
+        assertEquals("[2606:4700:d0::a29f:c001]:443", parsed?.aetherWiwInner)
+        assertNull(parsed?.server)
+        assertNull(parsed?.serverPort)
+    }
+
+    @Test
+    fun theHopsOnlyRideAlongWithATwoHopProtocol() {
         val uri = link(profile {
             aetherWiwOuter = "162.159.192.1:2408"
             aetherWiwInner = "188.114.96.1:894"
@@ -261,7 +295,7 @@ class AetherFmtTest {
     }
 
     @Test
-    fun theTransportOnlyRidesAlongWithMasque() {
+    fun theTransportOnlyRidesAlongOverMasque() {
         val uri = link(profile {
             aetherProtocol = AetherProtocol.WIREGUARD.type
             aetherTransport = AetherTransport.HTTP2.type
@@ -271,6 +305,9 @@ class AetherFmtTest {
         assertFalse(uri.contains("transport="))
         assertFalse(uri.contains("fragment="))
         assertEquals("wg", AetherFmt.parse(uri)?.aetherProtocol)
+
+        assertFalse(link(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherTransport = AetherTransport.HTTP2.type }).contains("transport="))
+        assertTrue(link(profile { aetherProtocol = AetherProtocol.MIM.type; aetherTransport = AetherTransport.HTTP2.type }).contains("transport=h2"))
     }
 
     @Test
@@ -396,6 +433,36 @@ class AetherFmtTest {
         assertEquals(
             AetherFmt.Problem.INVALID_HOP,
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherWiwInner = "2606:4700::1:894" })
+        )
+    }
+
+    @Test
+    fun mimHopsAreCheckedLikeGoolHops() {
+        val config = profile {
+            aetherProtocol = AetherProtocol.MIM.type
+            server = "162.159.198.1"
+            serverPort = "443"
+            aetherWiwOuter = " 162.159.192.1:443 "
+            aetherWiwInner = ""
+        }
+
+        assertNull(AetherFmt.normalize(config))
+        assertEquals("162.159.192.1:443", config.aetherWiwOuter)
+        assertNull(config.aetherWiwInner)
+        assertNull(config.server)
+        assertNull(config.serverPort)
+
+        assertEquals(
+            AetherFmt.Problem.INVALID_HOP,
+            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MIM.type; aetherWiwOuter = "162.159.192.1" })
+        )
+        assertEquals(
+            AetherFmt.Problem.SHARED_HOP,
+            AetherFmt.normalize(profile {
+                aetherProtocol = AetherProtocol.MIM.type
+                aetherWiwOuter = "162.159.192.1:443"
+                aetherWiwInner = "162.159.192.1:2408"
+            })
         )
     }
 

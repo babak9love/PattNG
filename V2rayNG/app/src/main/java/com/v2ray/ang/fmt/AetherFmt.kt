@@ -72,7 +72,7 @@ object AetherFmt : FmtBase() {
         config.aetherPsiphonCdnSni = queryParam["cdn_sni"]
         config.aetherPsiphonRegion = queryParam["region"]
 
-        if (protocol == AetherProtocol.GOOL) {
+        if (protocol.twoHops) {
             val outer = AetherEndpoint.parse(queryParam["outer"])
             val inner = AetherEndpoint.parse(queryParam["inner"])?.takeUnless { it.host == outer?.host }
             config.aetherWiwOuter = outer?.toString()
@@ -94,7 +94,7 @@ object AetherFmt : FmtBase() {
             "noize" to AetherObfuscation.fromString(config.aetherObfuscation).type,
             "ip" to AetherIpVersion.fromString(config.aetherIpVersion).type,
         )
-        if (protocol == AetherProtocol.MASQUE) {
+        if (protocol.overMasque) {
             query["transport"] = AetherTransport.fromString(config.aetherTransport).type
             if (config.aetherFragment == true) {
                 query["fragment"] = "1"
@@ -104,7 +104,7 @@ object AetherFmt : FmtBase() {
                     ?.let { query["fragment_delay"] = it.toString() }
             }
         }
-        if (protocol == AetherProtocol.GOOL) {
+        if (protocol.twoHops) {
             AetherEndpoint.parse(config.aetherWiwOuter)?.let { query["outer"] = it.toString() }
             AetherEndpoint.parse(config.aetherWiwInner)?.let { query["inner"] = it.toString() }
         }
@@ -117,7 +117,7 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonCdnSni?.takeIf { it.isNotBlank() }?.let { query["cdn_sni"] = it }
             config.aetherPsiphonRegion?.takeIf { it.isNotBlank() }?.let { query["region"] = it }
         }
-        val endpoint = AetherEndpoint.of(config.server, config.serverPort).takeUnless { protocol == AetherProtocol.GOOL }
+        val endpoint = AetherEndpoint.of(config.server, config.serverPort).takeUnless { protocol.twoHops }
 
         val queryText = query.entries.joinToString("&") { "${it.key}=${Utils.encodeURIComponent(it.value)}" }
         return "${endpoint ?: ""}?$queryText#${Utils.encodeURIComponent(config.remarks)}"
@@ -220,7 +220,7 @@ object AetherFmt : FmtBase() {
             return null
         }
         // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
-        if (psiphon == AetherPsiphon.REVERSE && AetherProtocol.fromString(config.aetherProtocol) != AetherProtocol.MASQUE) {
+        if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
             return Problem.PSIPHON_NEEDS_MASQUE
         }
         config.aetherPsiphon = psiphon.type
@@ -245,7 +245,7 @@ object AetherFmt : FmtBase() {
     }
 
     private fun normalizeFragment(config: ProfileItem): Problem? {
-        val inUse = AetherProtocol.fromString(config.aetherProtocol) == AetherProtocol.MASQUE &&
+        val inUse = AetherProtocol.fromString(config.aetherProtocol).overMasque &&
             AetherTransport.fromString(config.aetherTransport) == AetherTransport.HTTP2 &&
             config.aetherFragment == true
         val sizeText = config.aetherFragmentSize?.trim().orEmpty()
@@ -261,7 +261,7 @@ object AetherFmt : FmtBase() {
     }
 
     private fun normalizeEndpoints(config: ProfileItem): Problem? {
-        if (AetherProtocol.fromString(config.aetherProtocol) == AetherProtocol.GOOL) {
+        if (AetherProtocol.fromString(config.aetherProtocol).twoHops) {
             val outerText = config.aetherWiwOuter?.trim().orEmpty()
             val innerText = config.aetherWiwInner?.trim().orEmpty()
             val outer = AetherEndpoint.parse(outerText)

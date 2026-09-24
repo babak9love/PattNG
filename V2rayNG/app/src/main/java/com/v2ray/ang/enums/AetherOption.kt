@@ -3,7 +3,14 @@ package com.v2ray.ang.enums
 enum class AetherProtocol(val type: String) {
     MASQUE("masque"),
     WIREGUARD("wg"),
-    GOOL("gool");
+    GOOL("gool"),
+    MIM("mim");
+
+    /** Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key. */
+    val overMasque: Boolean get() = this == MASQUE || this == MIM
+
+    /** Whether the tunnel is two hops, an outer and an inner one, in place of one endpoint. */
+    val twoHops: Boolean get() = this == GOOL || this == MIM
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: MASQUE

@@ -112,7 +112,7 @@ class ServerAetherActivity : BaseServerActivity() {
         val psiphon = AetherPsiphon.fromString(uiState.aetherPsiphon)
         // With Psiphon alone there is no WARP tunnel, and nothing about one to set.
         val warpUsed = psiphon != AetherPsiphon.ONLY
-        val usesHttp2 = protocol == AetherProtocol.MASQUE &&
+        val usesHttp2 = protocol.overMasque &&
             AetherTransport.fromString(uiState.aetherTransport) == AetherTransport.HTTP2
         // A scan opens a second tunnel on this protocol's key; a live session on that key must not be disturbed.
         val scanBlocked = session?.disturbedByScanOf(protocol) == true
@@ -156,7 +156,7 @@ class ServerAetherActivity : BaseServerActivity() {
                     enabled = !isBusy,
                     onValueChange = { uiState.aetherProtocol = it }
                 )
-                if (protocol == AetherProtocol.MASQUE) {
+                if (protocol.overMasque) {
                     AetherDropdownField(
                         label = R.string.aether_lab_transport,
                         value = uiState.aetherTransport,
@@ -260,7 +260,7 @@ class ServerAetherActivity : BaseServerActivity() {
                 )
             }
             if (warpUsed) {
-                if (protocol == AetherProtocol.GOOL) {
+                if (protocol.twoHops) {
                     FormTextField(
                         stringResource(R.string.aether_lab_wiw_outer),
                         uiState.aetherWiwOuter,
@@ -407,7 +407,7 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     private fun applyScanResult(state: ServerUiState, result: AetherScanResult) {
-        if (AetherProtocol.fromString(state.aetherProtocol) == AetherProtocol.GOOL) {
+        if (AetherProtocol.fromString(state.aetherProtocol).twoHops) {
             state.aetherWiwOuter = result.endpoint.toString()
             state.aetherWiwInner = result.innerHop?.toString().orEmpty()
         } else {
