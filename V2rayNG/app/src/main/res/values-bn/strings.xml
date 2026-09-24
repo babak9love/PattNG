@@ -606,6 +606,15 @@
     <string name="aether_tor_needs_masque">Tor → WARP শুধু MASQUE প্রোটোকলের সাথে কাজ করে</string>
     <string name="aether_tor_psiphon_conflict">Tor ও Psiphon একসাথে শুধু তখনই চলে যখন একটি টানেলের ভিতরে আর অন্যটি তার চারপাশে থাকে</string>
     <string name="aether_tor_bridges_missing">অন্তত একটি ব্রিজ লাইন লিখুন, অথবা অন্য ব্রিজ সেটিং বেছে নিন</string>
+    <string name="aether_lab_ech">Encrypted Client Hello (ECH)</string>
+    <string name="aether_hint_ech">MASQUE হ্যান্ডশেকের সার্ভার নাম লুকায়, যখন এর কী আনা যায়</string>
+    <string name="aether_lab_dns">টানেলের ভিতরের DNS</string>
+    <string name="aether_hint_dns">কমা দিয়ে আলাদা করুন; খালি রাখলে 1.1.1.1 ও 1.0.0.1</string>
+    <string name="aether_invalid_dns">1.1.1.1 বা 10.0.0.1:5353-এর মতো রিজলভার ঠিকানা কমা দিয়ে আলাদা করে লিখুন</string>
+    <string name="aether_lab_exit_loc">প্রস্থানের অবস্থান</string>
+    <string name="aether_hint_exit_loc">DE,SE শুধু সেগুলো অনুমোদন করে; !IR,RU সেগুলো প্রত্যাখ্যান করে; খালি রাখলে যেকোনোটি</string>
+    <string name="aether_invalid_exit_loc">কমা দিয়ে আলাদা করা দুই অক্ষরের দেশের কোড লিখুন, প্রত্যাখ্যানের জন্য শুরুতে !</string>
+    <string name="aether_lab_tor_relays">ব্রিজের উৎস</string>
     <string name="aether_lab_command">Aether কমান্ড</string>
     <string name="aether_command_custom">হাতে সম্পাদিত: এই কমান্ড যেমন লেখা তেমনই চলে, উপরের সেটিংস প্রয়োগ হয় না</string>
     <string name="aether_action_use_settings">সেটিংস ব্যবহার করুন</string>
@@ -675,10 +684,18 @@
         <item>কখনো না</item>
         <item>আমার নিজের ব্রিজ লাইন</item>
     </string-array>
+    <string-array name="aether_tor_relays_entries">
+        <item>bridgedb ও পাবলিক রিলে</item>
+        <item>শুধু পাবলিক রিলে</item>
+        <item>শুধু bridgedb</item>
+    </string-array>
     <string-array name="aether_obfuscation_entries">
+        <item>স্বয়ংক্রিয়</item>
         <item>বন্ধ</item>
         <item>হালকা</item>
+        <item>ফায়ারওয়াল</item>
         <item>ভারসাম্যপূর্ণ</item>
+        <item>GFW</item>
         <item>তীব্র</item>
     </string-array>
 

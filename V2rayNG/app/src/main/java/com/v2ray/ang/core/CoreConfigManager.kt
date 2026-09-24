@@ -537,6 +537,8 @@ object CoreConfigManager {
                         AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
                         AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
                         AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
+                        AetherFmt.Problem.INVALID_DNS -> R.string.aether_invalid_dns
+                        AetherFmt.Problem.INVALID_EXIT_LOC -> R.string.aether_invalid_exit_loc
                         AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
                         AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
                         AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque

@@ -610,6 +610,15 @@
     <string name="aether_tor_needs_masque">Режим Tor → WARP работает только с протоколом MASQUE</string>
     <string name="aether_tor_psiphon_conflict">Tor и Psiphon сочетаются только так: один внутри туннеля, другой снаружи</string>
     <string name="aether_tor_bridges_missing">Введите хотя бы одну строку моста или выберите другую настройку мостов</string>
+    <string name="aether_lab_ech">Encrypted Client Hello (ECH)</string>
+    <string name="aether_hint_ech">Скрывает имя сервера в рукопожатии MASQUE, если удаётся получить ключ</string>
+    <string name="aether_lab_dns">DNS внутри туннеля</string>
+    <string name="aether_hint_dns">Через запятую; оставьте пустым для 1.1.1.1 и 1.0.0.1</string>
+    <string name="aether_invalid_dns">Укажите адреса резолверов, например 1.1.1.1 или 10.0.0.1:5353, через запятую</string>
+    <string name="aether_lab_exit_loc">Страна выхода</string>
+    <string name="aether_hint_exit_loc">DE,SE разрешает только эти страны; !IR,RU запрещает их; пустое поле принимает любую</string>
+    <string name="aether_invalid_exit_loc">Укажите двухбуквенные коды стран через запятую, с ! в начале для запрета</string>
+    <string name="aether_lab_tor_relays">Источники мостов</string>
     <string name="aether_lab_command">Команда Aether</string>
     <string name="aether_command_custom">Изменено вручную: эта команда выполняется как написана, настройки выше не применяются</string>
     <string name="aether_action_use_settings">Использовать настройки</string>
@@ -679,10 +688,18 @@
         <item>Никогда</item>
         <item>Мои строки мостов</item>
     </string-array>
+    <string-array name="aether_tor_relays_entries">
+        <item>bridgedb и публичные реле</item>
+        <item>Только публичные реле</item>
+        <item>Только bridgedb</item>
+    </string-array>
     <string-array name="aether_obfuscation_entries">
+        <item>Автоматически</item>
         <item>Выкл.</item>
         <item>Лёгкая</item>
+        <item>Firewall</item>
         <item>Сбалансированная</item>
+        <item>GFW</item>
         <item>Агрессивная</item>
     </string-array>
 

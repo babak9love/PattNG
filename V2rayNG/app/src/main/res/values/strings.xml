@@ -609,6 +609,15 @@
     <string name="aether_tor_needs_masque">Tor → WARP works with the MASQUE protocol only</string>
     <string name="aether_tor_psiphon_conflict">Tor and Psiphon go together only with one inside the tunnel and the other around it</string>
     <string name="aether_tor_bridges_missing">Write at least one bridge line, or choose another bridge setting</string>
+    <string name="aether_lab_ech">Encrypted Client Hello</string>
+    <string name="aether_hint_ech">Hides the server name of the MASQUE handshake, when its key can be fetched</string>
+    <string name="aether_lab_dns">DNS inside the tunnel</string>
+    <string name="aether_hint_dns">Comma-separated; leave blank for 1.1.1.1 and 1.0.0.1</string>
+    <string name="aether_invalid_dns">Write resolver addresses such as 1.1.1.1 or 10.0.0.1:5353, separated by commas</string>
+    <string name="aether_lab_exit_loc">Exit location</string>
+    <string name="aether_hint_exit_loc">DE,SE allows only those; !IR,RU refuses those; blank accepts any</string>
+    <string name="aether_invalid_exit_loc">Write two-letter country codes separated by commas, with a leading ! to refuse them</string>
+    <string name="aether_lab_tor_relays">Bridge sources</string>
     <string name="aether_lab_command">Aether command</string>
     <string name="aether_command_custom">Edited by hand: this command runs as written, and the settings above are not applied</string>
     <string name="aether_action_use_settings">Use the settings</string>
@@ -678,10 +687,18 @@
         <item>Never</item>
         <item>My own bridge lines</item>
     </string-array>
+    <string-array name="aether_tor_relays_entries">
+        <item>bridgedb and public relays</item>
+        <item>Public relays only</item>
+        <item>bridgedb only</item>
+    </string-array>
     <string-array name="aether_obfuscation_entries">
+        <item>Automatic</item>
         <item>Off</item>
         <item>Light</item>
+        <item>Firewall</item>
         <item>Balanced</item>
+        <item>GFW</item>
         <item>Aggressive</item>
     </string-array>
 

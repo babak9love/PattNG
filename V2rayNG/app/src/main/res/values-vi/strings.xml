@@ -604,6 +604,15 @@
     <string name="aether_tor_needs_masque">Tor → WARP chỉ hoạt động với giao thức MASQUE</string>
     <string name="aether_tor_psiphon_conflict">Tor và Psiphon chỉ kết hợp được khi một cái nằm trong đường hầm và cái kia bao quanh nó</string>
     <string name="aether_tor_bridges_missing">Hãy nhập ít nhất một dòng bridge, hoặc chọn thiết lập bridge khác</string>
+    <string name="aether_lab_ech">Encrypted Client Hello (ECH)</string>
+    <string name="aether_hint_ech">Ẩn tên máy chủ trong bắt tay MASQUE, khi lấy được khóa</string>
+    <string name="aether_lab_dns">DNS trong đường hầm</string>
+    <string name="aether_hint_dns">Phân cách bằng dấu phẩy; để trống để dùng 1.1.1.1 và 1.0.0.1</string>
+    <string name="aether_invalid_dns">Hãy nhập địa chỉ máy phân giải như 1.1.1.1 hoặc 10.0.0.1:5353, phân cách bằng dấu phẩy</string>
+    <string name="aether_lab_exit_loc">Vị trí đầu ra</string>
+    <string name="aether_hint_exit_loc">DE,SE chỉ cho phép các nước đó; !IR,RU từ chối các nước đó; để trống chấp nhận mọi nơi</string>
+    <string name="aether_invalid_exit_loc">Hãy nhập mã quốc gia hai chữ cái, phân cách bằng dấu phẩy, thêm ! ở đầu để từ chối</string>
+    <string name="aether_lab_tor_relays">Nguồn bridge</string>
     <string name="aether_lab_command">Lệnh Aether</string>
     <string name="aether_command_custom">Đã sửa tay: lệnh này chạy đúng như đã viết, các thiết lập bên trên không được áp dụng</string>
     <string name="aether_action_use_settings">Dùng thiết lập</string>
@@ -673,10 +682,18 @@
         <item>Không bao giờ</item>
         <item>Dòng bridge của riêng tôi</item>
     </string-array>
+    <string-array name="aether_tor_relays_entries">
+        <item>bridgedb và relay công khai</item>
+        <item>Chỉ relay công khai</item>
+        <item>Chỉ bridgedb</item>
+    </string-array>
     <string-array name="aether_obfuscation_entries">
+        <item>Tự động</item>
         <item>Tắt</item>
         <item>Nhẹ</item>
+        <item>Firewall</item>
         <item>Cân bằng</item>
+        <item>GFW</item>
         <item>Mạnh</item>
     </string-array>
 

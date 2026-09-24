@@ -14,6 +14,7 @@ import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTorBridges
+import com.v2ray.ang.enums.AetherTorRelays
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
@@ -159,8 +160,15 @@ object AetherCoreManager {
             if (psiphon != AetherPsiphon.ONLY && tor != AetherTor.ONLY) {
                 addAll(listOf("--protocol", protocol.type))
                 addAll(listOf("--scan", AetherScanMode.fromString(profile.aetherScanMode).type))
-                addAll(listOf("--noize", AetherObfuscation.fromString(profile.aetherObfuscation).type))
+                // Automatic obfuscation is the core's own choice per protocol, so nothing is said about it.
+                AetherObfuscation.fromString(profile.aetherObfuscation).takeUnless { it == AetherObfuscation.AUTO }
+                    ?.let { addAll(listOf("--noize", it.type)) }
                 addAll(listOf("--ip", AetherIpVersion.fromString(profile.aetherIpVersion).type))
+                if (!scan) {
+                    profile.aetherDns?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--dns", it)) }
+                    // A scan is after endpoints; an exit rule would only send it looking again.
+                    profile.aetherExitLoc?.takeIf { it.isNotBlank() }?.let { addAll(listOf("--exit-loc", it)) }
+                }
 
                 if (protocol.overMasque &&
                     AetherTransport.fromString(profile.aetherTransport) == AetherTransport.HTTP2
@@ -174,6 +182,8 @@ object AetherCoreManager {
                             ?.let { addAll(listOf("--fragment-delay", it.toString())) }
                     }
                 }
+                // Encrypted Client Hello hides the server name of the MASQUE handshake, on either carrier and both hops.
+                if (protocol.overMasque && profile.aetherEch == true) addAll(listOf("--ech", "auto"))
 
                 if (protocol.twoHops) {
                     val hop = if (protocol == AetherProtocol.MIM) "--mim" else "--wiw"
@@ -198,11 +208,17 @@ object AetherCoreManager {
             torBind?.let { addAll(listOf(TOR_BIND, "${AppConfig.LOOPBACK}:$it")) }
             if (tor != AetherTor.OFF) {
                 // Told nothing, the core tries Tor plainly and turns to fetched bridges where Tor is blocked.
-                when (AetherTorBridges.fromString(profile.aetherTorBridges)) {
+                val bridges = AetherTorBridges.fromString(profile.aetherTorBridges)
+                when (bridges) {
                     AetherTorBridges.AUTO -> Unit
                     AetherTorBridges.FIRST -> add("--tor-bridges")
                     AetherTorBridges.NEVER -> add("--no-tor-bridges")
                     AetherTorBridges.OWN -> AetherFmt.bridgeLines(profile.aetherTorBridgeLines).forEach { addAll(listOf("--tor-bridge", it)) }
+                }
+                // Where fetched bridges come from; with the profile's own lines, or none at all, nothing is fetched.
+                if (bridges == AetherTorBridges.AUTO || bridges == AetherTorBridges.FIRST) {
+                    AetherTorRelays.fromString(profile.aetherTorRelays).takeUnless { it == AetherTorRelays.AUTO }
+                        ?.let { addAll(listOf("--tor-relays", it.type)) }
                 }
             }
 

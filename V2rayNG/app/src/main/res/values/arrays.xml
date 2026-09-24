@@ -250,9 +250,12 @@
         <item>ironclad</item>
     </string-array>
     <string-array name="aether_obfuscation_values" translatable="false">
+        <item>auto</item>
         <item>off</item>
         <item>light</item>
+        <item>firewall</item>
         <item>balanced</item>
+        <item>gfw</item>
         <item>aggressive</item>
     </string-array>
     <string-array name="aether_ip_entries" translatable="false">
@@ -287,6 +290,11 @@
         <item>first</item>
         <item>never</item>
         <item>own</item>
+    </string-array>
+    <string-array name="aether_tor_relays_values" translatable="false">
+        <item>auto</item>
+        <item>only</item>
+        <item>off</item>
     </string-array>
     <string-array name="target_strategy_values" translatable="false">
         <item>AsIs</item>

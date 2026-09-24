@@ -92,6 +92,15 @@ data class ProfileItem(
     var aetherFragmentSize: String? = null,
     var aetherFragmentDelay: String? = null,
 
+    /** Whether the MASQUE handshake hides its server name with Encrypted Client Hello; null means it does not. */
+    var aetherEch: Boolean? = null,
+
+    /** The resolvers names are looked up with inside the tunnel, comma-separated; null means the core's own. */
+    var aetherDns: String? = null,
+
+    /** The exit rule the core holds the tunnel to: country codes to allow, or with a leading ! to refuse; null means any exit. */
+    var aetherExitLoc: String? = null,
+
     /** Loopback port the Aether core of this profile listens on; null means the default, AppConfig.PORT_AETHER_SOCKS. */
     var aetherListenPort: String? = null,
 
@@ -110,6 +119,9 @@ data class ProfileItem(
 
     /** The profile's own bridge lines, one per line as torrc writes them, used when aetherTorBridges says so. */
     var aetherTorBridgeLines: String? = null,
+
+    /** Where Tor's fetched bridges come from, an AetherTorRelays type; null means bridgedb and the public relays. */
+    var aetherTorRelays: String? = null,
 
     /** The command line of this profile's core, written by hand in place of the one built from the settings; null follows the settings. */
     var aetherCommand: String? = null,

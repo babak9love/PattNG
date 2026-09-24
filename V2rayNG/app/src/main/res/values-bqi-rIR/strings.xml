@@ -606,6 +606,15 @@
     <string name="aether_tor_needs_masque">حالت «اول تور، بعد WARP» فقط وا پروتکل MASQUE کار اکنه</string>
     <string name="aether_tor_psiphon_conflict">تور و سایفون فقط ای‌جور وا هم کار اکنن: یکی من تونل و اۊ یکی دور تونل</string>
     <string name="aether_tor_bridges_missing">کم‌کم یه خط پل بنویسین، یا یه تنظیم دیه سی پل‌یا انتخاب کنین</string>
+    <string name="aether_lab_ech">Encrypted Client Hello (ECH)</string>
+    <string name="aether_hint_ech">نوم سرور من دست‌دادن MASQUE قایم اکنه، وختی کلیدس قابل گرهدن بۊ</string>
+    <string name="aether_lab_dns">DNS من تونل</string>
+    <string name="aether_hint_dns">وا کاما سوا کنین؛ خالی بیلین تا 1.1.1.1 و 1.0.0.1 استفاده بۊ</string>
+    <string name="aether_invalid_dns">نشونی‌یای DNS مثل 1.1.1.1 یا 10.0.0.1:5353 نه وا کاما سوا بنویسین</string>
+    <string name="aether_lab_exit_loc">ولات خروجی تونل</string>
+    <string name="aether_hint_exit_loc">DE,SE فقط هموناره مجاز اکنه؛ !IR,RU اونونه رد اکنه؛ خالی یعنی هر ولاتی</string>
+    <string name="aether_invalid_exit_loc">کدیای دوحرفی ولات نه وا کاما سوا بنویسین، وا ! من اول سی رد کردن</string>
+    <string name="aether_lab_tor_relays">منبع پل‌یا</string>
     <string name="aether_lab_command">فرمان Aether</string>
     <string name="aether_command_custom">وا دست ویرایش بیده: ای فرمان همی‌طور که نوشته بیده اجرا ابۊ وو تنظیمات بالا اعمال نیبۊن</string>
     <string name="aether_action_use_settings">استفاده زه تنظیمات</string>
@@ -675,10 +684,18 @@
         <item>هیچ‌وخت</item>
         <item>خط‌یای پل خوم</item>
     </string-array>
+    <string-array name="aether_tor_relays_entries">
+        <item>bridgedb و رله‌یای عمومی</item>
+        <item>فقط رله‌یای عمومی</item>
+        <item>فقط bridgedb</item>
+    </string-array>
     <string-array name="aether_obfuscation_entries">
+        <item>خودکار</item>
         <item>خاموش</item>
         <item>سبک</item>
+        <item>فایروال</item>
         <item>متعادل</item>
+        <item>GFW</item>
         <item>شدید</item>
     </string-array>
 

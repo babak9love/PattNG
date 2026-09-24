@@ -641,6 +641,59 @@ class AetherCoreManagerTest {
     }
 
     @Test
+    fun obfuscationIsTheCoresOwnChoiceUnlessAProfileNamesIt() {
+        // The core takes firewall for MASQUE and balanced for WireGuard and gool; automatic says nothing.
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherObfuscation = "auto"), 10819), "--noize"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherObfuscation = null), 10819), "--noize"))
+        assertEquals("firewall", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherObfuscation = "firewall"), 10819), "--noize"))
+        assertEquals("gfw", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherObfuscation = "gfw"), 10819), "--noize"))
+        assertEquals("off", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherObfuscation = "off"), 10819), "--noize"))
+    }
+
+    @Test
+    fun encryptedClientHelloTheResolversAndTheExitRuleReachTheCore() {
+        val tuned = profile().copy(aetherEch = true, aetherDns = "1.1.1.1,10.0.0.1:5353", aetherExitLoc = "!IR,RU")
+        val arguments = AetherCoreManager.buildArguments(tuned, 10819)
+        assertEquals("auto", valueAfter(arguments, "--ech"))
+        assertEquals("1.1.1.1,10.0.0.1:5353", valueAfter(arguments, "--dns"))
+        assertEquals("!IR,RU", valueAfter(arguments, "--exit-loc"))
+
+        // ECH belongs to the MASQUE handshake, on either carrier and both hops.
+        assertEquals("auto", valueAfter(AetherCoreManager.buildArguments(tuned.copy(aetherProtocol = "mim"), 10819), "--ech"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(tuned.copy(aetherProtocol = "wg"), 10819), "--ech"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile(), 10819), "--ech"))
+
+        // A scan keeps the handshake it will use, but it is after endpoints, not exits or names.
+        val scan = AetherCoreManager.buildArguments(tuned, 0, scan = true)
+        assertEquals("auto", valueAfter(scan, "--ech"))
+        assertNull(valueAfter(scan, "--dns"))
+        assertNull(valueAfter(scan, "--exit-loc"))
+
+        // Without a WARP tunnel there is nothing for them to apply to.
+        val alone = AetherCoreManager.buildArguments(tuned.copy(aetherPsiphon = "only"), 10819)
+        assertNull(valueAfter(alone, "--dns"))
+        assertNull(valueAfter(alone, "--exit-loc"))
+        assertNull(valueAfter(alone, "--ech"))
+    }
+
+    @Test
+    fun theBridgePoolReachesTheCoreOnlyWhereBridgesAreFetched() {
+        assertEquals("only", valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTor = "chain", aetherTorRelays = "only"), 10819), "--tor-relays"))
+        assertEquals(
+            "off",
+            valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTor = "only", aetherTorBridges = "first", aetherTorRelays = "off"), 10819), "--tor-relays")
+        )
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTor = "chain", aetherTorRelays = "auto"), 10819), "--tor-relays"))
+        // With the profile's own lines, or no bridges at all, nothing is fetched.
+        assertNull(
+            valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTor = "only", aetherTorBridges = "never", aetherTorRelays = "only"), 10819), "--tor-relays")
+        )
+        val own = profile().copy(aetherTor = "only", aetherTorBridges = "own", aetherTorBridgeLines = "obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0", aetherTorRelays = "only")
+        assertNull(valueAfter(AetherCoreManager.buildArguments(own, 10819), "--tor-relays"))
+        assertNull(valueAfter(AetherCoreManager.buildArguments(profile().copy(aetherTorRelays = "only"), 10819), "--tor-relays"))
+    }
+
+    @Test
     fun aScanLooksForWarpEndpointsWithoutPsiphon() {
         val scan = AetherCoreManager.buildArguments(profile().copy(aetherPsiphon = "chain"), 0, scan = true)
         assertFalse(scan.any { it.startsWith("--psiphon") })

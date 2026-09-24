@@ -21,6 +21,7 @@ import com.v2ray.ang.enums.AetherPsiphonMode
 import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTorBridges
+import com.v2ray.ang.enums.AetherTorRelays
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
@@ -82,13 +83,16 @@ class ServerUiState(
     aetherProtocol: String = AetherProtocol.MASQUE.type,
     aetherTransport: String = AetherTransport.HTTP3.type,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
-    aetherObfuscation: String = AetherObfuscation.BALANCED.type,
+    aetherObfuscation: String = AetherObfuscation.AUTO.type,
     aetherIpVersion: String = AetherIpVersion.V4.type,
     aetherWiwOuter: String = "",
     aetherWiwInner: String = "",
     aetherFragment: Boolean = false,
     aetherFragmentSize: String = "",
     aetherFragmentDelay: String = "",
+    aetherEch: Boolean = false,
+    aetherDns: String = "",
+    aetherExitLoc: String = "",
     aetherListenPort: String = PORT_AETHER_SOCKS,
     aetherPsiphon: String = AetherPsiphon.OFF.type,
     aetherPsiphonMode: String = AetherPsiphonMode.AUTO.type,
@@ -98,6 +102,7 @@ class ServerUiState(
     aetherTor: String = AetherTor.OFF.type,
     aetherTorBridges: String = AetherTorBridges.AUTO.type,
     aetherTorBridgeLines: String = "",
+    aetherTorRelays: String = AetherTorRelays.AUTO.type,
     aetherCommand: String = ""
 ) {
     var configType by mutableStateOf(configType)
@@ -161,6 +166,9 @@ class ServerUiState(
     var aetherFragment by mutableStateOf(aetherFragment)
     var aetherFragmentSize by mutableStateOf(aetherFragmentSize)
     var aetherFragmentDelay by mutableStateOf(aetherFragmentDelay)
+    var aetherEch by mutableStateOf(aetherEch)
+    var aetherDns by mutableStateOf(aetherDns)
+    var aetherExitLoc by mutableStateOf(aetherExitLoc)
     var aetherListenPort by mutableStateOf(aetherListenPort)
     var aetherPsiphon by mutableStateOf(aetherPsiphon)
     var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)
@@ -170,6 +178,7 @@ class ServerUiState(
     var aetherTor by mutableStateOf(aetherTor)
     var aetherTorBridges by mutableStateOf(aetherTorBridges)
     var aetherTorBridgeLines by mutableStateOf(aetherTorBridgeLines)
+    var aetherTorRelays by mutableStateOf(aetherTorRelays)
     var aetherCommand by mutableStateOf(aetherCommand)
 
     var isRemarksError by mutableStateOf(false)
@@ -259,6 +268,9 @@ class ServerUiState(
             aetherFragment = if (isAether) aetherFragment else null,
             aetherFragmentSize = if (isAether) aetherFragmentSize.nullIfBlank() else null,
             aetherFragmentDelay = if (isAether) aetherFragmentDelay.nullIfBlank() else null,
+            aetherEch = if (isAether) aetherEch else null,
+            aetherDns = if (isAether) aetherDns.nullIfBlank() else null,
+            aetherExitLoc = if (isAether) aetherExitLoc.nullIfBlank() else null,
             // Stored only when it is not the default, the way AetherFmt.normalize stores it; text that is
             // no port goes through as written, for normalize to refuse.
             aetherListenPort = if (isAether) aetherListenPort.trim().takeUnless { it.isEmpty() || it == PORT_AETHER_SOCKS } else null,
@@ -270,6 +282,7 @@ class ServerUiState(
             aetherTor = if (isTor) aetherTor else null,
             aetherTorBridges = if (isTor) aetherTorBridges else null,
             aetherTorBridgeLines = if (isTor) aetherTorBridgeLines.nullIfBlank() else null,
+            aetherTorRelays = if (isTor) aetherTorRelays else null,
             aetherCommand = null,
         )
         if (!isAether) return profile
@@ -345,6 +358,9 @@ class ServerUiState(
                 aetherFragment = initialConfig.aetherFragment ?: false,
                 aetherFragmentSize = initialConfig.aetherFragmentSize ?: "",
                 aetherFragmentDelay = initialConfig.aetherFragmentDelay ?: "",
+                aetherEch = initialConfig.aetherEch == true,
+                aetherDns = initialConfig.aetherDns ?: "",
+                aetherExitLoc = initialConfig.aetherExitLoc ?: "",
                 aetherListenPort = initialConfig.aetherListenPort ?: PORT_AETHER_SOCKS,
                 aetherPsiphon = AetherPsiphon.fromString(initialConfig.aetherPsiphon).type,
                 aetherPsiphonMode = AetherPsiphonMode.fromString(initialConfig.aetherPsiphonMode).type,
@@ -354,6 +370,7 @@ class ServerUiState(
                 aetherTor = AetherTor.fromString(initialConfig.aetherTor).type,
                 aetherTorBridges = AetherTorBridges.fromString(initialConfig.aetherTorBridges).type,
                 aetherTorBridgeLines = initialConfig.aetherTorBridgeLines ?: "",
+                aetherTorRelays = AetherTorRelays.fromString(initialConfig.aetherTorRelays).type,
                 aetherCommand = initialConfig.aetherCommand ?: ""
             )
 

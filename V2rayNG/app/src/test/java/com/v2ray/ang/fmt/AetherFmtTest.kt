@@ -236,6 +236,89 @@ class AetherFmtTest {
     }
 
     @Test
+    fun automaticObfuscationStaysOutOfALinkAndEveryProfileOfTheCoreRoundTrips() {
+        val automatic = link(profile { aetherObfuscation = AetherObfuscation.AUTO.type })
+        assertFalse(automatic.contains("noize="))
+        assertEquals("auto", AetherFmt.parse(automatic)?.aetherObfuscation)
+        for (named in listOf("off", "light", "firewall", "balanced", "gfw", "aggressive")) {
+            assertEquals(named, AetherFmt.parse(link(profile { aetherObfuscation = named }))?.aetherObfuscation)
+        }
+    }
+
+    @Test
+    fun encryptedClientHelloTheResolversAndTheExitRuleSurviveTheRoundTrip() {
+        val tuned = profile {
+            aetherEch = true
+            aetherDns = "1.1.1.1,10.0.0.1:5353"
+            aetherExitLoc = "!IR,RU"
+        }
+        val parsed = AetherFmt.parse(link(tuned))
+        assertEquals(true, parsed?.aetherEch)
+        assertEquals("1.1.1.1,10.0.0.1:5353", parsed?.aetherDns)
+        assertEquals("!IR,RU", parsed?.aetherExitLoc)
+
+        val plain = AetherFmt.toUri(profile {})
+        assertFalse(plain.contains("ech="))
+        assertFalse(plain.contains("dns="))
+        assertFalse(plain.contains("exit_loc="))
+        // ECH rides with the MASQUE handshake alone.
+        assertFalse(link(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherEch = true }).contains("ech="))
+        assertTrue(link(profile { aetherProtocol = AetherProtocol.MIM.type; aetherEch = true }).contains("ech=1"))
+    }
+
+    @Test
+    fun theResolversAreCheckedAndWrittenBackWithCommas() {
+        val mixed = profile { aetherDns = " 1.1.1.1, [2606:4700:4700::1111]:53  8.8.8.8;10.0.0.1:5353 " }
+        assertNull(AetherFmt.normalize(mixed))
+        assertEquals("1.1.1.1,[2606:4700:4700::1111]:53,8.8.8.8,10.0.0.1:5353", mixed.aetherDns)
+
+        val bare6 = profile { aetherDns = "2606:4700:4700::1111" }
+        assertNull(AetherFmt.normalize(bare6))
+        assertEquals("2606:4700:4700::1111", bare6.aetherDns)
+
+        val blank = profile { aetherDns = " , " }
+        assertNull(AetherFmt.normalize(blank))
+        assertNull(blank.aetherDns)
+
+        assertEquals(AetherFmt.Problem.INVALID_DNS, AetherFmt.normalize(profile { aetherDns = "dns.google" }))
+        assertEquals(AetherFmt.Problem.INVALID_DNS, AetherFmt.normalize(profile { aetherDns = "1.1.1.1,10.0.0.1:70000" }))
+    }
+
+    @Test
+    fun theExitRuleIsCheckedAndWrittenInCapitals() {
+        val refused = profile { aetherExitLoc = " ! ir, ru " }
+        assertNull(AetherFmt.normalize(refused))
+        assertEquals("!IR,RU", refused.aetherExitLoc)
+
+        val allowed = profile { aetherExitLoc = "de,se" }
+        assertNull(AetherFmt.normalize(allowed))
+        assertEquals("DE,SE", allowed.aetherExitLoc)
+
+        val blank = profile { aetherExitLoc = "  " }
+        assertNull(AetherFmt.normalize(blank))
+        assertNull(blank.aetherExitLoc)
+
+        assertEquals(AetherFmt.Problem.INVALID_EXIT_LOC, AetherFmt.normalize(profile { aetherExitLoc = "Germany" }))
+        assertEquals(AetherFmt.Problem.INVALID_EXIT_LOC, AetherFmt.normalize(profile { aetherExitLoc = "DE,,SE" }))
+        assertEquals(AetherFmt.Problem.INVALID_EXIT_LOC, AetherFmt.normalize(profile { aetherExitLoc = "DE!" }))
+    }
+
+    @Test
+    fun theBridgePoolRidesWithTorAndIsClearedWithIt() {
+        assertEquals("only", AetherFmt.parse(link(profile { aetherTor = "only"; aetherTorRelays = "only" }))?.aetherTorRelays)
+        assertEquals("auto", AetherFmt.parse(link(profile { aetherTor = "chain" }))?.aetherTorRelays)
+        assertFalse(link(profile { aetherTorRelays = "only" }).contains("tor_relays"))
+
+        val normalized = profile { aetherTor = "chain"; aetherTorRelays = "made-up" }
+        assertNull(AetherFmt.normalize(normalized))
+        assertEquals("auto", normalized.aetherTorRelays)
+
+        val off = profile { aetherTor = "off"; aetherTorRelays = "only" }
+        assertNull(AetherFmt.normalize(off))
+        assertNull(off.aetherTorRelays)
+    }
+
+    @Test
     fun aCommandWrittenInPlaceOfTheSettingsIsCheckedAndTrimmed() {
         val trimmed = profile { aetherCommand = "  aether --wg --bind 127.0.0.1:20808  " }
         assertNull(AetherFmt.normalize(trimmed))
@@ -417,7 +500,7 @@ class AetherFmtTest {
         assertEquals("masque", parsed?.aetherProtocol)
         assertEquals("h3", parsed?.aetherTransport)
         assertEquals("balanced", parsed?.aetherScanMode)
-        assertEquals("balanced", parsed?.aetherObfuscation)
+        assertEquals("auto", parsed?.aetherObfuscation)
         assertEquals("v4", parsed?.aetherIpVersion)
         assertEquals(false, parsed?.aetherFragment)
     }
@@ -710,7 +793,7 @@ class AetherFmtTest {
         assertEquals(AetherProtocol.MASQUE.type, parsed.aetherProtocol)
         assertEquals(AetherTransport.HTTP3.type, parsed.aetherTransport)
         assertEquals(AetherScanMode.BALANCED.type, parsed.aetherScanMode)
-        assertEquals(AetherObfuscation.BALANCED.type, parsed.aetherObfuscation)
+        assertEquals(AetherObfuscation.AUTO.type, parsed.aetherObfuscation)
         assertEquals(AetherIpVersion.V4.type, parsed.aetherIpVersion)
         assertEquals(false, parsed.aetherFragment)
         assertNull(parsed.server)
@@ -749,7 +832,7 @@ class AetherFmtTest {
         assertEquals(AetherFmt.Settings.Unknown("protocol: wireguard"), read("""{"protocol": "wireguard"}"""))
         assertEquals(AetherFmt.Settings.Unknown("transport: quic"), read("""{"transport": "quic"}"""))
         assertEquals(AetherFmt.Settings.Unknown("scan: fast"), read("""{"scan": "fast"}"""))
-        assertEquals(AetherFmt.Settings.Unknown("noize: gfw"), read("""{"noize": "gfw"}"""))
+        assertEquals(AetherFmt.Settings.Unknown("noize: loud"), read("""{"noize": "loud"}"""))
         assertEquals(AetherFmt.Settings.Unknown("ip: 4"), read("""{"ip": 4}"""))
         assertEquals(AetherFmt.Settings.Unknown("fragment: yes"), read("""{"fragment": "yes"}"""))
         assertEquals(AetherFmt.Settings.Unknown("scan"), read("""{"scan": {"mode": "turbo"}}"""))

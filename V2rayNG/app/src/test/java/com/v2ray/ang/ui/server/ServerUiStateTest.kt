@@ -29,7 +29,7 @@ class ServerUiStateTest {
         assertEquals(AetherProtocol.GOOL.type, state.aetherProtocol)
         assertEquals(AetherTransport.HTTP2.type, state.aetherTransport)
         assertEquals(AetherScanMode.BALANCED.type, state.aetherScanMode)
-        assertEquals(AetherObfuscation.BALANCED.type, state.aetherObfuscation)
+        assertEquals(AetherObfuscation.AUTO.type, state.aetherObfuscation)
         assertEquals(AetherIpVersion.DUAL.type, state.aetherIpVersion)
     }
 
@@ -132,6 +132,41 @@ class ServerUiStateTest {
         assertEquals("reverse", reloaded.aetherTor)
         assertEquals("own", reloaded.aetherTorBridges)
         assertEquals("obfs4 192.0.2.55:38114 316E64 cert=abc iat-mode=0", reloaded.aetherTorBridgeLines)
+    }
+
+    @Test
+    fun theTuningFieldsStartEmptyAndAreStoredOnlyWhenSet() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals(AetherObfuscation.AUTO.type, state.aetherObfuscation)
+        assertEquals(false, state.aetherEch)
+        assertEquals("", state.aetherDns)
+        assertEquals("", state.aetherExitLoc)
+        assertEquals("auto", state.aetherTorRelays)
+        val stored = state.toProfileItem(profile)
+        assertEquals(false, stored.aetherEch)
+        assertNull(stored.aetherDns)
+        assertNull(stored.aetherExitLoc)
+        assertNull(stored.aetherTorRelays)
+
+        state.aetherEch = true
+        state.aetherDns = "1.1.1.1"
+        state.aetherExitLoc = "!IR"
+        state.aetherTorRelays = "only"
+        // The bridge pool belongs to Tor and is kept only while Tor is on.
+        assertNull(state.toProfileItem(profile).aetherTorRelays)
+        state.aetherTor = "chain"
+        val tuned = state.toProfileItem(profile)
+        assertEquals(true, tuned.aetherEch)
+        assertEquals("1.1.1.1", tuned.aetherDns)
+        assertEquals("!IR", tuned.aetherExitLoc)
+        assertEquals("only", tuned.aetherTorRelays)
+
+        val reloaded = ServerUiState.from(tuned)
+        assertEquals(true, reloaded.aetherEch)
+        assertEquals("1.1.1.1", reloaded.aetherDns)
+        assertEquals("!IR", reloaded.aetherExitLoc)
+        assertEquals("only", reloaded.aetherTorRelays)
     }
 
     @Test

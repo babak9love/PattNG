@@ -55,6 +55,7 @@ import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTorBridges
+import com.v2ray.ang.enums.AetherTorRelays
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toast
@@ -191,6 +192,14 @@ class ServerAetherActivity : BaseServerActivity() {
                         )
                     }
                 }
+                if (protocol.overMasque) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.aether_lab_ech),
+                        summary = stringResource(R.string.aether_hint_ech),
+                        checked = uiState.aetherEch,
+                        onCheckedChange = { uiState.aetherEch = it }
+                    )
+                }
                 AetherDropdownField(
                     label = R.string.aether_lab_scan_mode,
                     value = uiState.aetherScanMode,
@@ -211,6 +220,18 @@ class ServerAetherActivity : BaseServerActivity() {
                     entries = R.array.aether_ip_entries,
                     values = R.array.aether_ip_values,
                     onValueChange = { uiState.aetherIpVersion = it }
+                )
+                FormTextField(
+                    stringResource(R.string.aether_lab_dns),
+                    uiState.aetherDns,
+                    { uiState.aetherDns = it },
+                    placeholder = stringResource(R.string.aether_hint_dns)
+                )
+                FormTextField(
+                    stringResource(R.string.aether_lab_exit_loc),
+                    uiState.aetherExitLoc,
+                    { uiState.aetherExitLoc = it },
+                    placeholder = stringResource(R.string.aether_hint_exit_loc)
                 )
             }
             CommonTargetStrategyField(uiState)
@@ -291,6 +312,15 @@ class ServerAetherActivity : BaseServerActivity() {
                     values = R.array.aether_tor_bridges_values,
                     onValueChange = { uiState.aetherTorBridges = it }
                 )
+                if (torBridges == AetherTorBridges.AUTO || torBridges == AetherTorBridges.FIRST) {
+                    AetherDropdownField(
+                        label = R.string.aether_lab_tor_relays,
+                        value = uiState.aetherTorRelays,
+                        entries = R.array.aether_tor_relays_entries,
+                        values = R.array.aether_tor_relays_values,
+                        onValueChange = { uiState.aetherTorRelays = it }
+                    )
+                }
                 if (torBridges == AetherTorBridges.OWN) {
                     FormTextField(
                         stringResource(R.string.aether_lab_tor_bridge_lines),
@@ -438,6 +468,8 @@ class ServerAetherActivity : BaseServerActivity() {
                 AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
                 AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
                 AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
+                AetherFmt.Problem.INVALID_DNS -> R.string.aether_invalid_dns
+                AetherFmt.Problem.INVALID_EXIT_LOC -> R.string.aether_invalid_exit_loc
                 AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
                 AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
                 AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque

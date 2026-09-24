@@ -41,14 +41,21 @@ enum class AetherScanMode(val type: String) {
     }
 }
 
+/**
+ * The obfuscation profile, named the way the core names it. [AUTO] leaves the choice to the core,
+ * which takes firewall for MASQUE and balanced for WireGuard and gool.
+ */
 enum class AetherObfuscation(val type: String) {
+    AUTO("auto"),
     OFF("off"),
     LIGHT("light"),
+    FIREWALL("firewall"),
     BALANCED("balanced"),
+    GFW("gfw"),
     AGGRESSIVE("aggressive");
 
     companion object {
-        fun fromString(type: String?) = entries.find { it.type == type } ?: BALANCED
+        fun fromString(type: String?) = entries.find { it.type == type } ?: AUTO
     }
 }
 
@@ -122,6 +129,22 @@ enum class AetherTorBridges(val type: String) {
 
     /** The bridge lines of the profile, and no other. */
     OWN("own");
+
+    companion object {
+        fun fromString(type: String?) = entries.find { it.type == type } ?: AUTO
+    }
+}
+
+/** Where Tor's fetched bridges come from: bridgedb, the public relays onionoo lists used as plain bridges, or both. */
+enum class AetherTorRelays(val type: String) {
+    /** bridgedb and the relays together, the core's own choice. */
+    AUTO("auto"),
+
+    /** The relays alone; bridgedb hands out few bridges, and they are blocked early. */
+    ONLY("only"),
+
+    /** bridgedb alone. */
+    OFF("off");
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: AUTO
