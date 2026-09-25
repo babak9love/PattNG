@@ -58,8 +58,8 @@ object PsiphonServerList {
         if (entries.isFile && mark.isFile && runCatching { mark.readText() }.getOrNull() == stamp) return entries
         return try {
             val text = unpack(source.readBytes(), signingKey)
-            // The daemon and the editor may both unpack a new list; each writes under its own name.
-            val fresh = File(workDir, "$ENTRIES_FILE.${android.os.Process.myPid()}.new")
+            // The daemon and the editor may both unpack a new list; each writes under a name of its own.
+            val fresh = File(workDir, "$ENTRIES_FILE.${System.nanoTime()}.new")
             fresh.writeText(text)
             if (!fresh.renameTo(entries)) {
                 entries.delete()
