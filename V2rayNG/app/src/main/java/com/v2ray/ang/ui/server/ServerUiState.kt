@@ -81,7 +81,7 @@ class ServerUiState(
     verifyPeerCertByName: String = "",
     pinnedCA256: String = "",
     isFetchingCert: Boolean = false,
-    aetherProtocol: String = AetherProtocol.MASQUE.type,
+    aetherProtocol: String = AetherProtocol.WIREGUARD.type,
     aetherTransport: String = AetherTransport.HTTP3.type,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
     aetherObfuscation: String = AetherObfuscation.AUTO.type,

@@ -39,7 +39,7 @@ class ServerUiStateTest {
     fun aNewAetherProfileStartsWithTheDefaultsAndNoPort() {
         val state = ServerUiState.from(ProfileItem.create(EConfigType.AETHER))
 
-        assertEquals(AetherProtocol.MASQUE.type, state.aetherProtocol)
+        assertEquals(AetherProtocol.WIREGUARD.type, state.aetherProtocol)
         assertEquals(AetherTransport.HTTP3.type, state.aetherTransport)
         assertEquals("", state.port)
     }

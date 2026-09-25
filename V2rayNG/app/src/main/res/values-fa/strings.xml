@@ -594,7 +594,7 @@
     <string name="aether_lab_psiphon_cdn_sni">نام سرورهای CDN (SNI)</string>
     <string name="aether_hint_psiphon_list">با کاما جدا کنید؛ خالی بگذارید تا فهرست داخلی استفاده شود</string>
     <string name="aether_lab_psiphon_region">کشور خروجی</string>
-    <string name="aether_hint_psiphon_region">کد کشور مانند DE؛ خالی یعنی هر کشوری</string>
+    <string name="aether_psiphon_region_any">هر کشوری</string>
     <string name="aether_lab_psiphon_bundled_list">شروع از فهرست سرورهای همراه برنامه</string>
     <string name="aether_hint_psiphon_bundled_list">روشن: سایفون بی‌درنگ سرورهای psiphon_servers.dat را امتحان می‌کند و فهرست تازه را فقط وقتی می‌گیرد که آن‌ها کار نکنند. خاموش: پیش از نخستین اتصال فهرست تازه را می‌گیرد، پس فهرست باید در دسترس باشد، مثلاً از پشت WARP</string>
     <string name="aether_action_clear_psiphon">پاک کردن داده‌های سایفون</string>
@@ -655,9 +655,6 @@
     <string name="aether_scan_blocked">پیش از اسکن، اتصال Aether را قطع کنید؛ اسکن یک تونل دوم با کلید اتصال فعلی باز می‌کند</string>
     <string name="aether_chain_entry_only">پروفایل Aether فقط می‌تواند نخستین گام زنجیره پروکسی باشد؛ گامی که مستقیماً به اینترنت می‌رسد</string>
     <string name="aether_config_single_profile">یک پیکربندی فقط می‌تواند از یک پروفایل Aether استفاده کند</string>
-    <string name="aether_custom_single_core">فقط یک هسته Aether می‌تواند اجرا شود: همه خروجی‌های دارای aetherSettings باید تنظیمات یکسان و پورت یکسان داشته باشند</string>
-    <string name="aether_custom_no_listener">خروجی SOCKS دارای aetherSettings باید به %1$s و پورتی از 1 تا 65535 وصل شود؛ هسته Aether همان‌جا گوش می‌دهد</string>
-    <string name="aether_custom_unknown_entry">در aetherSettings موردی هست که هسته Aether آن را نمی‌شناسد: %1$s</string>
     <string name="aether_custom_no_outbound">هیچ خروجی SOCKS در پیکربندی به %1$s:%2$d وصل نمی‌شود؛ فرمان Aether همان‌جا گوش می‌دهد</string>
     <string name="aether_custom_invalid_command">aetherCommand باید خط فرمان هسته Aether به صورت متن باشد و نشانی گوش‌دادن آن پس از --bind بیاید: %1$s</string>
     <string name="title_aether_core">هسته Aether</string>

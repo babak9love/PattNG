@@ -592,7 +592,7 @@
     <string name="aether_lab_psiphon_cdn_sni">CDN 前置伺服器名稱 (SNI)</string>
     <string name="aether_hint_psiphon_list">以逗號分隔；留空使用內建清單</string>
     <string name="aether_lab_psiphon_region">出口國家/地區</string>
-    <string name="aether_hint_psiphon_region">國家代碼，如 DE；留空則不限</string>
+    <string name="aether_psiphon_region_any">任意國家/地區</string>
     <string name="aether_lab_psiphon_bundled_list">從內建伺服器清單開始</string>
     <string name="aether_hint_psiphon_bundled_list">開啟：Psiphon 立即嘗試 psiphon_servers.dat 中的伺服器，僅在它們失敗時才取得新清單。關閉：在首次連線前先取得新清單，因此清單必須可存取，例如透過 WARP</string>
     <string name="aether_action_clear_psiphon">清除 Psiphon 資料</string>
@@ -653,9 +653,6 @@
     <string name="aether_scan_blocked">請先中斷 Aether 連線，再進行掃描；掃描會使用目前連線的金鑰開啟第二條隧道</string>
     <string name="aether_chain_entry_only">Aether 設定檔只能作為代理鏈的第一跳，即直接連線網際網路的那一跳</string>
     <string name="aether_config_single_profile">一個設定只能使用一個 Aether 設定檔</string>
-    <string name="aether_custom_single_core">只能執行一個 Aether 核心：所有帶有 aetherSettings 的出站必須使用相同的設定和相同的連接埠</string>
-    <string name="aether_custom_no_listener">帶有 aetherSettings 的 SOCKS 出站必須連線到 %1$s 和 1 到 65535 之間的連接埠；Aether 核心在該處監聽</string>
-    <string name="aether_custom_unknown_entry">aetherSettings 中有 Aether 核心無法識別的項目：%1$s</string>
     <string name="aether_custom_no_outbound">設定中沒有 SOCKS 出站連線到 %1$s:%2$d，而 Aether 命令在該處監聽</string>
     <string name="aether_custom_invalid_command">aetherCommand 必須是 Aether 核心的命令列文字，並在 --bind 後給出其監聽位址：%1$s</string>
     <string name="title_aether_core">Aether 核心</string>

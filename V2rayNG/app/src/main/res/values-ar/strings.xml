@@ -602,7 +602,7 @@
     <string name="aether_lab_psiphon_cdn_sni">أسماء خوادم CDN (SNI)</string>
     <string name="aether_hint_psiphon_list">افصل بفواصل؛ اتركه فارغًا لاستخدام القائمة المضمنة</string>
     <string name="aether_lab_psiphon_region">بلد الخروج</string>
-    <string name="aether_hint_psiphon_region">رمز البلد مثل DE؛ اتركه فارغًا لأي بلد</string>
+    <string name="aether_psiphon_region_any">أي بلد</string>
     <string name="aether_lab_psiphon_bundled_list">البدء من قائمة الخوادم المرفقة مع التطبيق</string>
     <string name="aether_hint_psiphon_bundled_list">مفعّل: يجرّب Psiphon خوادم psiphon_servers.dat فورًا ولا يجلب قائمة جديدة إلا عند فشلها. معطّل: يجلب قائمة جديدة قبل أول اتصال، لذا يجب أن تكون القائمة متاحة، كما هي من خلف WARP</string>
     <string name="aether_action_clear_psiphon">مسح بيانات Psiphon</string>
@@ -663,9 +663,6 @@
     <string name="aether_scan_blocked">افصل ملف Aether قبل الفحص؛ الفحص سيفتح نفقًا ثانيًا بمفتاح الاتصال الحالي</string>
     <string name="aether_chain_entry_only">لا يمكن لملف Aether أن يكون إلا القفزة الأولى في سلسلة الوكيل، وهي القفزة التي تصل إلى الإنترنت مباشرة</string>
     <string name="aether_config_single_profile">لا يمكن للتكوين استخدام أكثر من ملف Aether واحد</string>
-    <string name="aether_custom_single_core">لا يمكن تشغيل أكثر من نواة Aether واحدة: يجب أن تستخدم جميع المخارج التي تحمل aetherSettings الإعدادات نفسها والمنفذ نفسه</string>
-    <string name="aether_custom_no_listener">يجب أن يتصل مخرج SOCKS الذي يحمل aetherSettings بالعنوان %1$s وبمنفذ من 1 إلى 65535؛ فهناك تستمع نواة Aether</string>
-    <string name="aether_custom_unknown_entry">يحتوي aetherSettings على إدخال لا تعرفه نواة Aether: %1$s</string>
     <string name="aether_custom_no_outbound">لا يتصل أي مخرج SOCKS في الإعدادات بالعنوان %1$s:%2$d، حيث يستمع أمر Aether</string>
     <string name="aether_custom_invalid_command">يجب أن يكون aetherCommand سطر أوامر نواة Aether كنص، مع عنوان الاستماع بعد --bind: %1$s</string>
     <string name="title_aether_core">نواة Aether</string>

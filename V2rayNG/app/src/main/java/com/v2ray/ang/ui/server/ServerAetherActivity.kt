@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -78,6 +79,7 @@ import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class ServerAetherActivity : BaseServerActivity() {
 
@@ -108,6 +110,7 @@ class ServerAetherActivity : BaseServerActivity() {
         }
         val isCoreAvailable by viewModel.isCoreAvailable.collectAsStateWithLifecycle()
         val isPsiphonAvailable by viewModel.isPsiphonAvailable.collectAsStateWithLifecycle()
+        val psiphonRegions by viewModel.psiphonRegions.collectAsStateWithLifecycle()
         val isTorTransportsAvailable by viewModel.isTorTransportsAvailable.collectAsStateWithLifecycle()
         val scanState by viewModel.scanState.collectAsStateWithLifecycle()
         val isRenewingIdentity by viewModel.isRenewingIdentity.collectAsStateWithLifecycle()
@@ -318,11 +321,10 @@ class ServerAetherActivity : BaseServerActivity() {
                         }
                     }
                 }
-                FormTextField(
-                    stringResource(R.string.aether_lab_psiphon_region),
-                    uiState.aetherPsiphonRegion,
-                    { uiState.aetherPsiphonRegion = it },
-                    placeholder = stringResource(R.string.aether_hint_psiphon_region)
+                AetherRegionField(
+                    value = uiState.aetherPsiphonRegion,
+                    regions = psiphonRegions,
+                    onValueChange = { uiState.aetherPsiphonRegion = it }
                 )
                 SettingsSwitchItem(
                     title = stringResource(R.string.aether_lab_psiphon_bundled_list),
@@ -603,6 +605,28 @@ private fun AetherDropdownField(
             if (index >= 0) onValueChange(options[index])
         },
         enabled = enabled
+    )
+}
+
+/**
+ * The exit country Psiphon is asked for: any, or one of those the app's server list offers, named
+ * in the app's language. A country the profile holds that the list does not offer stays on offer
+ * too, so that a shared profile keeps its choice.
+ */
+@Composable
+private fun AetherRegionField(value: String, regions: List<String>, onValueChange: (String) -> Unit) {
+    val locale = LocalConfiguration.current.locales[0]
+    val any = stringResource(R.string.aether_psiphon_region_any)
+    val current = value.trim().uppercase(Locale.ROOT)
+    fun nameOf(code: String): String =
+        runCatching { Locale.Builder().setRegion(code).build().getDisplayCountry(locale) }.getOrNull()?.takeIf { it.isNotBlank() } ?: code
+    val codes = (regions + listOfNotNull(current.takeIf { it.isNotEmpty() })).distinct().sortedBy { nameOf(it) }
+    val labels = codes.map { code -> "${nameOf(code)} ($code)" }
+    FormDropdownField(
+        label = stringResource(R.string.aether_lab_psiphon_region),
+        value = codes.indexOf(current).takeIf { it >= 0 }?.let { labels[it] } ?: any,
+        options = listOf(any) + labels,
+        onValueChange = { picked -> onValueChange(if (picked == any) "" else codes.getOrNull(labels.indexOf(picked)).orEmpty()) }
     )
 }
 

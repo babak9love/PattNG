@@ -11,9 +11,9 @@ class MainServerRowModelsTest {
 
     @Test
     fun anAetherRowNamesTheTunnelFromTheOutsideIn() {
-        assertEquals("AETHER / MASQUE", serverProtocolDescription(aether()))
+        assertEquals("AETHER / WIREGUARD", serverProtocolDescription(aether()))
         assertEquals("AETHER / WIREGUARD → PSIPHON", serverProtocolDescription(aether { aetherProtocol = "wg"; aetherPsiphon = "chain" }))
-        assertEquals("AETHER / TOR → MASQUE", serverProtocolDescription(aether { aetherTor = "reverse" }))
+        assertEquals("AETHER / TOR → MASQUE", serverProtocolDescription(aether { aetherProtocol = "masque"; aetherTor = "reverse" }))
         assertEquals("AETHER / MIM → TOR", serverProtocolDescription(aether { aetherProtocol = "mim"; aetherTor = "chain" }))
         // A carrier alone is the whole tunnel; no WARP protocol is named for it.
         assertEquals("AETHER / PSIPHON", serverProtocolDescription(aether { aetherProtocol = "wg"; aetherPsiphon = "only" }))

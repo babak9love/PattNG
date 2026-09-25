@@ -592,7 +592,7 @@
     <string name="aether_lab_psiphon_cdn_sni">Tên máy chủ CDN fronting (SNI)</string>
     <string name="aether_hint_psiphon_list">Cách nhau bằng dấu phẩy; để trống để dùng danh sách có sẵn</string>
     <string name="aether_lab_psiphon_region">Quốc gia đầu ra</string>
-    <string name="aether_hint_psiphon_region">Mã quốc gia như DE; để trống nếu không cần</string>
+    <string name="aether_psiphon_region_any">Bất kỳ quốc gia nào</string>
     <string name="aether_lab_psiphon_bundled_list">Bắt đầu từ danh sách máy chủ kèm theo ứng dụng</string>
     <string name="aether_hint_psiphon_bundled_list">Bật: Psiphon thử ngay các máy chủ trong psiphon_servers.dat và chỉ tải danh sách mới khi chúng thất bại. Tắt: tải danh sách mới trước lần kết nối đầu tiên, nên danh sách phải truy cập được, chẳng hạn qua WARP</string>
     <string name="aether_action_clear_psiphon">Xóa dữ liệu Psiphon</string>
@@ -653,9 +653,6 @@
     <string name="aether_scan_blocked">Hãy ngắt kết nối Aether trước khi quét; việc quét sẽ mở một đường hầm thứ hai bằng khóa của kết nối hiện tại</string>
     <string name="aether_chain_entry_only">Hồ sơ Aether chỉ có thể là chặng đầu tiên của chuỗi proxy, chặng kết nối trực tiếp ra Internet</string>
     <string name="aether_config_single_profile">Một cấu hình chỉ có thể dùng một hồ sơ Aether</string>
-    <string name="aether_custom_single_core">Chỉ có thể chạy một lõi Aether: mọi outbound có aetherSettings phải dùng cùng thiết lập và cùng cổng</string>
-    <string name="aether_custom_no_listener">Outbound SOCKS có aetherSettings phải kết nối tới %1$s và một cổng từ 1 đến 65535; lõi Aether lắng nghe ở đó</string>
-    <string name="aether_custom_unknown_entry">aetherSettings có một mục mà lõi Aether không nhận biết: %1$s</string>
     <string name="aether_custom_no_outbound">Không có outbound SOCKS nào của cấu hình kết nối tới %1$s:%2$d, nơi lệnh Aether lắng nghe</string>
     <string name="aether_custom_invalid_command">aetherCommand phải là dòng lệnh của lõi Aether ở dạng văn bản, với địa chỉ lắng nghe đặt sau --bind: %1$s</string>
     <string name="title_aether_core">Lõi Aether</string>

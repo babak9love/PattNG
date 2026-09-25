@@ -593,6 +593,8 @@ object AetherCoreManager {
     internal fun relay(line: String, source: String) {
         val text = line.trim()
         if (text.isEmpty()) return
+        // Psiphon's report of the countries it can leave from is kept for the editor's list.
+        PsiphonServerList.regionsOf(text)?.let(PsiphonServerList::remember)
         val message = "[$source] $text"
         when (outputPriority(text)) {
             Log.ERROR -> LogUtil.e(AppConfig.TAG, message)

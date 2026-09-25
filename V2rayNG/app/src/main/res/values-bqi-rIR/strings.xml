@@ -594,7 +594,7 @@
     <string name="aether_lab_psiphon_cdn_sni">نوم سرورهای CDN (SNI)</string>
     <string name="aether_hint_psiphon_list">وا کاما جدا کنین؛ خالی بیلین تا فهرست داخلی استفاده بۊ</string>
     <string name="aether_lab_psiphon_region">کشور خروجی</string>
-    <string name="aether_hint_psiphon_region">کد کشور مثل DE؛ خالی یعنی هر کشوری</string>
+    <string name="aether_psiphon_region_any">هر کشوری</string>
     <string name="aether_lab_psiphon_bundled_list">شروع زه لیست سرورهای همرا برنامه</string>
     <string name="aether_hint_psiphon_bundled_list">روشن: سایفون همو اول سرورهای psiphon_servers.dat نه امتحان ایکنه و لیست تازه نه فقط وختی ایگره که اونا کار نکنن. خاموش: پیش زه اولین اتصال لیست تازه نه ایگره، پس لیست بایست در دسترس بوه، مثلاً زه پشت WARP</string>
     <string name="aether_action_clear_psiphon">پاک کردن داده‌های سایفون</string>
@@ -655,9 +655,6 @@
     <string name="aether_scan_blocked">پیش زه اسکن، اتصال Aether نه قطع کنین؛ اسکن یه تونل دوم وا کلید اتصال ایسا وا ایکنه</string>
     <string name="aether_chain_entry_only">پروفایل Aether فقط ایتره اولین گام زنجیره پروکسی بو؛ گامی که راست به اینترنت ارسه</string>
     <string name="aether_config_single_profile">یه پیکربندی فقط ایتره زه یه پروفایل Aether استفاده کنه</string>
-    <string name="aether_custom_single_core">فقط یه هسته Aether ایتره اجرا بۊ: همه خروجی‌هایی که aetherSettings دارن باید تنظیمات وو پورت یکسان داشته بۊن</string>
-    <string name="aether_custom_no_listener">خروجی SOCKS که aetherSettings داره باید به %1$s وو پورتی زه 1 تا 65535 وصل بۊ؛ هسته Aether همۊچو گوش اکنه</string>
-    <string name="aether_custom_unknown_entry">من aetherSettings یه موردی هڌ که هسته Aether نیشناسه: %1$s</string>
     <string name="aether_custom_no_outbound">هیچ خروجی SOCKS من پیکربندی به %1$s:%2$d وصل نیبۊ؛ فرمان Aether همۊچو گوش اکنه</string>
     <string name="aether_custom_invalid_command">aetherCommand باید خط فرمان هسته Aether به شکل متن بۊ وو نشونی گوش‌دادنش پس زه --bind بیا: %1$s</string>
     <string name="title_aether_core">هسته Aether</string>

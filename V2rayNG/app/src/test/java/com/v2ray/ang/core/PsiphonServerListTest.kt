@@ -60,6 +60,25 @@ class PsiphonServerListTest {
     }
 
     @Test
+    fun theCountriesOnOfferAreReadFromTheEntries() {
+        fun entry(region: String?) =
+            ("203.0.113.9 22 secret certificate " + (if (region == null) "{}" else "{\"ipAddress\":\"203.0.113.9\",\"region\":\"$region\"}"))
+                .toByteArray().joinToString("") { "%02x".format(it) }
+        val text = listOf(entry("de"), entry("US"), entry("DE"), entry(null), "not hex at all", "", "abc").joinToString("\n")
+
+        assertEquals(listOf("DE", "US"), PsiphonServerList.regions(text).toList())
+        assertTrue(PsiphonServerList.regions("").isEmpty())
+
+        // The core's report of what Psiphon can leave from, as it comes through the log.
+        assertEquals(
+            listOf("US", "CA", "DE"),
+            PsiphonServerList.regionsOf("[2026-09-24T20:43:04.197Z INFO  aether::psiphon] [*] psiphon can leave from: US CA DE")
+        )
+        assertNull(PsiphonServerList.regionsOf("[*] psiphon reached a server at 203.0.113.9"))
+        assertNull(PsiphonServerList.regionsOf("psiphon can leave from: usa"))
+    }
+
+    @Test
     fun theBundledListGoesOverACopyOnlyWhenItWasPublishedLater() {
         val copy = File(folder.newFolder("assets"), AppConfig.PSIPHON_SERVERS_DAT)
         assertTrue(PsiphonServerList.bundledListGoesOver(copy, 0L, keptByUser = false))

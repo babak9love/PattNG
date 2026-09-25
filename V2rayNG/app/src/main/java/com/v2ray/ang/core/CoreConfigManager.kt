@@ -15,7 +15,6 @@ import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.isNotNullEmpty
-import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.HttpUtil
@@ -98,9 +97,8 @@ object CoreConfigManager {
     /**
      * Build configuration for custom profiles.
      *
-     * A custom configuration asks for an Aether core with its command line as aetherCommand (or, as
-     * it was written before, with aetherSettings in a SOCKS outbound); the result names that core, and
-     * [aetherPort] moves its outbounds to the core a latency test opened.
+     * A custom configuration asks for an Aether core with its command line as aetherCommand; the
+     * result names that core, and [aetherPort] moves its outbounds to the core a latency test opened.
      */
     private fun buildV2rayCustomConfig(configContext: CoreConfigContext, aetherPort: Int? = null): ConfigResult {
         val context = configContext.context
@@ -526,30 +524,6 @@ object CoreConfigManager {
             is AetherDependency.NotEntryHop -> context.getString(R.string.aether_chain_entry_only)
             is AetherDependency.UnusableCommand -> context.getString(R.string.aether_custom_invalid_command, dependency.written)
             is AetherDependency.NoOutbound -> context.getString(R.string.aether_custom_no_outbound, AppConfig.LOOPBACK, dependency.port)
-            AetherDependency.SeveralCores -> context.getString(R.string.aether_custom_single_core)
-            AetherDependency.NoListener -> context.getString(R.string.aether_custom_no_listener, AppConfig.LOOPBACK)
-            is AetherDependency.UnusableSettings -> when (val reason = dependency.reason) {
-                is AetherFmt.Settings.Unknown -> context.getString(R.string.aether_custom_unknown_entry, reason.entry)
-                // The same values the Aether editor refuses, reported with its words.
-                is AetherFmt.Settings.Refused -> context.getString(
-                    when (reason.problem) {
-                        AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint
-                        AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
-                        AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop
-                        AetherFmt.Problem.INVALID_FRAGMENT -> R.string.aether_invalid_fragment
-                        AetherFmt.Problem.INVALID_DNS -> R.string.aether_invalid_dns
-                        AetherFmt.Problem.INVALID_EXIT_LOC -> R.string.aether_invalid_exit_loc
-                        AetherFmt.Problem.INVALID_LISTEN_PORT -> R.string.aether_invalid_listen_port
-                        AetherFmt.Problem.LISTEN_PORT_TAKEN -> R.string.aether_listen_port_taken
-                        AetherFmt.Problem.PSIPHON_NEEDS_MASQUE -> R.string.aether_psiphon_needs_masque
-                        AetherFmt.Problem.NEXT_PORT_TAKEN -> R.string.aether_next_port_taken
-                        AetherFmt.Problem.TOR_NEEDS_MASQUE -> R.string.aether_tor_needs_masque
-                        AetherFmt.Problem.TOR_PSIPHON_CONFLICT -> R.string.aether_tor_psiphon_conflict
-                        AetherFmt.Problem.TOR_BRIDGES_MISSING -> R.string.aether_tor_bridges_missing
-                        AetherFmt.Problem.INVALID_COMMAND -> R.string.aether_invalid_command
-                    }
-                )
-            }
         }
         LogUtil.w(AppConfig.TAG, "Aether cannot serve this configuration: $dependency, guid=$guid")
         return ConfigResult(status = false, guid = guid, errorMessage = message, localizedError = true)

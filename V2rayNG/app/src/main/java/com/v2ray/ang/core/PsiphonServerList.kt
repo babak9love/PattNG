@@ -2,6 +2,7 @@ package com.v2ray.ang.core
 
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.handler.MmkvManager
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -10,6 +11,7 @@ import java.security.KeyFactory
 import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
+import java.util.Locale
 import java.util.zip.InflaterInputStream
 import kotlin.io.encoding.Base64
 
@@ -37,6 +39,9 @@ object PsiphonServerList {
             "KxF5szhGm8lccoc5MZr8kfE0uxMgsxz4er68iCID+rsCAQM="
 
     private const val ENTRIES_FILE = "psiphon-servers.txt"
+
+    /** The core's line with what Psiphon reported as AvailableEgressRegions: the countries of every server it knows. */
+    private val leavesFrom = Regex("""psiphon can leave from: ([A-Z]{2}(?: [A-Z]{2})*)\s*$""")
     private const val SOURCE_MARK = "psiphon-servers.source"
 
     /**
@@ -53,7 +58,8 @@ object PsiphonServerList {
         if (entries.isFile && mark.isFile && runCatching { mark.readText() }.getOrNull() == stamp) return entries
         return try {
             val text = unpack(source.readBytes(), signingKey)
-            val fresh = File(workDir, "$ENTRIES_FILE.new")
+            // The daemon and the editor may both unpack a new list; each writes under a name of its own.
+            val fresh = File(workDir, "$ENTRIES_FILE.${System.nanoTime()}.new")
             fresh.writeText(text)
             if (!fresh.renameTo(entries)) {
                 entries.delete()
@@ -82,6 +88,53 @@ object PsiphonServerList {
      */
     fun bundledListGoesOver(copy: File, publishedAt: Long, keptByUser: Boolean): Boolean =
         !copy.exists() || (!keptByUser && publishedAt > copy.lastModified())
+
+    /**
+     * The exit countries the servers in [entries] offer, as ISO 3166-1 alpha-2 codes, sorted. An
+     * entry is one hex-encoded line, "address port secret certificate {json}", with the region in
+     * the JSON; a line that does not read is skipped. Psiphon reports the same set, from the
+     * servers it knows, as AvailableEgressRegions, and takes one of them as EgressRegion.
+     */
+    fun regions(entries: String): Set<String> = entries.lineSequence().mapNotNullTo(sortedSetOf()) { regionOf(it.trim()) }
+
+    private fun regionOf(line: String): String? {
+        if (line.isEmpty() || line.length % 2 != 0) return null
+        val bytes = ByteArray(line.length / 2)
+        for (index in bytes.indices) {
+            val high = Character.digit(line[2 * index], 16)
+            val low = Character.digit(line[2 * index + 1], 16)
+            if (high < 0 || low < 0) return null
+            bytes[index] = ((high shl 4) or low).toByte()
+        }
+        val json = bytes.toString(Charsets.UTF_8).split(' ', limit = 5).getOrNull(4) ?: return null
+        val region = try {
+            JsonParser.parseString(json).asJsonObject.get("region")?.takeIf { it.isJsonPrimitive }?.asString
+        } catch (_: RuntimeException) {
+            null
+        }
+        return region?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.length == 2 && it.all(Char::isLetter) }
+    }
+
+    /**
+     * The countries in [line] when it is the core's report of what Psiphon can leave from, else
+     * null. Psiphon reports them at every start, from every server it knows, discovered ones
+     * included, so they can name countries the app's own list does not.
+     */
+    fun regionsOf(line: String): List<String>? = leavesFrom.find(line)?.groupValues?.get(1)?.split(' ')
+
+    /** Keeps [regions] as Psiphon's last report, in place of the one before: the report is the whole set, so the last one is the truth. */
+    fun remember(regions: Collection<String>) {
+        MmkvManager.encodeSettings(AppConfig.PREF_PSIPHON_REGIONS, regions.toSortedSet().joinToString(","))
+    }
+
+    /** Psiphon's last report of the countries it can leave from; empty before the first. */
+    fun remembered(): Set<String> =
+        MmkvManager.decodeSettingsString(AppConfig.PREF_PSIPHON_REGIONS).orEmpty().split(',').filterTo(sortedSetOf()) { it.length == 2 }
+
+    /** Forgets the last report, for when the datastore it described is cleared. */
+    fun forgetRemembered() {
+        MmkvManager.encodeSettings(AppConfig.PREF_PSIPHON_REGIONS, "")
+    }
 
     /**
      * The server entries inside [packed], a signed, compressed list as Psiphon writes it; throws

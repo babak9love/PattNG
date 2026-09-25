@@ -1,15 +1,20 @@
 package com.v2ray.ang.ui.server
 
 import android.content.Context
+import com.v2ray.ang.AppConfig
 import com.v2ray.ang.core.AetherCoreManager
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.core.AetherScanner
+import com.v2ray.ang.core.PsiphonServerList
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /** The daemon's live Aether session; [protocol] is null when only its listener could be seen. */
 data class AetherSession(val protocol: AetherProtocol?) {
@@ -36,6 +41,9 @@ interface AetherEditorSource {
 
     /** Forgets what the Psiphon client has learned, so that its next start begins again; true when it is gone. */
     suspend fun clearPsiphonData(): Boolean
+
+    /** The exit countries on offer, ISO codes sorted: those of the app's Psiphon server list and those Psiphon last reported. */
+    suspend fun psiphonRegions(): List<String>
 }
 
 class AetherEditorRepository(private val context: Context) : AetherEditorSource {
@@ -68,6 +76,15 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
         AetherIdentityManager.renew(context, profile, onOutput)
 
     override suspend fun clearPsiphonData(): Boolean = withContext(Dispatchers.IO) {
+        PsiphonServerList.forgetRemembered()
         AetherCoreManager.clearPsiphonState(context.filesDir, AetherIdentityManager.workDir(context))
+    }
+
+    override suspend fun psiphonRegions(): List<String> = withContext(Dispatchers.IO) {
+        val entries = PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), AetherIdentityManager.workDir(context)) { problem ->
+            LogUtil.w(AppConfig.TAG, "AetherEditor: ${AppConfig.PSIPHON_SERVERS_DAT} is not a usable Psiphon list", problem)
+        }
+        val listed = entries?.let { file -> runCatching { PsiphonServerList.regions(file.readText()) }.getOrDefault(emptySet()) }.orEmpty()
+        (listed + PsiphonServerList.remembered()).toSortedSet().toList()
     }
 }

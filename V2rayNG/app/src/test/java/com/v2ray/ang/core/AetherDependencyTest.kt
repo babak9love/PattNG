@@ -7,7 +7,6 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.fmt.AetherFmt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -219,167 +218,13 @@ class AetherDependencyTest {
         assertEquals(41234, coreOf(AetherDependency.ofCustom(config)).port)
     }
 
-    // ---- the form before aetherCommand: aetherSettings in a SOCKS outbound
-
-    private fun aetherOutbound(tag: String, port: Any? = 10819, address: String = "127.0.0.1", aetherSettings: String = "{}") =
-        """{"tag": "$tag", "protocol": "socks", "settings": {"address": "$address", "port": $port, "aetherSettings": $aetherSettings}}"""
-
-    private val plainSocks = """{"tag": "local", "protocol": "socks", "settings": {"address": "127.0.0.1", "port": 1080}}"""
-
     @Test
-    fun aConfigurationWrittenWithAetherSettingsStillAsksForItsCore() {
-        val settings = """{"address": "188.114.96.77", "port": "443", "protocol": "wg", "scan": "balanced", "noize": "aggressive", "ip": "both"}"""
-        val core = coreOf(AetherDependency.ofCustom(custom(freedom, aetherOutbound("proxy", port = 20808, aetherSettings = settings))))
-        // The core listens where that outbound dials.
-        assertEquals(20808, core.port)
-        assertEquals(
-            listOf(
-                "--bind", "127.0.0.1:20808", "--protocol", "wg", "--scan", "balanced", "--noize", "aggressive", "--ip", "both",
-                "--peer", "188.114.96.77:443", "--quick-reconnect",
-            ),
-            core.arguments
-        )
-
-        // Left to the scanner, on the default port.
-        val scanned = coreOf(AetherDependency.ofCustom(custom(aetherOutbound("proxy", aetherSettings = """{"protocol": "gool"}"""))))
-        assertEquals(AetherCoreManager.socksPort, scanned.port)
-        assertTrue("--wiw-scan" in scanned.arguments)
-
-        // A JSON null is a key left out, and only a SOCKS outbound reaches the core.
-        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom(aetherOutbound("proxy", aetherSettings = "null"))))
-        assertEquals(
-            AetherDependency.None,
-            AetherDependency.ofCustom(custom("""{"protocol": "http", "settings": {"address": "127.0.0.1", "port": 10819, "aetherSettings": {}}}"""))
-        )
-    }
-
-    @Test
-    fun anAetherCommandComesBeforeAetherSettings() {
-        val both = custom(
-            aetherOutbound("proxy", port = 20808, aetherSettings = """{"protocol": "masque"}"""),
-            aetherCommand = quoted("aether --wg --bind 127.0.0.1:20808"),
-        )
-        assertEquals(listOf("--wg", "--bind", "127.0.0.1:20808"), coreOf(AetherDependency.ofCustom(both)).arguments)
-    }
-
-    @Test
-    fun socksOutboundsWithoutAetherSettingsAreNotAetherOutbounds() {
-        // Wherever they dial and however they are written, they take no part in choosing the core:
-        // they are neither counted nor held to what an Aether outbound has to look like.
-        val others = arrayOf(
-            plainSocks,
-            """{"tag": "remote", "protocol": "socks", "settings": {"address": "203.0.113.9", "port": 1080, "user": "u", "pass": "p"}}""",
-            """{"tag": "legacy", "protocol": "socks", "settings": {"servers": [{"address": "10.0.0.2", "port": 1080}]}}""",
-            """{"tag": "odd", "protocol": "socks", "settings": {"address": "localhost", "port": "1080"}}""",
-            """{"tag": "bare", "protocol": "socks"}""",
-        )
-
-        val dependency = AetherDependency.ofCustom(
-            custom(*others, aetherOutbound("warp", port = 20808, aetherSettings = """{"protocol": "wg"}"""), freedom)
-        )
-        val core = coreOf(dependency)
-        assertEquals(20808, core.port)
-        assertEquals(AetherProtocol.WIREGUARD, core.protocol)
-
-        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom(*others, freedom)))
-    }
-
-    @Test
-    fun severalOutboundsOfACustomConfigurationMayAskForTheSameCore() {
-        val wg = """{"address": "188.114.96.77", "port": 443, "protocol": "wg"}"""
-        val twice = AetherDependency.ofCustom(
-            custom(aetherOutbound("proxy", port = 20808, aetherSettings = wg), freedom, aetherOutbound("warp", port = 20808, aetherSettings = wg))
-        )
-        assertEquals(20808, coreOf(twice).port)
-
-        // The same core written in other words: what counts is what the core would be started with.
-        val reworded = """{"port": "443", "address": "188.114.96.77", "protocol": "WG", "scan": "balanced", "fragment": false}"""
-        val same = AetherDependency.ofCustom(
-            custom(aetherOutbound("proxy", port = 20808, aetherSettings = wg), aetherOutbound("warp", port = 20808, aetherSettings = reworded))
-        )
-        assertTrue(same is AetherDependency.Single)
-    }
-
-    @Test
-    fun outboundsThroughTheSameCoreMayDifferInWhatXrayDoesWithThem() {
-        // What sets them apart belongs to Xray, such as targetStrategy; the core behind them is one.
-        fun outbound(tag: String, targetStrategy: String) =
-            """{"tag": "$tag", "protocol": "socks", "targetStrategy": "$targetStrategy", "settings": {"address": "127.0.0.1", "port": 20808,""" +
-                """ "aetherSettings": {"protocol": "masque", "noize": "aggressive"}}}"""
-
-        val dependency = AetherDependency.ofCustom(custom(outbound("warp", "AsIs"), outbound("warp-ip", "UseIPv4v6"), freedom))
-
-        assertEquals("127.0.0.1:20808", AetherCoreManager.bindAddressOf(coreOf(dependency).arguments))
-    }
-
-    @Test
-    fun aCustomConfigurationCannotAskForTwoCores() {
-        // Other settings need another core.
-        assertEquals(
-            AetherDependency.SeveralCores,
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", aetherSettings = """{"protocol": "wg"}""")))
-        )
-        // So does the same tunnel behind another port: one core listens on one port.
-        assertEquals(
-            AetherDependency.SeveralCores,
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", port = 20808)))
-        )
-        // A problem in any of them is reported before they are compared.
-        assertEquals(
-            AetherDependency.NoListener,
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", address = "10.0.0.2")))
-        )
-        assertEquals(
-            AetherDependency.UnusableSettings(AetherFmt.Settings.Unknown("noise")),
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy"), aetherOutbound("warp", aetherSettings = """{"noise": "off"}""")))
-        )
-    }
-
-    @Test
-    fun theOutboundOfACustomConfigurationHasToDialTheCore() {
-        assertEquals(AetherDependency.NoListener, AetherDependency.ofCustom(custom(aetherOutbound("proxy", address = "10.0.0.2"))))
-        assertEquals(AetherDependency.NoListener, AetherDependency.ofCustom(custom(aetherOutbound("proxy", address = "localhost"))))
-        assertEquals(AetherDependency.NoListener, AetherDependency.ofCustom(custom(aetherOutbound("proxy", port = 0))))
-        assertEquals(AetherDependency.NoListener, AetherDependency.ofCustom(custom(aetherOutbound("proxy", port = 65536))))
-        assertEquals(AetherDependency.NoListener, AetherDependency.ofCustom(custom(aetherOutbound("proxy", port = "\"10819\""))))
-        assertEquals(
-            AetherDependency.NoListener,
-            AetherDependency.ofCustom(custom("""{"protocol": "socks", "settings": {"aetherSettings": {}}}"""))
-        )
-    }
-
-    @Test
-    fun aetherSettingsThatCannotStartACoreAreReported() {
-        assertEquals(
-            AetherDependency.UnusableSettings(AetherFmt.Settings.Unknown("protocol: wireguard")),
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy", aetherSettings = """{"protocol": "wireguard"}""")))
-        )
-        assertEquals(
-            AetherDependency.UnusableSettings(AetherFmt.Settings.Refused(AetherFmt.Problem.INVALID_PEER)),
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy", aetherSettings = """{"address": "example.com", "port": 443}""")))
-        )
-        assertEquals(
-            AetherDependency.UnusableSettings(AetherFmt.Settings.Unknown("true")),
-            AetherDependency.ofCustom(custom(aetherOutbound("proxy", aetherSettings = "true")))
-        )
-    }
-
-    @Test
-    fun aTestTunnelTakesOverEveryOutboundDialingTheCore() {
-        val config = custom(
-            aetherOutbound("proxy", port = 20808),
-            """{"tag": "same-core", "protocol": "socks", "settings": {"address": "127.0.0.1", "port": 20808}}""",
-            plainSocks,
-            """{"tag": "remote", "protocol": "socks", "settings": {"address": "10.0.0.2", "port": 20808}}""",
-            """{"tag": "vless", "protocol": "vless", "settings": {"address": "127.0.0.1", "port": 20808}}""",
-        )
-
-        AetherDependency.rebindCustom(config, from = 20808, port = 41234)
-
-        val ports = config.getAsJsonArray("outbounds").map { it.asJsonObject.getAsJsonObject("settings").get("port").asInt }
-        assertEquals(listOf(41234, 41234, 1080, 20808, 20808), ports)
-        // The core of the rebound configuration is still the one its aetherSettings describe.
-        assertEquals(41234, coreOf(AetherDependency.ofCustom(config)).port)
+    fun aCustomConfigurationWithoutACommandAsksForNoCore() {
+        // SOCKS outbounds on the loopback address are not enough: only aetherCommand names a core.
+        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom(socksTo("proxy", port = 20808), freedom)))
+        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom("""{"tag": "local", "protocol": "socks", "settings": {"address": "127.0.0.1", "port": 1080}}""")))
+        // A JSON null at the key is no command either.
+        assertEquals(AetherDependency.None, AetherDependency.ofCustom(custom(socksTo("proxy"), aetherCommand = "null")))
     }
 
     private fun withInbounds(vararg inbounds: String) = """{"inbounds": [${inbounds.joinToString(",")}], "outbounds": []}"""
