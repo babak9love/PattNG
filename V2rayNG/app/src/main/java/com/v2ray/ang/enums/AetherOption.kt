@@ -13,7 +13,7 @@ enum class AetherProtocol(val type: String) {
     val twoHops: Boolean get() = this == GOOL || this == MIM
 
     companion object {
-        fun fromString(type: String?) = entries.find { it.type == type } ?: MASQUE
+        fun fromString(type: String?) = entries.find { it.type == type } ?: WIREGUARD
     }
 }
 

@@ -190,7 +190,9 @@ object AetherFmt : FmtBase() {
         }
 
         val config = ProfileItem.create(EConfigType.AETHER)
-        config.aetherProtocol = AetherProtocol.fromString(values["protocol"]).type
+        // aetherSettings, the released format before aetherCommand, meant MASQUE when it named no
+        // protocol, as the core itself does; that stays, whatever a new profile starts on.
+        config.aetherProtocol = (AetherProtocol.entries.find { it.type == values["protocol"] } ?: AetherProtocol.MASQUE).type
         config.aetherTransport = AetherTransport.fromString(values["transport"]).type
         config.aetherScanMode = AetherScanMode.fromString(values["scan"]).type
         config.aetherObfuscation = AetherObfuscation.fromString(values["noize"]).type

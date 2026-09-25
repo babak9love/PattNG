@@ -516,7 +516,7 @@ class AetherFmtTest {
         val parsed = AetherFmt.parse("aether://#Shared")
 
         assertEquals("Shared", parsed?.remarks)
-        assertEquals("masque", parsed?.aetherProtocol)
+        assertEquals("wg", parsed?.aetherProtocol)
         assertEquals("h3", parsed?.aetherTransport)
         assertEquals("balanced", parsed?.aetherScanMode)
         assertEquals("auto", parsed?.aetherObfuscation)
@@ -533,7 +533,7 @@ class AetherFmtTest {
     fun anUnknownSettingFallsBackInsteadOfFailing() {
         val parsed = AetherFmt.parse("aether://?protocol=quantum&scan=instant&ip=v9#X")
 
-        assertEquals("masque", parsed?.aetherProtocol)
+        assertEquals("wg", parsed?.aetherProtocol)
         assertEquals("balanced", parsed?.aetherScanMode)
         assertEquals("v4", parsed?.aetherIpVersion)
     }
