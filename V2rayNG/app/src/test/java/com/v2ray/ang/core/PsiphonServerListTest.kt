@@ -68,6 +68,14 @@ class PsiphonServerListTest {
 
         assertEquals(listOf("DE", "US"), PsiphonServerList.regions(text).toList())
         assertTrue(PsiphonServerList.regions("").isEmpty())
+
+        // The core's report of what Psiphon can leave from, as it comes through the log.
+        assertEquals(
+            listOf("US", "CA", "DE"),
+            PsiphonServerList.regionsOf("[2026-09-24T20:43:04.197Z INFO  aether::psiphon] [*] psiphon can leave from: US CA DE")
+        )
+        assertNull(PsiphonServerList.regionsOf("[*] psiphon reached a server at 203.0.113.9"))
+        assertNull(PsiphonServerList.regionsOf("psiphon can leave from: usa"))
     }
 
     @Test

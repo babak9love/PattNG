@@ -2,6 +2,7 @@ package com.v2ray.ang.core
 
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.handler.MmkvManager
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -38,6 +39,9 @@ object PsiphonServerList {
             "KxF5szhGm8lccoc5MZr8kfE0uxMgsxz4er68iCID+rsCAQM="
 
     private const val ENTRIES_FILE = "psiphon-servers.txt"
+
+    /** The core's line with what Psiphon reported as AvailableEgressRegions: the countries of every server it knows. */
+    private val leavesFrom = Regex("""psiphon can leave from: ([A-Z]{2}(?: [A-Z]{2})*)\s*$""")
     private const val SOURCE_MARK = "psiphon-servers.source"
 
     /**
@@ -109,6 +113,27 @@ object PsiphonServerList {
             null
         }
         return region?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.length == 2 && it.all(Char::isLetter) }
+    }
+
+    /**
+     * The countries in [line] when it is the core's report of what Psiphon can leave from, else
+     * null. Psiphon reports them at every start, from every server it knows, discovered ones
+     * included, so they can name countries the app's own list does not.
+     */
+    fun regionsOf(line: String): List<String>? = leavesFrom.find(line)?.groupValues?.get(1)?.split(' ')
+
+    /** Keeps [regions] as Psiphon's last report, in place of the one before: the report is the whole set, so the last one is the truth. */
+    fun remember(regions: Collection<String>) {
+        MmkvManager.encodeSettings(AppConfig.PREF_PSIPHON_REGIONS, regions.toSortedSet().joinToString(","))
+    }
+
+    /** Psiphon's last report of the countries it can leave from; empty before the first. */
+    fun remembered(): Set<String> =
+        MmkvManager.decodeSettingsString(AppConfig.PREF_PSIPHON_REGIONS).orEmpty().split(',').filterTo(sortedSetOf()) { it.length == 2 }
+
+    /** Forgets the last report, for when the datastore it described is cleared. */
+    fun forgetRemembered() {
+        MmkvManager.encodeSettings(AppConfig.PREF_PSIPHON_REGIONS, "")
     }
 
     /**

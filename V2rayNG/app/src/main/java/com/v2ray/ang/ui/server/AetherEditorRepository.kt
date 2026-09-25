@@ -42,7 +42,7 @@ interface AetherEditorSource {
     /** Forgets what the Psiphon client has learned, so that its next start begins again; true when it is gone. */
     suspend fun clearPsiphonData(): Boolean
 
-    /** The exit countries the app's Psiphon server list offers, ISO codes sorted; empty without a usable list. */
+    /** The exit countries on offer, ISO codes sorted: those of the app's Psiphon server list and those Psiphon last reported. */
     suspend fun psiphonRegions(): List<String>
 }
 
@@ -76,6 +76,7 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
         AetherIdentityManager.renew(context, profile, onOutput)
 
     override suspend fun clearPsiphonData(): Boolean = withContext(Dispatchers.IO) {
+        PsiphonServerList.forgetRemembered()
         AetherCoreManager.clearPsiphonState(context.filesDir, AetherIdentityManager.workDir(context))
     }
 
@@ -83,6 +84,7 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
         val entries = PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), AetherIdentityManager.workDir(context)) { problem ->
             LogUtil.w(AppConfig.TAG, "AetherEditor: ${AppConfig.PSIPHON_SERVERS_DAT} is not a usable Psiphon list", problem)
         }
-        entries?.let { file -> runCatching { PsiphonServerList.regions(file.readText()) }.getOrDefault(emptySet()) }.orEmpty().toList()
+        val listed = entries?.let { file -> runCatching { PsiphonServerList.regions(file.readText()) }.getOrDefault(emptySet()) }.orEmpty()
+        (listed + PsiphonServerList.remembered()).toSortedSet().toList()
     }
 }
