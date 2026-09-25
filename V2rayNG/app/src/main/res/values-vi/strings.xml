@@ -592,7 +592,7 @@
     <string name="aether_lab_psiphon_cdn_sni">Tên máy chủ CDN fronting (SNI)</string>
     <string name="aether_hint_psiphon_list">Cách nhau bằng dấu phẩy; để trống để dùng danh sách có sẵn</string>
     <string name="aether_lab_psiphon_region">Quốc gia đầu ra</string>
-    <string name="aether_hint_psiphon_region">Mã quốc gia như DE; để trống nếu không cần</string>
+    <string name="aether_psiphon_region_any">Bất kỳ quốc gia nào</string>
     <string name="aether_lab_psiphon_bundled_list">Bắt đầu từ danh sách máy chủ kèm theo ứng dụng</string>
     <string name="aether_hint_psiphon_bundled_list">Bật: Psiphon thử ngay các máy chủ trong psiphon_servers.dat và chỉ tải danh sách mới khi chúng thất bại. Tắt: tải danh sách mới trước lần kết nối đầu tiên, nên danh sách phải truy cập được, chẳng hạn qua WARP</string>
     <string name="aether_action_clear_psiphon">Xóa dữ liệu Psiphon</string>

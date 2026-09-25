@@ -40,6 +40,7 @@ class ServerAetherViewModelTest {
         var scanner: suspend (ProfileItem, (String) -> Unit) -> AetherScanResult? = { _, _ -> null }
         var renewer: suspend (ProfileItem, (String) -> Unit) -> AetherIdentityStatus? = { _, _ -> null }
         var clearer: suspend () -> Boolean = { true }
+        var regions: List<String> = emptyList()
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
 
         override suspend fun isCoreAvailable() = available
@@ -52,6 +53,7 @@ class ServerAetherViewModelTest {
 
         override suspend fun renewIdentity(profile: ProfileItem, onOutput: (String) -> Unit) = renewer(profile, onOutput)
         override suspend fun clearPsiphonData() = clearer()
+        override suspend fun psiphonRegions() = regions
     }
 
     private val source = FakeSource()
@@ -286,6 +288,13 @@ class ServerAetherViewModelTest {
         source.session = AetherSession(AetherProtocol.MASQUE)
 
         assertEquals(AetherSession(AetherProtocol.MASQUE), viewModel().session.value)
+    }
+
+    @Test
+    fun theExitCountriesOnOfferComeFromTheServerList() {
+        assertTrue(viewModel().psiphonRegions.value.isEmpty())
+        source.regions = listOf("DE", "US")
+        assertEquals(listOf("DE", "US"), viewModel().psiphonRegions.value)
     }
 
     @Test

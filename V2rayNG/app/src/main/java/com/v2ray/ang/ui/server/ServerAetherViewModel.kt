@@ -54,6 +54,10 @@ class ServerAetherViewModel(
     private val _isTorTransportsAvailable = MutableStateFlow(false)
     val isTorTransportsAvailable: StateFlow<Boolean> = _isTorTransportsAvailable.asStateFlow()
 
+    /** The exit countries Psiphon can be asked for, from the app's server list; empty until looked up or without a list. */
+    private val _psiphonRegions = MutableStateFlow<List<String>>(emptyList())
+    val psiphonRegions: StateFlow<List<String>> = _psiphonRegions.asStateFlow()
+
     private val _scanState = MutableStateFlow<AetherScanState>(AetherScanState.Idle)
     val scanState: StateFlow<AetherScanState> = _scanState.asStateFlow()
 
@@ -78,6 +82,7 @@ class ServerAetherViewModel(
         viewModelScope.launch { _isCoreAvailable.value = source.isCoreAvailable() }
         viewModelScope.launch { _isPsiphonAvailable.value = source.isPsiphonAvailable() }
         viewModelScope.launch { _isTorTransportsAvailable.value = source.isTorTransportsAvailable() }
+        viewModelScope.launch { _psiphonRegions.value = source.psiphonRegions() }
         refreshSession()
     }
 

@@ -10,6 +10,7 @@ import java.security.KeyFactory
 import java.security.MessageDigest
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
+import java.util.Locale
 import java.util.zip.InflaterInputStream
 import kotlin.io.encoding.Base64
 
@@ -53,7 +54,8 @@ object PsiphonServerList {
         if (entries.isFile && mark.isFile && runCatching { mark.readText() }.getOrNull() == stamp) return entries
         return try {
             val text = unpack(source.readBytes(), signingKey)
-            val fresh = File(workDir, "$ENTRIES_FILE.new")
+            // The daemon and the editor may both unpack a new list; each writes under its own name.
+            val fresh = File(workDir, "$ENTRIES_FILE.${android.os.Process.myPid()}.new")
             fresh.writeText(text)
             if (!fresh.renameTo(entries)) {
                 entries.delete()
@@ -82,6 +84,32 @@ object PsiphonServerList {
      */
     fun bundledListGoesOver(copy: File, publishedAt: Long, keptByUser: Boolean): Boolean =
         !copy.exists() || (!keptByUser && publishedAt > copy.lastModified())
+
+    /**
+     * The exit countries the servers in [entries] offer, as ISO 3166-1 alpha-2 codes, sorted. An
+     * entry is one hex-encoded line, "address port secret certificate {json}", with the region in
+     * the JSON; a line that does not read is skipped. Psiphon reports the same set, from the
+     * servers it knows, as AvailableEgressRegions, and takes one of them as EgressRegion.
+     */
+    fun regions(entries: String): Set<String> = entries.lineSequence().mapNotNullTo(sortedSetOf()) { regionOf(it.trim()) }
+
+    private fun regionOf(line: String): String? {
+        if (line.isEmpty() || line.length % 2 != 0) return null
+        val bytes = ByteArray(line.length / 2)
+        for (index in bytes.indices) {
+            val high = Character.digit(line[2 * index], 16)
+            val low = Character.digit(line[2 * index + 1], 16)
+            if (high < 0 || low < 0) return null
+            bytes[index] = ((high shl 4) or low).toByte()
+        }
+        val json = bytes.toString(Charsets.UTF_8).split(' ', limit = 5).getOrNull(4) ?: return null
+        val region = try {
+            JsonParser.parseString(json).asJsonObject.get("region")?.takeIf { it.isJsonPrimitive }?.asString
+        } catch (_: RuntimeException) {
+            null
+        }
+        return region?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.length == 2 && it.all(Char::isLetter) }
+    }
 
     /**
      * The server entries inside [packed], a signed, compressed list as Psiphon writes it; throws

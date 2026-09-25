@@ -594,7 +594,7 @@
     <string name="aether_lab_psiphon_cdn_sni">CDN ফ্রন্টিং সার্ভার নাম (SNI)</string>
     <string name="aether_hint_psiphon_list">কমা দিয়ে আলাদা করুন; খালি রাখলে অন্তর্নির্মিত তালিকা ব্যবহৃত হবে</string>
     <string name="aether_lab_psiphon_region">প্রস্থান দেশ</string>
-    <string name="aether_hint_psiphon_region">দেশের কোড যেমন DE; খালি রাখলে যেকোনো</string>
+    <string name="aether_psiphon_region_any">যেকোনো দেশ</string>
     <string name="aether_lab_psiphon_bundled_list">অ্যাপের সাথে দেওয়া সার্ভার তালিকা থেকে শুরু</string>
     <string name="aether_hint_psiphon_bundled_list">চালু: Psiphon সঙ্গে সঙ্গে psiphon_servers.dat-এর সার্ভারগুলো চেষ্টা করে এবং সেগুলো ব্যর্থ হলেই নতুন তালিকা আনে। বন্ধ: প্রথম সংযোগের আগে নতুন তালিকা আনে, তাই তালিকাটি পৌঁছানোর মতো হতে হবে, যেমন WARP-এর পেছন থেকে</string>
     <string name="aether_action_clear_psiphon">Psiphon ডেটা মুছুন</string>

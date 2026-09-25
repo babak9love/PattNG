@@ -592,7 +592,7 @@
     <string name="aether_lab_psiphon_cdn_sni">CDN 前置伺服器名稱 (SNI)</string>
     <string name="aether_hint_psiphon_list">以逗號分隔；留空使用內建清單</string>
     <string name="aether_lab_psiphon_region">出口國家/地區</string>
-    <string name="aether_hint_psiphon_region">國家代碼，如 DE；留空則不限</string>
+    <string name="aether_psiphon_region_any">任意國家/地區</string>
     <string name="aether_lab_psiphon_bundled_list">從內建伺服器清單開始</string>
     <string name="aether_hint_psiphon_bundled_list">開啟：Psiphon 立即嘗試 psiphon_servers.dat 中的伺服器，僅在它們失敗時才取得新清單。關閉：在首次連線前先取得新清單，因此清單必須可存取，例如透過 WARP</string>
     <string name="aether_action_clear_psiphon">清除 Psiphon 資料</string>

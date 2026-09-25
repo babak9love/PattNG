@@ -602,7 +602,7 @@
     <string name="aether_lab_psiphon_cdn_sni">أسماء خوادم CDN (SNI)</string>
     <string name="aether_hint_psiphon_list">افصل بفواصل؛ اتركه فارغًا لاستخدام القائمة المضمنة</string>
     <string name="aether_lab_psiphon_region">بلد الخروج</string>
-    <string name="aether_hint_psiphon_region">رمز البلد مثل DE؛ اتركه فارغًا لأي بلد</string>
+    <string name="aether_psiphon_region_any">أي بلد</string>
     <string name="aether_lab_psiphon_bundled_list">البدء من قائمة الخوادم المرفقة مع التطبيق</string>
     <string name="aether_hint_psiphon_bundled_list">مفعّل: يجرّب Psiphon خوادم psiphon_servers.dat فورًا ولا يجلب قائمة جديدة إلا عند فشلها. معطّل: يجلب قائمة جديدة قبل أول اتصال، لذا يجب أن تكون القائمة متاحة، كما هي من خلف WARP</string>
     <string name="aether_action_clear_psiphon">مسح بيانات Psiphon</string>
