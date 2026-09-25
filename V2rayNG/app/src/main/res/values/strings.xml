@@ -658,9 +658,6 @@
     <string name="aether_scan_blocked">Disconnect the Aether profile before scanning; a scan would open a second tunnel on the running connection\'s key</string>
     <string name="aether_chain_entry_only">An Aether profile can only be the first hop of a proxy chain, the one that reaches the internet directly</string>
     <string name="aether_config_single_profile">A configuration can use only one Aether profile</string>
-    <string name="aether_custom_single_core">Only one Aether core can run: every outbound with aetherSettings has to use the same settings and the same port</string>
-    <string name="aether_custom_no_listener">The SOCKS outbound with aetherSettings has to dial %1$s and a port from 1 to 65535; the Aether core listens there</string>
-    <string name="aether_custom_unknown_entry">aetherSettings has an entry the Aether core does not know: %1$s</string>
     <string name="aether_custom_no_outbound">No SOCKS outbound of the configuration dials %1$s:%2$d, where the Aether command listens</string>
     <string name="aether_custom_invalid_command">aetherCommand has to be the command line of the Aether core, as text, with the address it listens on after --bind: %1$s</string>
     <string name="title_aether_core">Aether core</string>

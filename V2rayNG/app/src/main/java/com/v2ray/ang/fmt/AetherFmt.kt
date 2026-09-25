@@ -1,6 +1,5 @@
 package com.v2ray.ang.fmt
 
-import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.dto.AetherEndpoint
@@ -41,22 +40,6 @@ object AetherFmt : FmtBase() {
         TOR_BRIDGES_MISSING,
         INVALID_COMMAND,
     }
-
-    /** Every key of aetherSettings, the form a custom configuration named its core in before aetherCommand. */
-    private val settingsKeys = setOf(
-        "address", "port", "protocol", "transport", "scan", "noize", "ip",
-        "fragment", "fragmentSize", "fragmentDelay", "outer", "inner",
-    )
-
-    /** The keys of aetherSettings whose value is one of a fixed set of modes. */
-    private val settingsModes = mapOf(
-        "protocol" to AetherProtocol.entries.map { it.type },
-        "transport" to AetherTransport.entries.map { it.type },
-        "scan" to AetherScanMode.entries.map { it.type } + AetherScanMode.STEALTH,
-        "noize" to AetherObfuscation.entries.map { it.type },
-        "ip" to AetherIpVersion.entries.map { it.type },
-        "fragment" to listOf("true", "false"),
-    )
 
     fun parse(str: String): ProfileItem? {
         val config = ProfileItem.create(EConfigType.AETHER)
@@ -153,58 +136,6 @@ object AetherFmt : FmtBase() {
 
         val queryText = query.entries.joinToString("&") { "${it.key}=${Utils.encodeURIComponent(it.value)}" }
         return "${endpoint ?: ""}?$queryText#${Utils.encodeURIComponent(config.remarks)}"
-    }
-
-    /** aetherSettings read into the profile their core is started with, or what stops that. */
-    sealed interface Settings {
-
-        data class Valid(val profile: ProfileItem) : Settings
-
-        sealed interface Invalid : Settings
-
-        /** A value the profile editor refuses as well. */
-        data class Refused(val problem: Problem) : Invalid
-
-        /** A key there is no setting for, or a value its setting has no such mode for; [entry] names it. */
-        data class Unknown(val entry: String) : Invalid
-    }
-
-    /**
-     * Reads aetherSettings, the form a custom configuration named its core in before aetherCommand;
-     * one written that way still runs. A share link falls back to the default for a mode it does
-     * not know; here that would start a tunnel other than the one written down, so an unknown key
-     * or mode is reported instead. A value may be a string, a number or a boolean; a missing, null
-     * or empty one is the default, and the endpoint left out is scanned for.
-     */
-    fun fromSettings(settings: JsonObject): Settings {
-        val values = mutableMapOf<String, String>()
-        for ((key, value) in settings.entrySet()) {
-            if (key !in settingsKeys || !(value.isJsonNull || value.isJsonPrimitive)) return Settings.Unknown(key)
-            val text = if (value.isJsonNull) "" else value.asString.trim()
-            if (text.isNotEmpty()) values[key] = text
-        }
-        for ((key, modes) in settingsModes) {
-            val mode = values[key]?.lowercase(Locale.ROOT) ?: continue
-            if (mode !in modes) return Settings.Unknown("$key: ${values[key]}")
-            values[key] = mode
-        }
-
-        val config = ProfileItem.create(EConfigType.AETHER)
-        // aetherSettings, the released format before aetherCommand, meant MASQUE when it named no
-        // protocol, as the core itself does; that stays, whatever a new profile starts on.
-        config.aetherProtocol = (AetherProtocol.entries.find { it.type == values["protocol"] } ?: AetherProtocol.MASQUE).type
-        config.aetherTransport = AetherTransport.fromString(values["transport"]).type
-        config.aetherScanMode = AetherScanMode.fromString(values["scan"]).type
-        config.aetherObfuscation = AetherObfuscation.fromString(values["noize"]).type
-        config.aetherIpVersion = AetherIpVersion.fromString(values["ip"]).type
-        config.aetherFragment = values["fragment"] == "true"
-        config.aetherFragmentSize = values["fragmentSize"]
-        config.aetherFragmentDelay = values["fragmentDelay"]
-        config.aetherWiwOuter = values["outer"]
-        config.aetherWiwInner = values["inner"]
-        config.server = values["address"]
-        config.serverPort = values["port"]
-        return normalize(config)?.let(Settings::Refused) ?: Settings.Valid(config)
     }
 
     /** The loopback port [text] names for the core to listen on, null when it names none. */
