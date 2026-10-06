@@ -429,12 +429,6 @@
 
     <string name="import_subscription_success">সাবস্ক্রিপশন সফলভাবে আমদানি করা হয়েছে</string>
     <string name="import_subscription_failure">সাবস্ক্রিপশন আমদানি ব্যর্থ</string>
-    <string name="title_fragment_settings">প্যাকেট বিভাজন সেটিংস (Fragment)</string>
-    <string name="title_pref_fragment_packets">ফ্র্যাগমেন্ট প্যাকেটস</string>
-    <string name="title_pref_fragment_length">ফ্র্যাগমেন্ট দৈর্ঘ্য (ন্যূনতম-সর্বাধিক)</string>
-    <string name="title_pref_fragment_interval">ফ্র্যাগমেন্ট ইন্টারভ্যাল (ন্যূনতম-সর্বাধিক)</string>
-    <string name="title_pref_fragment_enabled">ফ্র্যাগমেন্ট সক্রিয় করুন</string>
-    <string name="title_pref_fragment_maxsplit">ফ্র্যাগমেন্ট ম্যাক্স স্প্লিট</string>
     <string name="title_observatory_settings">সংযোগ পর্যবেক্ষণ সেটিংস (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">leastPing ইন্টারভ্যাল</string>
     <string name="title_pref_observatory_least_load_interval">leastLoad ইন্টারভ্যাল</string>

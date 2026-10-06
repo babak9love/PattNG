@@ -429,12 +429,6 @@
 
     <string name="import_subscription_success">اشتراک وا مووفقیت و من ٱوورده وابی</string>
     <string name="import_subscription_failure">و من ٱووردن اشتراک مووفق نبی</string>
-    <string name="title_fragment_settings">سامووا فرگمنت (Fragment)</string>
-    <string name="title_pref_fragment_packets">کتنا فرگمنت</string>
-    <string name="title_pref_fragment_length">تۊل کتنا فرگمنت (هدقل-هدکسر)</string>
-    <string name="title_pref_fragment_interval">فاسله منجا کتنا فرگمنت (هدقل-هدکسر)</string>
-    <string name="title_pref_fragment_enabled">ره وندن فرگمنت</string>
-    <string name="title_pref_fragment_maxsplit">هدکسر تقسیم فرگمنت</string>
     <string name="title_observatory_settings">سامووا واجۊری منپیز (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">فاسله leastPing</string>
     <string name="title_pref_observatory_least_load_interval">فاسله leastLoad</string>

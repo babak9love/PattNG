@@ -437,12 +437,6 @@
 
     <string name="import_subscription_success">تم استيراد الاشتراك بنجاح</string>
     <string name="import_subscription_failure">فشل استيراد الاشتراك</string>
-    <string name="title_fragment_settings">إعدادات تجزئة الحزم (Fragment)</string>
-    <string name="title_pref_fragment_packets">الحزم المراد تجزئتها</string>
-    <string name="title_pref_fragment_length">طول الجزء (الحد الأدنى - الحد الأقصى)</string>
-    <string name="title_pref_fragment_interval">فاصل الجزء (الحد الأدنى - الحد الأقصى)</string>
-    <string name="title_pref_fragment_enabled">تفعيل تجزئة الحزم</string>
-    <string name="title_pref_fragment_maxsplit">الحد الأقصى لعدد الأجزاء</string>
     <string name="title_observatory_settings">إعدادات مراقبة الاتصال (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">فاصل leastPing</string>
     <string name="title_pref_observatory_least_load_interval">فاصل leastLoad</string>

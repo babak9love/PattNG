@@ -1,7 +1,5 @@
 package com.v2ray.ang.core
 
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
@@ -643,93 +641,6 @@ object CoreOutboundBuilder {
             streamSettings.tlsSettings = null
             streamSettings.realitySettings = tlsSetting
         }
-
-        if (profileItem.finalMask.isNullOrEmpty()) {
-            updateOutboundFragment(streamSettings)
-        }
-    }
-
-    /**
-     * Updates the outbound with fragment settings for traffic optimization.
-     *
-     * Configures packet fragmentation for TLS and REALITY protocols if enabled.
-     *
-     * @param streamSettings The streamSettings object to be modified
-     * @return true if fragment configuration was successful, false otherwise
-     */
-    private fun updateOutboundFragment(streamSettings: OutboundBean.StreamSettingsBean): Boolean {
-        try {
-            if (MmkvManager.decodeSettingsBool(AppConfig.PREF_FRAGMENT_ENABLED, false) == false) {
-                return true
-            }
-            if (streamSettings.security != AppConfig.TLS
-                && streamSettings.security != AppConfig.REALITY
-            ) {
-                return true
-            }
-            if (streamSettings.sockopt?.dialerProxy.isNotNullEmpty()) {
-                return true
-            }
-
-            var packets =
-                MmkvManager.decodeSettingsString(AppConfig.PREF_FRAGMENT_PACKETS) ?: "tlshello"
-            if (streamSettings.security == AppConfig.REALITY
-                && packets == "tlshello"
-            ) {
-                packets = "1-3"
-            }
-
-            val fragmentMask = OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean(
-                type = "fragment",
-                settings = OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean.MaskSettingsBean(
-                    packets = packets,
-                    length = MmkvManager.decodeSettingsString(AppConfig.PREF_FRAGMENT_LENGTH)
-                        ?: "50-100",
-                    delay = MmkvManager.decodeSettingsString(AppConfig.PREF_FRAGMENT_INTERVAL)
-                        ?: "10-20",
-                    maxSplit = MmkvManager.decodeSettingsString(AppConfig.PREF_FRAGMENT_MAXSPLIT)
-                        ?: "10"
-                )
-            )
-            val noiseMask = OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean(
-                type = "noise",
-                settings = OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean.MaskSettingsBean(
-                    noise = listOf(
-                        OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean.MaskSettingsBean.NoiseMaskBean(
-                            rand = "10-20",
-                            delay = "10-16",
-                        )
-                    )
-                )
-            )
-
-            val finalMaskObj = streamSettings.finalmask?.let { existingFinalMask ->
-                JsonUtil.parseString(JsonUtil.toJson(existingFinalMask))
-            } ?: JsonObject()
-
-            fun appendMask(scope: String, mask: OutboundBean.StreamSettingsBean.FinalMaskBean.MaskBean) {
-                val current = finalMaskObj.get(scope)
-                if (current != null && current.isJsonArray && current.asJsonArray.size() > 0) {
-                    return
-                }
-
-                val newArray = JsonArray()
-                newArray.add(JsonUtil.parseString(JsonUtil.toJson(mask)))
-
-                if (current != null && current.isJsonArray) {
-                    current.asJsonArray.forEach { newArray.add(it) }
-                }
-                finalMaskObj.add(scope, newArray)
-            }
-
-            appendMask("tcp", fragmentMask)
-            appendMask("udp", noiseMask)
-            streamSettings.finalmask = finalMaskObj
-        } catch (e: Exception) {
-            LogUtil.e(AppConfig.TAG, "Failed to update outbound fragment", e)
-            return false
-        }
-        return true
     }
 
     private fun getServerAddress(profileItem: ProfileItem): String {

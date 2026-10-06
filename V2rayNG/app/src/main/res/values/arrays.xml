@@ -62,14 +62,6 @@
         <item>reality</item>
     </string-array>
 
-    <string-array name="fragment_packets" translatable="false">
-        <item>tlshello</item>
-        <item>1-1</item>
-        <item>1-2</item>
-        <item>1-3</item>
-        <item>1-5</item>
-    </string-array>
-
     <string-array name="observatory_least_load_method" translatable="false">
         <item>HEAD</item>
         <item>GET</item>

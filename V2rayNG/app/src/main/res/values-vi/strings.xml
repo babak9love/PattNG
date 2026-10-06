@@ -427,12 +427,6 @@
 
     <string name="import_subscription_success">Nhập gói đăng ký thành công!</string>
     <string name="import_subscription_failure">Nhập gói đăng ký không thành công!</string>
-    <string name="title_fragment_settings">Cài đặt phân mảnh (Fragment)</string>
-    <string name="title_pref_fragment_packets">Gói tin cần phân mảnh</string>
-    <string name="title_pref_fragment_length">Độ dài phân mảnh (tối thiểu-tối đa)</string>
-    <string name="title_pref_fragment_interval">Khoảng phân mảnh (tối thiểu-tối đa)</string>
-    <string name="title_pref_fragment_enabled">Bật phân mảnh</string>
-    <string name="title_pref_fragment_maxsplit">Số lần chia nhỏ tối đa</string>
     <string name="title_observatory_settings">Cài đặt giám sát kết nối (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">Khoảng thời gian leastPing</string>
     <string name="title_pref_observatory_least_load_interval">Khoảng thời gian leastLoad</string>

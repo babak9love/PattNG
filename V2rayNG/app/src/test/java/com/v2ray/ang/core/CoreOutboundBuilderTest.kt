@@ -72,15 +72,26 @@ class CoreOutboundBuilderTest {
         assertEquals("code-1", outbound.streamSettings?.sockopt?.dialMode)
     }
 
-    /** A profile whose sni and finalMask keep populateTlsSettings away from Utils and MMKV. */
+    /** A profile whose sni keeps populateTlsSettings away from Utils. */
     private fun echProfile(security: String, echOutbound: String): ProfileItem =
         ProfileItem.create(EConfigType.VLESS).apply {
             this.security = security
             sni = "example.com"
-            finalMask = "{}"
             echConfigList = "cloudflare-ech.com+https://1.1.1.1/dns-query"
             this.echOutbound = echOutbound
         }
+
+    @Test
+    fun test_populateTlsSettings_addsNoFinalMaskOfItsOwn() {
+        // Fragmenting is the profile's own finalMask; no global setting adds one to a TLS or REALITY outbound.
+        for (security in listOf(AppConfig.TLS, AppConfig.REALITY)) {
+            val streamSettings = OutboundBean.StreamSettingsBean()
+
+            CoreOutboundBuilder.populateTlsSettings(streamSettings, echProfile(security, ""), null)
+
+            assertNull(streamSettings.finalmask, security)
+        }
+    }
 
     @Test
     fun test_populateTlsSettings_attachesTheEchOutboundForTlsAsWritten() {

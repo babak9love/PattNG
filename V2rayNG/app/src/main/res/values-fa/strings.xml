@@ -429,12 +429,6 @@
 
     <string name="import_subscription_success">اشتراک با موفقیت وارد شد</string>
     <string name="import_subscription_failure">وارد کردن اشتراک ناموفق بود</string>
-    <string name="title_fragment_settings">تنظیمات قطعه‌بندی بسته‌ها (Fragment)</string>
-    <string name="title_pref_fragment_packets">بسته‌های مورد قطعه‌بندی (Fragment)</string>
-    <string name="title_pref_fragment_length">طول قطعه (حداقل-حداکثر)</string>
-    <string name="title_pref_fragment_interval">فاصلهٔ قطعه‌ها (حداقل-حداکثر)</string>
-    <string name="title_pref_fragment_enabled">فعال کردن Fragment</string>
-    <string name="title_pref_fragment_maxsplit">حداکثر تعداد قطعه‌ها</string>
     <string name="title_observatory_settings">تنظیمات پایش اتصال (Observatory)</string>
     <string name="title_pref_observatory_least_ping_interval">فاصله leastPing</string>
     <string name="title_pref_observatory_least_load_interval">فاصله leastLoad</string>
