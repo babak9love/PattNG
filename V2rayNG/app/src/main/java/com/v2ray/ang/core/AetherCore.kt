@@ -71,6 +71,13 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
         private val LISTENERS = listOf("--bind", AetherCoreManager.TOR_BIND, AetherCoreManager.PSIPHON_BIND)
 
         /**
+         * The new names of options the core no longer takes: --enroll-address, which the WARP keys page wrote into its
+         * commands until the core named it --api-address. Kept while a command saved before then, on that page or in a
+         * profile, can still be read.
+         */
+        private val RENAMED_OPTIONS = mapOf("--enroll-address" to "--api-address")
+
+        /**
          * The core of [profile]: the command line it carries, or its settings as arguments on
          * [listenPort], the Aether listen port of the app, dialling out through the exit-node of its
          * settings. The log level is the session's to add. A command the app cannot read is left aside
@@ -104,9 +111,9 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
             return AetherCore(arguments).takeIf { AetherCoreManager.portAfter(arguments, listener) != null }
         }
 
-        /** The arguments of [command]: its [words], without a program name in front. */
+        /** The arguments of [command]: its [words], without a program name in front, a renamed option under its new name. */
         internal fun argumentsOf(command: String): List<String> {
-            val words = words(command)
+            val words = words(command).map { RENAMED_OPTIONS[it] ?: it }
             return if (words.firstOrNull()?.startsWith("-") == false) words.drop(1) else words
         }
 

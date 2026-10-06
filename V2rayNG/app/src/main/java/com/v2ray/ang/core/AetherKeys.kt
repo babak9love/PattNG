@@ -67,7 +67,7 @@ object AetherKeys {
      */
     fun arguments(settings: AetherKeysSettings): List<String> = buildList {
         addAll(listOf(REGISTER, settings.kind.register))
-        settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--enroll-address", it)) }
+        settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--api-address", it)) }
         if (settings.fragment) {
             add("--fragment")
             AetherRange.parse(settings.fragmentSize, AetherRange.FRAGMENT_SIZE)?.let { addAll(listOf("--fragment-size", it.toString())) }
@@ -120,7 +120,7 @@ object AetherKeys {
     }
 
     /**
-     * Whether [value] is an address the core sends the calls to the WARP API to, as its --enroll-address takes it: an
+     * Whether [value] is an address the core sends the calls to the WARP API to, as its --api-address takes it: an
      * IP address, an IPv6 one with or without brackets, or a domain name, alone or followed by :port, an IPv6 address
      * then in brackets. A label of the name cannot start or end with '-', so that no value reads as an option.
      */
