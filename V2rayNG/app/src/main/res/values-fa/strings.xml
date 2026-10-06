@@ -587,9 +587,10 @@
     <string name="aether_lab_ip_version">نسخه IP</string>
     <string name="aether_lab_exit_final_mask">JSON خام finalMask برای exit-node، قالب: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom (پیش‌فرض)</string>
-    <string name="aether_exit_node_missing">پروفایل پیدا نشد</string>
     <string name="aether_hint_exit_node">هسته از راه خروجی این پروفایل به بیرون وصل می‌شود، مانند گامی از زنجیرهٔ پروکسی؛ finalMask و dialMode پایین فقط برای freedom است</string>
-    <string name="aether_exit_node_unusable">پروفایل exit-node دیگر وجود ندارد یا خروجی نمی‌سازد؛ پروفایل دیگری یا freedom را انتخاب کنید</string>
+    <string name="aether_exit_node_unusable">پروفایل exit-node «%1$s» خروجی نمی‌سازد؛ پروفایل دیگری یا freedom را انتخاب کنید</string>
+    <string name="toast_profile_name_not_found">هیچ پروفایلی با نام «%1$s» پیدا نشد</string>
+    <string name="toast_profile_name_duplicate">دو پروفایل با نام «%1$s» پیدا شد؛ لطفاً نام یکی را تغییر دهید</string>
     <string name="aether_keys_hint_fragment">ClientHello درخواست‌های WARP API را تکه‌تکه می‌فرستد، برای شبکه‌هایی که نام API را فیلتر می‌کنند</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌ها (بایت)</string>

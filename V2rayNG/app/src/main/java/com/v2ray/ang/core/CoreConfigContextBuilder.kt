@@ -2,6 +2,7 @@ package com.v2ray.ang.core
 
 import android.content.Context
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BalancerStrategyType
@@ -66,6 +67,7 @@ object CoreConfigContextBuilder {
             return null
         }
 
+        var unresolvedHop: CoreConfigContext.UnresolvedName? = null
         val (resolvedProfiles, resolvedType) = when (profile.configType) {
             EConfigType.POLICYGROUP -> Pair(
                 resolvePolicyGroupProfiles(profile),
@@ -73,7 +75,8 @@ object CoreConfigContextBuilder {
             )
 
             EConfigType.PROXYCHAIN -> {
-                val chainProfiles = resolveProxyChainProfiles(profile)
+                val (chainProfiles, unresolved) = resolveProxyChainProfiles(profile)
+                unresolvedHop = unresolved
                 val type = if (chainProfiles.size <= 1) CoreResolvedType.NORMAL else CoreResolvedType.PROXYCHAIN
                 Pair(chainProfiles, type)
             }
@@ -90,6 +93,7 @@ object CoreConfigContextBuilder {
             profile = profile,
             resolvedProfiles = resolvedProfiles,
             resolvedType = resolvedType,
+            unresolvedHop = unresolvedHop,
         )
     }
 
@@ -124,7 +128,8 @@ object CoreConfigContextBuilder {
                             LogUtil.w(AppConfig.TAG, "Cannot use CUSTOM profile as routing outbound for tag '$tag', skipping")
                             return@forEach
                         }
-                        if (resolvedOutbound.resolvedProfiles.isEmpty()) {
+                        // PattNG: a chain that names a hop no profile has, or several have, stays, for the configuration to be refused for it.
+                        if (resolvedOutbound.resolvedProfiles.isEmpty() && resolvedOutbound.unresolvedHop == null) {
                             LogUtil.w(AppConfig.TAG, "Routing outbound '$tag' resolved to empty list, skipping")
                             return@forEach
                         }
@@ -183,23 +188,48 @@ object CoreConfigContextBuilder {
         }
     }
 
-    private fun resolveProxyChainProfiles(config: ProfileItem): List<ProfileItem> {
+    /**
+     * PattNG: the hops of the proxy chain [config], from the exit to the entry hop, found by their names, see
+     * [proxyChainHops], and the first name that finds no profile, or several, beside them: the configuration is
+     * refused for it, rather than run without that hop, or through one it may not mean.
+     */
+    private fun resolveProxyChainProfiles(config: ProfileItem): Pair<List<ProfileItem>, CoreConfigContext.UnresolvedName?> {
         if (config.proxyChainProfiles.isNullOrBlank()) {
-            return listOf(config)
+            return listOf(config) to null
         }
 
         try {
-            return config.proxyChainProfiles.orEmpty().split(",")
-                .asSequence()
-                .mapNotNull { remark -> SettingsManager.getServerViaRemarks(remark) }
-                .filter { it.hasDialableServer() }
-                .filter { !it.configType.isComplexType() }
-                .toList()
-                .reversed()
+            val (hops, unresolved) = proxyChainHops(config.proxyChainProfiles.orEmpty().split(",")) { name ->
+                SettingsManager.findServerViaRemarks(name, ::takesAsHop)
+            }
+            return hops.filter { it.hasDialableServer() }.reversed() to unresolved
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain profiles for '${config.remarks}'", e)
-            return listOf(config)
+            return listOf(config) to null
         }
+    }
+
+    /** PattNG: whether [profile] can be a hop of a proxy chain: no chain, group or custom configuration of its own. */
+    internal fun takesAsHop(profile: ProfileItem): Boolean = !profile.configType.isComplexType()
+
+    /**
+     * PattNG: the profiles [names], the hops of a proxy chain in the order it lists them, find through [find], see
+     * [ByName], and the first of the names that finds none, or several. A blank name names no hop.
+     */
+    internal fun proxyChainHops(
+        names: List<String>,
+        find: (String) -> ByName<ProfileItem>,
+    ): Pair<List<ProfileItem>, CoreConfigContext.UnresolvedName?> {
+        val hops = mutableListOf<ProfileItem>()
+        var unresolved: CoreConfigContext.UnresolvedName? = null
+        for (name in names.map(String::trim).filter(String::isNotEmpty)) {
+            when (val found = find(name)) {
+                is ByName.One -> hops += found.value
+                ByName.None -> if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, several = false)
+                ByName.Several -> if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, several = true)
+            }
+        }
+        return hops to unresolved
     }
 
     /**

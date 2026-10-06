@@ -7,6 +7,7 @@ import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherKey
 import com.v2ray.ang.core.AetherKeysSettings
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.handler.MmkvManager
@@ -31,11 +32,11 @@ interface AetherKeysSource {
     /** Registers new keys of [kind] with the core on [arguments], dialling out through [exit]; the new keys, or null when the old ones stay. */
     suspend fun renew(kind: AetherKeyKind, arguments: List<String>, exit: AetherExit, onOutput: (String) -> Unit): List<AetherKey>?
 
-    /** The profiles a run can dial out through in place of freedom, see [AetherExit.nodes]. */
+    /** The names of the profiles a run can dial out through in place of freedom, see [AetherExit.nodes]. */
     suspend fun exitNodes(): List<AetherExitNode>
 
-    /** Whether the profile [guid] names gives an exit-node still, see [AetherExit.node]. */
-    suspend fun exitNodeUsable(guid: String): Boolean
+    /** What the profile named [name] gives as the exit-node now, see [AetherExit.node]. */
+    suspend fun findExitNode(name: String): ExitNodeOutbound
 }
 
 /**
@@ -102,7 +103,7 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
 
     override suspend fun exitNodes(): List<AetherExitNode> = editor.exitNodes()
 
-    override suspend fun exitNodeUsable(guid: String): Boolean = editor.exitNodeUsable(guid)
+    override suspend fun findExitNode(name: String): ExitNodeOutbound = editor.findExitNode(name)
 
     private fun text(key: String, default: String): String = MmkvManager.decodeSettingsString(key, default) ?: default
 

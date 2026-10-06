@@ -177,14 +177,16 @@ class CoreOutboundBuilderTest {
     @Test
     fun test_toOutboundAetherExit_takesTheOutboundOfItsNodeChangedInItsTagAlone() {
         val node = OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "vless", streamSettings = OutboundBean.StreamSettingsBean(network = "ws"))
-        val nodes = mapOf("guid-1" to node)
-        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "guid-1")) { nodes[it] }!!
+        val nodes = mapOf("germany" to ExitNodeOutbound.Built(node), "twice" to ExitNodeOutbound.SameName)
+        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "germany")) { nodes[it] ?: ExitNodeOutbound.NotFound }!!
         assertEquals(AppConfig.TAG_EXIT_NODE, exit.tag)
         assertEquals("vless", exit.protocol)
         assertEquals("ws", exit.streamSettings?.network)
         assertNull(exit.streamSettings?.sockopt)
-        // A node that gives no outbound gives no exit-node, rather than freedom.
-        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "gone")) { nodes[it] })
+        // A name no profile has any more, or several have, or one that gives no outbound, gives no exit-node, rather than freedom.
+        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "gone")) { nodes[it] ?: ExitNodeOutbound.NotFound })
+        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "twice")) { nodes[it] ?: ExitNodeOutbound.NotFound })
+        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "germany")) { ExitNodeOutbound.NoOutbound })
         // Without one, the lookup is not asked.
         assertEquals("freedom", CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN) { error("no node to look up") }?.protocol)
     }

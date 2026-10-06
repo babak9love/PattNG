@@ -13,6 +13,7 @@ import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.ui.base.BaseViewModel
@@ -130,12 +131,15 @@ class ServerAetherViewModel(
                     append(Log.WARN, AetherLogText.Resource(R.string.aether_scan_blocked))
                     return@launch
                 }
-                // The profile chosen as the exit-node may be gone since the screen opened; the scan would reach WARP without it.
-                val node = profile.aetherExitNode
-                if (!node.isNullOrBlank() && !source.exitNodeUsable(node)) {
-                    _scanState.value = AetherScanState.Idle
-                    append(Log.ERROR, AetherLogText.Resource(R.string.aether_exit_node_unusable))
-                    return@launch
+                // The profile chosen as the exit-node may be renamed or gone since the screen opened, or share its name with
+                // another by now; the scan would reach WARP without it.
+                val node = profile.aetherExitNode?.trim().orEmpty()
+                if (node.isNotEmpty()) {
+                    (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
+                        _scanState.value = AetherScanState.Idle
+                        append(Log.ERROR, AetherLogText.Resource(problem.message, listOf(node)))
+                        return@launch
+                    }
                 }
                 if (!anyway) {
                     val needed = AetherIdentityManager.filesNeededBy(AetherCoreManager.buildArguments(profile, 0, scan = true))

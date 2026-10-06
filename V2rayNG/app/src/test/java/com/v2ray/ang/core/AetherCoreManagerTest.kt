@@ -1304,8 +1304,8 @@ class AetherCoreManagerTest {
             ),
         )
         val opened = JsonParser.parseString(
-            AetherCoreManager.exitConfiguration(AetherExit(node = "guid-1"), configuration = null, logLevel = "warning") {
-                if (it == "guid-1") node else null
+            AetherCoreManager.exitConfiguration(AetherExit(node = "germany"), configuration = null, logLevel = "warning") {
+                if (it == "germany") ExitNodeOutbound.Built(node) else ExitNodeOutbound.NotFound
             }
         ).asJsonObject
         val outbounds = opened.getAsJsonArray("outbounds").map { it.asJsonObject }
@@ -1317,10 +1317,12 @@ class AetherCoreManagerTest {
         assertEquals("warning", opened.getAsJsonObject("log").get("loglevel").asString)
 
         // A node that gives no outbound opens no exit: the core would reach the internet without it.
-        assertNull(AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), configuration = null, logLevel = "warning") { null })
+        for (problem in listOf(ExitNodeOutbound.NotFound, ExitNodeOutbound.SameName, ExitNodeOutbound.NoOutbound)) {
+            assertNull(AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), configuration = null, logLevel = "warning") { problem })
+        }
         // A configuration under test that has the exit-node, a chain's hop, keeps it, as for any exit.
         val chained = """{"outbounds": [{"tag": "proxy", "protocol": "socks"}, {"tag": "exit-node", "protocol": "trojan"}]}"""
-        assertEquals(chained, AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), chained, "warning") { null })
+        assertEquals(chained, AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), chained, "warning") { ExitNodeOutbound.NotFound })
     }
 
     @Test

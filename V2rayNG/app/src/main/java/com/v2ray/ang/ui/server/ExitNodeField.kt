@@ -9,9 +9,9 @@ import com.v2ray.ang.ui.compose.FormDropdownField
 
 /**
  * The exit-node an Aether core dials out through, in the Aether editor and on the WARP keys page alike: freedom, the
- * default, with the finalMask and the dialMode set beside it, or one of [nodes], profiles a proxy chain takes for a hop,
- * whose outbound then is the exit-node. [value] is the guid of the chosen profile, blank for freedom; a guid none of
- * [nodes] has, a profile that is gone, shows as such until another is chosen. [nodes] is null until they are read.
+ * default, with the finalMask and the dialMode set beside it, or one of [nodes], the names of the profiles a chain
+ * takes for a hop, whose outbound then is the exit-node. [value] is the name chosen, blank for freedom; a name no
+ * profile has any more, or several have, shows with the message that says so. [nodes] is null until they are read.
  */
 @Composable
 internal fun ExitNodeField(
@@ -21,28 +21,26 @@ internal fun ExitNodeField(
     enabled: Boolean = true,
 ) {
     val freedom = stringResource(R.string.aether_exit_node_freedom)
-    val missing = stringResource(R.string.aether_exit_node_missing)
-    val known = nodes.orEmpty()
-    val labels = remember(known, freedom, missing) { exitNodeLabels(known, setOf(freedom, missing)) }
-    val chosen = known.indexOfFirst { it.guid == value }
+    val names = nodes.orEmpty().map { it.name }
+    val labels = remember(names, freedom) { exitNodeLabels(names, setOf(freedom)) }
+    val name = value.trim()
+    val problem = problemOfExitNode(name, nodes)
     FormDropdownField(
         label = stringResource(R.string.aether_lab_exit_node),
-        value = when {
-            value.isBlank() -> freedom
-            chosen >= 0 -> labels[chosen]
-            // Until the profiles are read, a chosen one is not called missing.
-            nodes == null -> ""
-            else -> missing
-        },
+        value = name.ifEmpty { freedom },
         options = listOf(freedom) + labels,
         onValueChange = { picked ->
             if (picked == freedom) {
                 onValueChange("")
             } else {
-                labels.indexOf(picked).takeIf { it >= 0 }?.let { onValueChange(known[it].guid) }
+                labels.indexOf(picked).takeIf { it >= 0 }?.let { onValueChange(names[it]) }
             }
         },
         enabled = enabled,
-        supportingText = if (value.isNotBlank()) stringResource(R.string.aether_hint_exit_node) else null,
+        supportingText = when {
+            name.isEmpty() -> null
+            problem != null -> stringResource(problem.message, name)
+            else -> stringResource(R.string.aether_hint_exit_node)
+        },
     )
 }

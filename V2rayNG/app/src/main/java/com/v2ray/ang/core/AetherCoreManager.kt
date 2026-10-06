@@ -601,7 +601,7 @@ object AetherCoreManager {
             val logLevel = MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL) ?: DEFAULT_XRAY_LOG_LEVEL
             val exitConfiguration = exitConfiguration(exit, configuration, logLevel)
             if (exitConfiguration == null) {
-                LogUtil.w(AppConfig.TAG, "AetherCore: the exit-node $source dials out through gives no outbound, its profile gone or its ECH outbound unusable; no core runs")
+                LogUtil.w(AppConfig.TAG, "AetherCore: the exit-node $source dials out through gives no outbound: no profile or several have its name, it gives none, or its ECH outbound is unusable; no core runs")
                 null
             } else {
                 openExit(context, exitConfiguration, source)
@@ -704,13 +704,14 @@ object AetherCoreManager {
      * exported from a session; otherwise one with the exit-node of [exit] alone, see
      * [CoreOutboundBuilder.toOutboundAetherExit], with the ECH outbound of a node linked as in a session,
      * which logs at [logLevel], the Xray log level of the app, should it start the shared Xray of the
-     * process. Null when the node [nodeOutbound] looks up gives no outbound, or its ECH outbound is unusable.
+     * process. Null when the node [nodeOutbound] looks up gives none, see [ExitNodeOutbound.Problem], or its
+     * ECH outbound is unusable.
      */
     internal fun exitConfiguration(
         exit: AetherExit,
         configuration: String?,
         logLevel: String,
-        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
+        nodeOutbound: (String) -> ExitNodeOutbound = CoreOutboundBuilder::toOutboundOfNode,
     ): String? {
         configuration?.takeIf(::hasExitNode)?.let { return it }
         val exitNode = CoreOutboundBuilder.toOutboundAetherExit(exit, nodeOutbound) ?: return null

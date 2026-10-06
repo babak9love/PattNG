@@ -591,9 +591,10 @@
     <string name="aether_lab_ip_version">Версия IP</string>
     <string name="aether_lab_exit_final_mask">Необработанный JSON finalMask для exit-node, формат: { FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom (по умолчанию)</string>
-    <string name="aether_exit_node_missing">Профиль не найден</string>
     <string name="aether_hint_exit_node">Ядро выходит наружу через исходящее соединение этого профиля, как через звено цепочки прокси; finalMask и dialMode ниже относятся только к freedom</string>
-    <string name="aether_exit_node_unusable">Профиль exit-node удалён или не даёт исходящего соединения; выберите другой или freedom</string>
+    <string name="aether_exit_node_unusable">Профиль exit-node «%1$s» не даёт исходящего соединения; выберите другой или freedom</string>
+    <string name="toast_profile_name_not_found">Профиль с именем «%1$s» не найден</string>
+    <string name="toast_profile_name_duplicate">Найдено два профиля с именем «%1$s»; переименуйте один из них</string>
     <string name="aether_keys_hint_fragment">Отправляет ClientHello запросов к WARP API по частям, для сетей, которые фильтруют имя API</string>
     <string name="aether_lab_fragment">Фрагментировать ClientHello</string>
     <string name="aether_lab_fragment_size">Размер фрагментов (байт)</string>

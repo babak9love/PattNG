@@ -29,11 +29,11 @@ data class AetherKeysSettings(
     val command: String = "",
 ) {
     /**
-     * The exit-node the run dials out through: the profile [exitNode] names by its guid, see [AetherExit.node], or
+     * The exit-node the run dials out through: the profile [exitNode] names by its name, see [AetherExit.node], or
      * else a plain one, with the finalMask and the dialMode set here.
      */
     val exit: AetherExit
-        get() = exitNode.nullIfBlank()?.let { AetherExit(node = it) } ?: AetherExit(finalMask.nullIfBlank(), dialMode.nullIfBlank())
+        get() = exitNode.nullIfBlank()?.let { AetherExit(node = it.trim()) } ?: AetherExit(finalMask.nullIfBlank(), dialMode.nullIfBlank())
 }
 
 /**
@@ -99,7 +99,7 @@ object AetherKeys {
      * Why [settings] cannot run, or null when they can. A command written by hand is only checked for what it
      * registers: the settings it replaces do not count, and the core names what else it does not take. The
      * finalMask counts either way, since the run dials out through it, unless a profile is the exit-node, which
-     * leaves it out of use. Whether that profile is still there is for the run to look up.
+     * leaves it out of use. Whether one profile, and one only, has that name still is for the run to look up.
      */
     fun problem(settings: AetherKeysSettings): Problem? {
         if (settings.exitNode.isBlank() && !AetherExit.takesFinalMask(settings.finalMask)) return Problem.INVALID_FINAL_MASK

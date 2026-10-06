@@ -1,13 +1,48 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.dto.ByName
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ProxyChainMembersTest {
+    @Test
+    fun aChainIsSavedWhenEachMemberNamesOneProfileAndOneAtMostIsAether() {
+        val profiles = mapOf(
+            "entry" to ProfileItem.create(EConfigType.VLESS),
+            "warp" to ProfileItem.create(EConfigType.AETHER),
+            "exit" to ProfileItem.create(EConfigType.TROJAN),
+        )
+        assertNull(proxyChainProblem(listOf("entry", "warp", "exit")) { name -> profiles[name]?.let { ByName.One(it) } ?: ByName.None })
+    }
+
+    @Test
+    fun aMemberNoProfileHasAnyMoreOrSeveralHaveIsToldByItsName() {
+        val found = mapOf<String, ByName<ProfileItem>>(
+            "entry" to ByName.One(ProfileItem.create(EConfigType.VLESS)),
+            "twice" to ByName.Several,
+        )
+        fun problem(vararg members: String) = proxyChainProblem(members.toList()) { found[it] ?: ByName.None }
+        // A name no profile has, as after a rename or a delete, is told first.
+        assertEquals(ProxyChainProblem.NotFound("gone"), problem("entry", "twice", "gone"))
+        assertEquals(ProxyChainProblem.SameName("twice"), problem("entry", "twice"))
+    }
+
+    @Test
+    fun aSecondAetherMemberIsTold() {
+        val found = mapOf<String, ByName<ProfileItem>>(
+            "warp" to ByName.One(ProfileItem.create(EConfigType.AETHER)),
+            "warp 2" to ByName.One(ProfileItem.create(EConfigType.AETHER)),
+            "entry" to ByName.One(ProfileItem.create(EConfigType.VLESS)),
+        )
+        assertEquals(ProxyChainProblem.SecondAether, proxyChainProblem(listOf("warp", "entry", "warp 2")) { found.getValue(it) })
+    }
+
     @Test
     fun removalFollowsThePendingKeyAfterReordering() {
         val pendingKey = "two"

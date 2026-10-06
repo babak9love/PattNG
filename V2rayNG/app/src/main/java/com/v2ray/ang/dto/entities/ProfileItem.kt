@@ -115,9 +115,10 @@ data class ProfileItem(
     var aetherExitLoc: String? = null,
 
     /**
-     * The guid of the profile the core dials out through: its outbound is the exit-node, as a proxy chain's hop is.
-     * Null means freedom, with the finalMask and the dialMode of this profile. No link carries it: the guid is this
-     * device's alone.
+     * The name of the profile the core dials out through: its outbound is the exit-node, as a proxy chain's hop is.
+     * Like the hops of a chain, it goes by its name, which a subscription's update keeps while it gives every profile
+     * a new guid. Null means freedom, with the finalMask and the dialMode of this profile. No link carries it: the
+     * name is that of a profile of this device.
      */
     var aetherExitNode: String? = null,
 

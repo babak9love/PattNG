@@ -8,7 +8,9 @@ import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.dto.AetherEndpoint
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.EConfigType
@@ -47,7 +49,7 @@ class ServerAetherViewModelTest {
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
         val missingFiles = mutableSetOf<String>()
         var nodes: List<AetherExitNode> = emptyList()
-        val usable = mutableSetOf<String>()
+        val found = mutableMapOf<String, ExitNodeOutbound>()
 
         override suspend fun isCoreAvailable() = available
         override suspend fun isPsiphonAvailable(): Boolean = false
@@ -62,7 +64,7 @@ class ServerAetherViewModelTest {
         override suspend fun psiphonRegions() = regions
         override suspend fun listenPort() = port
         override suspend fun exitNodes() = nodes
-        override suspend fun exitNodeUsable(guid: String) = guid in usable
+        override suspend fun findExitNode(name: String) = found[name] ?: ExitNodeOutbound.NotFound
     }
 
     private val source = FakeSource()
@@ -400,23 +402,30 @@ class ServerAetherViewModelTest {
 
     @Test
     fun theProfilesThatCanBeTheExitNodeAreRead() {
-        source.nodes = listOf(AetherExitNode("guid-1", "germany"), AetherExitNode("guid-2", "france"))
+        source.nodes = listOf(AetherExitNode("germany", 1), AetherExitNode("france", 2))
         assertEquals(source.nodes, viewModel().exitNodes.value)
     }
 
     @Test
-    fun aScanDoesNotDialOutThroughAnExitNodeProfileThatIsGone() {
+    fun aScanDoesNotDialOutThroughAnExitNodeNameThatFindsNoProfileOrSeveral() {
         var scans = 0
         source.scanner = { _, _ -> scans++; null }
         val viewModel = viewModel()
-        val noded = profile.copy(aetherExitNode = "guid-1")
+        val noded = profile.copy(aetherExitNode = "germany ")
 
+        // Renamed or deleted since the screen opened.
         viewModel.scan(noded)
         assertEquals(0, scans)
         assertEquals(AetherScanState.Idle, viewModel.scanState.value)
-        assertEquals(resource(R.string.aether_exit_node_unusable), viewModel.texts().last())
+        assertEquals(resource(R.string.toast_profile_name_not_found, "germany"), viewModel.texts().last())
 
-        source.usable += "guid-1"
+        // The name of two profiles by now.
+        source.found["germany"] = ExitNodeOutbound.SameName
+        viewModel.scan(noded)
+        assertEquals(0, scans)
+        assertEquals(resource(R.string.toast_profile_name_duplicate, "germany"), viewModel.texts().last())
+
+        source.found["germany"] = ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = "proxy", protocol = "vless"))
         viewModel.scan(noded)
         assertEquals(1, scans)
     }

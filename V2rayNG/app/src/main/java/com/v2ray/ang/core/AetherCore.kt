@@ -1,13 +1,17 @@
 package com.v2ray.ang.core
 
+import androidx.annotation.StringRes
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.R
+import com.v2ray.ang.dto.ByName
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.nullIfBlank
 import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.JsonUtil
 import java.security.MessageDigest
 
@@ -154,9 +158,10 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
  * dialMode do not count then, nor does anything else of a plain exit-node, its [node] included.
  *
  * Without a chain, the profile, or the WARP keys page, can name a profile of its own as the
- * exit-node, one a chain takes for a hop: [node], by its guid. That profile's outbound, as a chain
- * builds it, is the exit-node then, changed in its tag alone, and the finalMask and the dialMode do
- * not count either. Who builds it looks the profile up, see [CoreOutboundBuilder.toOutboundAetherExit].
+ * exit-node, one a chain takes for a hop: [node], by its name, as a chain names its hops. That
+ * profile's outbound, as a chain builds it, is the exit-node then, changed in its tag alone, and the
+ * finalMask and the dialMode do not count either. Who builds it looks the profile up, see
+ * [CoreOutboundBuilder.toOutboundOfNode]: a name no profile has any more, or several have, gives none.
  */
 data class AetherExit(
     val finalMask: String? = null,
@@ -178,7 +183,7 @@ data class AetherExit(
 
         /** The exit-node of the core of [profile]: the profile it names as its node, or else a plain one with its finalMask and dialMode. */
         fun of(profile: ProfileItem): AetherExit =
-            profile.aetherExitNode.nullIfBlank()?.let { AetherExit(node = it) }
+            profile.aetherExitNode.nullIfBlank()?.let { AetherExit(node = it.trim()) }
                 ?: AetherExit(profile.finalMask.nullIfBlank(), profile.dialMode.nullIfBlank())
 
         /**
@@ -186,20 +191,23 @@ data class AetherExit(
          * core is the one that dials out.
          */
         fun takesAsNode(profile: ProfileItem): Boolean =
-            !profile.configType.isComplexType() && profile.configType != EConfigType.AETHER
+            CoreConfigContextBuilder.takesAsHop(profile) && profile.configType != EConfigType.AETHER
 
-        /** The profile [guid] names, when it can be an exit-node; null when it is gone or can be none. */
-        fun nodeProfile(guid: String): ProfileItem? = MmkvManager.decodeServerConfig(guid)?.takeIf(::takesAsNode)
+        /** What [name] finds among the profiles that can be an exit-node, see [ByName]. */
+        fun nodeProfile(name: String): ByName<ProfileItem> = SettingsManager.findServerViaRemarks(name, ::takesAsNode)
 
-        /** Every profile that can be an exit-node, in the order of the server list. */
+        /** The names of the profiles that can be an exit-node, see [nodesOf], in the order of the server list. */
         fun nodes(): List<AetherExitNode> =
-            MmkvManager.decodeAllServerList().mapNotNull { guid ->
-                MmkvManager.decodeServerConfig(guid)?.takeIf(::takesAsNode)?.let { AetherExitNode(guid, nameOf(it)) }
-            }
+            nodesOf(MmkvManager.decodeAllServerList().asSequence().mapNotNull { MmkvManager.decodeServerConfig(it) })
 
-        /** What a list of exit-nodes calls [profile]: its remarks, or its type and address when it has none. */
-        internal fun nameOf(profile: ProfileItem): String =
-            profile.remarks.trim().ifEmpty { "${profile.configType.name} ${profile.server.orEmpty()}:${profile.serverPort.orEmpty()}" }
+        /**
+         * The names those of [profiles] that can be an exit-node have, each once, in their order, with how many have it:
+         * a name several have names none of them, see [ByName]. A profile without a name is left out, for none names it.
+         */
+        internal fun nodesOf(profiles: Sequence<ProfileItem>): List<AetherExitNode> =
+            profiles.filter(::takesAsNode).map { it.remarks.trim() }.filter { it.isNotEmpty() }
+                .groupingBy { it }.eachCountTo(LinkedHashMap())
+                .map { (name, count) -> AetherExitNode(name, count) }
 
         /**
          * Whether an exit-node takes [finalMask]: blank, or a JSON object, read by the parser JsonUtil uses but
@@ -225,5 +233,37 @@ data class AetherExit(
     }
 }
 
-/** PattNG: a profile that can be the exit-node of an Aether core, see [AetherExit.node]: its [guid], and the [name] a list shows. */
-data class AetherExitNode(val guid: String, val name: String)
+/**
+ * PattNG: a [name] the profiles that can be the exit-node of an Aether core have, see [AetherExit.node], and how many
+ * [profiles] have it; with more than one, it names none of them.
+ */
+data class AetherExitNode(val name: String, val profiles: Int)
+
+/**
+ * PattNG: what the name of the profile an Aether core dials out through gives, see [AetherExit.node]: the outbound of
+ * the one profile that has it, built as a proxy chain builds a hop, or the [Problem] that leaves the core without one.
+ */
+sealed interface ExitNodeOutbound {
+    data class Built(val outbound: V2rayConfig.OutboundBean) : ExitNodeOutbound
+
+    /** Why there is no exit-node, with the [message] that tells it, whose argument is the name. */
+    sealed interface Problem : ExitNodeOutbound {
+        @get:StringRes
+        val message: Int
+    }
+
+    /** No profile that can be an exit-node has the name any more: it was renamed or deleted. */
+    data object NotFound : Problem {
+        override val message: Int get() = R.string.toast_profile_name_not_found
+    }
+
+    /** Several have it, and the name cannot tell the one meant. */
+    data object SameName : Problem {
+        override val message: Int get() = R.string.toast_profile_name_duplicate
+    }
+
+    /** The one that has it gives no outbound. */
+    data object NoOutbound : Problem {
+        override val message: Int get() = R.string.aether_exit_node_unusable
+    }
+}

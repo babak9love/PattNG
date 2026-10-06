@@ -36,10 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.R
+import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastSuccess
@@ -52,6 +53,10 @@ import com.v2ray.ang.ui.compose.FormDropdownField
 import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.reorderableDragHandle
 import com.v2ray.ang.ui.compose.verticalScrollbar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.util.UUID
@@ -69,6 +74,9 @@ class ServerProxyChainActivity : BaseComponentActivity() {
     private lateinit var allRemarks: List<String>
     private lateinit var initialRemarks: String
     private lateinit var initialMembers: List<String>
+
+    /** PattNG: the save under way; the profiles are read and the chain is written off the main thread, one save at a time. */
+    private var saveJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,9 +106,9 @@ class ServerProxyChainActivity : BaseComponentActivity() {
     private fun saveServer(
         remarks: String,
         members: List<String>
-    ): Boolean {
+    ) {
         if (remarks.isBlank()) {
-            return false
+            return
         }
 
         val chainMembers = members
@@ -109,68 +117,77 @@ class ServerProxyChainActivity : BaseComponentActivity() {
 
         if (chainMembers.size != members.size) {
             toast(R.string.server_proxy_chain_members_unselected)
-            return false
+            return
         }
 
         if (chainMembers.size < 2) {
             toast(R.string.server_proxy_chain_members_insufficient)
-            return false
+            return
         }
 
-        val invalidMembers = chainMembers.filter { member ->
-            val profile = SettingsManager.getServerViaRemarks(member)
-            profile == null || profile.configType.isComplexType()
+        if (saveJob?.isActive == true) {
+            return
         }
+        saveJob = lifecycleScope.launch {
+            // PattNG: the members are found by their names as the chain finds its hops when it runs: a name no profile
+            // has, as after a rename or a delete, or several have, is told rather than saved.
+            val problem = withContext(Dispatchers.IO) {
+                proxyChainProblem(chainMembers) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
+            }
+            when (problem) {
+                is ProxyChainProblem.NotFound -> {
+                    toast(getString(R.string.toast_profile_name_not_found, problem.name))
+                    return@launch
+                }
 
-        if (invalidMembers.isNotEmpty()) {
-            toast(
-                getString(
-                    R.string.server_proxy_chain_members_invalid,
-                    invalidMembers.joinToString(", ")
+                is ProxyChainProblem.SameName -> {
+                    toast(getString(R.string.toast_profile_name_duplicate, problem.name))
+                    return@launch
+                }
+
+                // An Aether member can stand anywhere in the chain, but one core runs, so there can be one.
+                ProxyChainProblem.SecondAether -> {
+                    toast(R.string.aether_chain_one_profile)
+                    return@launch
+                }
+
+                null -> Unit
+            }
+
+            val savedGuid = withContext(Dispatchers.IO) {
+                val config =
+                    MmkvManager.decodeServerConfig(editGuid)
+                        ?: ProfileItem.create(EConfigType.PROXYCHAIN)
+
+                config.remarks = remarks.trim()
+                config.proxyChainProfiles =
+                    chainMembers.joinToString(",")
+
+                config.description =
+                    chainMembers.joinToString(" -> ")
+
+                if (
+                    config.subscriptionId.isEmpty() &&
+                    !subscriptionId.isNullOrEmpty()
+                ) {
+                    config.subscriptionId = subscriptionId.orEmpty()
+                }
+
+                MmkvManager.encodeServerConfig(
+                    editGuid,
+                    config
                 )
-            )
-            return false
+            }
+
+            toastSuccess(R.string.toast_success)
+
+            ProfileEditorResult.run {
+                finishSaved(
+                    guid = savedGuid,
+                    restartService = isRunning
+                )
+            }
         }
-
-        // An Aether member can stand anywhere in the chain, but one core runs, so there can be one.
-        if (hasSecondAetherMember(chainMembers.map { SettingsManager.getServerViaRemarks(it)?.configType })) {
-            toast(R.string.aether_chain_one_profile)
-            return false
-        }
-
-        val config =
-            MmkvManager.decodeServerConfig(editGuid)
-                ?: ProfileItem.create(EConfigType.PROXYCHAIN)
-
-        config.remarks = remarks.trim()
-        config.proxyChainProfiles =
-            chainMembers.joinToString(",")
-
-        config.description =
-            chainMembers.joinToString(" -> ")
-
-        if (
-            config.subscriptionId.isEmpty() &&
-            !subscriptionId.isNullOrEmpty()
-        ) {
-            config.subscriptionId = subscriptionId.orEmpty()
-        }
-
-        val savedGuid = MmkvManager.encodeServerConfig(
-            editGuid,
-            config
-        )
-
-        toastSuccess(R.string.toast_success)
-
-        ProfileEditorResult.run {
-            finishSaved(
-                guid = savedGuid,
-                restartService = isRunning
-            )
-        }
-
-        return true
     }
 
     private fun deleteServer(): Boolean {
@@ -201,7 +218,7 @@ fun ProxyChainScreen(
     initialMembers: List<String>,
     allRemarks: List<String>,
     onBackClick: () -> Unit,
-    onSave: (String, List<String>) -> Boolean,
+    onSave: (String, List<String>) -> Unit,
     onDelete: () -> Unit
 ) {
     var remarks by rememberSaveable { mutableStateOf(initialRemarks) }

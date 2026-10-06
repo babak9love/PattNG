@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
@@ -767,11 +768,12 @@ object CoreOutboundBuilder {
      * by: the outbound of the profile [exit] names as its node, which [nodeOutbound] gives, as a proxy chain
      * builds its hop, and changed in its tag alone; or else a freedom outbound with the finalMask and the
      * dialMode of [exit] set as an ordinary profile sets them on its own outbound. Null when the node gives
-     * no outbound: the core would reach the internet without it. The session's configuration carries it,
-     * and a core of its own dials out through it as well, see [AetherCoreManager.withProcess].
+     * none, see [ExitNodeOutbound.Problem]: the core would reach the internet without it. The session's
+     * configuration carries it, and a core of its own dials out through it as well, see
+     * [AetherCoreManager.withProcess].
      */
-    fun toOutboundAetherExit(exit: AetherExit, nodeOutbound: (String) -> OutboundBean? = ::toOutboundOfNode): OutboundBean? {
-        exit.node?.let { guid -> return nodeOutbound(guid)?.apply { tag = AppConfig.TAG_EXIT_NODE } }
+    fun toOutboundAetherExit(exit: AetherExit, nodeOutbound: (String) -> ExitNodeOutbound = ::toOutboundOfNode): OutboundBean? {
+        exit.node?.let { name -> return (nodeOutbound(name) as? ExitNodeOutbound.Built)?.outbound?.apply { tag = AppConfig.TAG_EXIT_NODE } }
         val outbound = OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "freedom", mux = null)
         if (!exit.finalMask.isNullOrBlank()) {
             // A freedom outbound has no transport; the stream settings carry the mask alone.
@@ -783,8 +785,19 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * PattNG: the outbound of the profile [guid] names, built as for a hop of a proxy chain; null when the
-     * profile is gone, can be no exit-node, or gives no outbound. See [AetherExit.node].
+     * PattNG: the outbound of the profile named [name], built as for a hop of a proxy chain, or why there is
+     * none: no profile that can be an exit-node has the name any more, several have it, or the one that has
+     * it gives no outbound. See [AetherExit.node].
      */
-    fun toOutboundOfNode(guid: String): OutboundBean? = AetherExit.nodeProfile(guid)?.let(::convert)
+    fun toOutboundOfNode(name: String): ExitNodeOutbound = when (val found = AetherExit.nodeProfile(name)) {
+        is ByName.One -> try {
+            convert(found.value)?.let { ExitNodeOutbound.Built(it) } ?: ExitNodeOutbound.NoOutbound
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "Failed to build the outbound of the Aether exit-node profile", e)
+            ExitNodeOutbound.NoOutbound
+        }
+
+        ByName.None -> ExitNodeOutbound.NotFound
+        ByName.Several -> ExitNodeOutbound.SameName
+    }
 }

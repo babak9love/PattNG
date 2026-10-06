@@ -70,11 +70,11 @@ class AetherDependencyTest {
 
     @Test
     fun aChainsHopTakesThePlaceOfTheExitNodeAProfileNames() {
-        val noded = masque.copy(remarks = "warp through", aetherExitNode = "guid-1")
+        val noded = masque.copy(remarks = "warp through", aetherExitNode = "germany")
         // On its own, or as a chain's entry hop, the core dials out through the profile it names.
-        assertEquals(AetherExit(node = "guid-1"), coreOf(AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.NORMAL, noded)))).exit)
+        assertEquals(AetherExit(node = "germany"), coreOf(AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.NORMAL, noded)))).exit)
         assertEquals(
-            AetherExit(node = "guid-1"),
+            AetherExit(node = "germany"),
             coreOf(AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.PROXYCHAIN, vless, noded)))).exit
         )
         // Anywhere else in a chain, through the hops on its entry side, as for the finalMask and the dialMode.

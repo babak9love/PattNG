@@ -10,6 +10,7 @@ import com.v2ray.ang.core.AetherIdentityStatus
 import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.core.AetherScanner
 import com.v2ray.ang.core.CoreOutboundBuilder
+import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.core.PsiphonServerList
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherKeyKind
@@ -61,11 +62,11 @@ interface AetherEditorSource {
     /** The Aether listen port of the settings, which every core of a profile listens on. */
     suspend fun listenPort(): Int
 
-    /** The profiles a core can dial out through in place of freedom, see [AetherExit.nodes]. */
+    /** The names of the profiles a core can dial out through in place of freedom, see [AetherExit.nodes]. */
     suspend fun exitNodes(): List<AetherExitNode>
 
-    /** Whether the profile [guid] names gives an exit-node still, see [AetherExit.node]. */
-    suspend fun exitNodeUsable(guid: String): Boolean
+    /** What the profile named [name] gives as the exit-node now, see [CoreOutboundBuilder.toOutboundOfNode]. */
+    suspend fun findExitNode(name: String): ExitNodeOutbound
 }
 
 class AetherEditorRepository(private val context: Context) : AetherEditorSource {
@@ -115,8 +116,8 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
 
     override suspend fun exitNodes(): List<AetherExitNode> = withContext(Dispatchers.IO) { AetherExit.nodes() }
 
-    override suspend fun exitNodeUsable(guid: String): Boolean =
-        withContext(Dispatchers.IO) { CoreOutboundBuilder.toOutboundOfNode(guid) != null }
+    override suspend fun findExitNode(name: String): ExitNodeOutbound =
+        withContext(Dispatchers.IO) { CoreOutboundBuilder.toOutboundOfNode(name) }
 
     override suspend fun psiphonRegions(): List<String> = withContext(Dispatchers.IO) {
         val entries = PsiphonServerList.entriesFile(File(Utils.userAssetPath(context)), AetherIdentityManager.workDir(context)) { problem ->

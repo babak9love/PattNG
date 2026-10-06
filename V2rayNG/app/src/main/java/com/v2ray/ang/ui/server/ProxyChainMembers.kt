@@ -1,5 +1,7 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.dto.ByName
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 
 /** Removes one draft member and its row key together, resolving its current position at confirmation. */
@@ -21,3 +23,28 @@ internal fun withoutProxyChainMember(
  */
 internal fun hasSecondAetherMember(memberTypes: List<EConfigType?>): Boolean =
     memberTypes.count { it == EConfigType.AETHER } > 1
+
+/** PattNG: why a proxy chain cannot be saved with its members, see [proxyChainProblem]. */
+internal sealed interface ProxyChainProblem {
+    /** No profile that can be a hop is named [name], or none any more. */
+    data class NotFound(val name: String) : ProxyChainProblem
+
+    /** Several are named [name], and the chain could not tell the one meant. */
+    data class SameName(val name: String) : ProxyChainProblem
+
+    /** A second Aether member, see [hasSecondAetherMember]. */
+    data object SecondAether : ProxyChainProblem
+}
+
+/**
+ * PattNG: why a chain of [members], the names of its profiles in its order, cannot be saved, as the chain finds its
+ * hops when it runs: the first name [find] finds no profile for, then the first several have, see [ByName], or a
+ * second Aether member. Null when it can.
+ */
+internal fun proxyChainProblem(members: List<String>, find: (String) -> ByName<ProfileItem>): ProxyChainProblem? {
+    val found = members.map { it to find(it) }
+    found.firstOrNull { it.second is ByName.None }?.let { return ProxyChainProblem.NotFound(it.first) }
+    found.firstOrNull { it.second is ByName.Several }?.let { return ProxyChainProblem.SameName(it.first) }
+    val types = found.map { (it.second as? ByName.One)?.value?.configType }
+    return ProxyChainProblem.SecondAether.takeIf { hasSecondAetherMember(types) }
+}

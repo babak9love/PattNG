@@ -12,6 +12,7 @@ import com.v2ray.ang.AppConfig.TAG_DIRECT
 import com.v2ray.ang.AppConfig.VPN
 import com.v2ray.ang.core.AetherCoreManager
 import com.v2ray.ang.core.PsiphonServerList
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.RulesetItem
@@ -216,6 +217,14 @@ object SettingsManager {
             .mapNotNull { guid -> decodeServerConfig(guid) }
             .firstOrNull { it.remarks == remarks }
     }
+
+    /**
+     * PattNG: what [remarks] finds among the profiles [takes] accepts, see [ByName]. Unlike [getServerViaRemarks],
+     * which takes the first profile of any kind, it tells a name no profile has from one several have, as the hops
+     * of a proxy chain and the exit-node of an Aether core are named.
+     */
+    fun findServerViaRemarks(remarks: String?, takes: (ProfileItem) -> Boolean): ByName<ProfileItem> =
+        ByName.find(remarks, decodeAllServerList().asSequence().mapNotNull { decodeServerConfig(it) }.filter(takes)) { it.remarks }
 
     /**
      * Collects non-empty profile remarks while excluding specific config types.

@@ -93,7 +93,8 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
         LaunchedEffect(notice) {
             when (val shown = notice) {
                 AetherKeysNotice.Renewed -> toastSuccess(R.string.aether_log_key_renewed)
-                is AetherKeysNotice.Invalid -> toastError(shown.message)
+                is AetherKeysNotice.Invalid ->
+                    if (shown.args.isEmpty()) toastError(shown.message) else toastError(getString(shown.message, *shown.args.toTypedArray()))
                 null -> return@LaunchedEffect
             }
             viewModel.onNoticeShown()

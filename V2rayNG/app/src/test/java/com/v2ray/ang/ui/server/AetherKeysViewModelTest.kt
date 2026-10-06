@@ -10,6 +10,8 @@ import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherKey
 import com.v2ray.ang.core.AetherKeys
 import com.v2ray.ang.core.AetherKeysSettings
+import com.v2ray.ang.core.ExitNodeOutbound
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.enums.AetherProtocol
@@ -48,7 +50,7 @@ class AetherKeysViewModelTest {
         val runs = mutableListOf<Run>()
         var renewer: suspend ((String) -> Unit) -> List<AetherKey>? = { null }
         var nodes: List<AetherExitNode> = emptyList()
-        val usable = mutableSetOf<String>()
+        val found = mutableMapOf<String, ExitNodeOutbound>()
 
         override suspend fun isCoreAvailable() = available
         override suspend fun activeSession() = session
@@ -64,7 +66,7 @@ class AetherKeysViewModelTest {
         }
 
         override suspend fun exitNodes() = nodes
-        override suspend fun exitNodeUsable(guid: String) = guid in usable
+        override suspend fun findExitNode(name: String) = found[name] ?: ExitNodeOutbound.NotFound
     }
 
     private val source = FakeSource()
@@ -230,15 +232,15 @@ class AetherKeysViewModelTest {
 
     @Test
     fun theProfilesThatCanBeTheExitNodeAreReadAndWhatIsChosenIsKept() {
-        source.nodes = listOf(AetherExitNode("guid-1", "germany"))
+        source.nodes = listOf(AetherExitNode("germany", 1))
         val viewModel = viewModel()
         assertEquals(source.nodes, viewModel.exitNodes.value)
 
-        viewModel.setExitNode("guid-1")
+        viewModel.setExitNode("germany")
         viewModel.setFragment(true)
         viewModel.setFragmentSize("8-16")
         viewModel.setFragmentDelay("5")
-        val kept = AetherKeysSettings(exitNode = "guid-1", fragment = true, fragmentSize = "8-16", fragmentDelay = "5")
+        val kept = AetherKeysSettings(exitNode = "germany", fragment = true, fragmentSize = "8-16", fragmentDelay = "5")
         assertEquals(kept, viewModel.settings)
         assertEquals(kept, source.saved.last())
         viewModel.setExitNode("")
@@ -246,20 +248,28 @@ class AetherKeysViewModelTest {
     }
 
     @Test
-    fun aRunDoesNotDialOutThroughAnExitNodeProfileThatIsGone() {
-        source.stored = AetherKeysSettings(exitNode = "guid-1")
+    fun aRunDoesNotDialOutThroughAnExitNodeNameThatFindsNoProfileOrSeveral() {
+        source.stored = AetherKeysSettings(exitNode = " germany ")
         val viewModel = viewModel()
 
+        // Renamed or deleted since the page opened.
         viewModel.getKeys()
-        assertEquals(AetherKeysNotice.Invalid(R.string.aether_exit_node_unusable), viewModel.notice.value)
+        assertEquals(AetherKeysNotice.Invalid(R.string.toast_profile_name_not_found, listOf("germany")), viewModel.notice.value)
         assertTrue(source.runs.isEmpty())
         assertFalse(viewModel.isRenewing.value)
 
-        // Once it gives an exit-node, the run dials out through it.
+        // The name of two profiles by now.
         viewModel.onNoticeShown()
-        source.usable += "guid-1"
+        source.found["germany"] = ExitNodeOutbound.SameName
         viewModel.getKeys()
-        assertEquals(AetherExit(node = "guid-1"), source.runs.single().exit)
+        assertEquals(AetherKeysNotice.Invalid(R.string.toast_profile_name_duplicate, listOf("germany")), viewModel.notice.value)
+        assertTrue(source.runs.isEmpty())
+
+        // Once one profile has it, the run dials out through it.
+        viewModel.onNoticeShown()
+        source.found["germany"] = ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = "proxy", protocol = "vless"))
+        viewModel.getKeys()
+        assertEquals(AetherExit(node = "germany"), source.runs.single().exit)
     }
 
     @Test

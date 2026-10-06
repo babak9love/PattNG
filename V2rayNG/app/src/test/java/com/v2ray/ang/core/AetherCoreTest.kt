@@ -88,14 +88,14 @@ class AetherCoreTest {
         val masked = profile { finalMask = """{"tcp": []}"""; dialMode = "code-1" }
         assertEquals(AetherExit("""{"tcp": []}""", "code-1"), AetherExit.of(masked))
         // With a node, the finalMask and the dialMode are out of use.
-        val noded = masked.copy(aetherExitNode = "guid-1")
-        assertEquals(AetherExit(node = "guid-1"), AetherExit.of(noded))
-        assertEquals(AetherExit(node = "guid-1"), AetherCore.of(noded).exit)
+        val noded = masked.copy(aetherExitNode = " germany ")
+        assertEquals(AetherExit(node = "germany"), AetherExit.of(noded))
+        assertEquals(AetherExit(node = "germany"), AetherCore.of(noded).exit)
         assertEquals(AetherCore.of(masked).arguments, AetherCore.of(noded).arguments)
         assertEquals(AetherExit.of(masked), AetherExit.of(masked.copy(aetherExitNode = " ")))
         // The node tells exits apart.
-        assertNotEquals(AetherExit.PLAIN.key, AetherExit(node = "guid-1").key)
-        assertNotEquals(AetherExit(node = "guid-1").key, AetherExit(node = "guid-2").key)
+        assertNotEquals(AetherExit.PLAIN.key, AetherExit(node = "germany").key)
+        assertNotEquals(AetherExit(node = "germany").key, AetherExit(node = "france").key)
         // The key of an exit without one is what it was before nodes.
         fun digest(text: String) =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
@@ -111,9 +111,27 @@ class AetherCoreTest {
         for (type in listOf(EConfigType.AETHER, EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)) {
             assertFalse(AetherExit.takesAsNode(ProfileItem.create(type)), type.name)
         }
-        // A list names a profile by its remarks, or by its type and address without them.
-        assertEquals("germany", AetherExit.nameOf(ProfileItem.create(EConfigType.VLESS).apply { remarks = " germany " }))
-        assertEquals("VLESS 1.2.3.4:443", AetherExit.nameOf(ProfileItem.create(EConfigType.VLESS).apply { remarks = ""; server = "1.2.3.4"; serverPort = "443" }))
+    }
+
+    @Test
+    fun theNamesOfTheProfilesThatCanBeTheExitNodeAreListedOnceWithHowManyHaveThem() {
+        fun named(type: EConfigType, name: String) = ProfileItem.create(type).apply { remarks = name }
+        val profiles = sequenceOf(
+            named(EConfigType.VLESS, " germany "),
+            named(EConfigType.TROJAN, "france"),
+            named(EConfigType.VMESS, "germany"),
+            // An Aether profile, or a group, has a name no exit-node is found by.
+            named(EConfigType.AETHER, "france"),
+            named(EConfigType.POLICYGROUP, "spain"),
+            // Nothing names a profile without a name.
+            named(EConfigType.SOCKS, "  "),
+            named(EConfigType.HTTP, "italy"),
+        )
+        assertEquals(
+            listOf(AetherExitNode("germany", 2), AetherExitNode("france", 1), AetherExitNode("italy", 1)),
+            AetherExit.nodesOf(profiles),
+        )
+        assertEquals(emptyList<AetherExitNode>(), AetherExit.nodesOf(emptySequence()))
     }
 
     @Test

@@ -16,7 +16,12 @@ data class CoreConfigContext(
         val profile: ProfileItem,
         val resolvedProfiles: List<ProfileItem>,
         val resolvedType: CoreResolvedType,
+        /** PattNG: a hop the proxy chain names that no profile has, or several have; the configuration is refused for it. */
+        val unresolvedHop: UnresolvedName? = null,
     )
+
+    /** PattNG: a [name] that finds no profile, or, with [several], more than one, see [ByName]. */
+    data class UnresolvedName(val name: String, val several: Boolean)
 
     data class RoutingDomainRule(
         val domain: List<String>,

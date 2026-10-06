@@ -43,6 +43,7 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext, routeAether = true)
             }
+            unresolvedHopFailure(context, guid, configContext.resolvedOutbounds)?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds)
             aetherFailure(context, guid, dependency)?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
@@ -51,7 +52,7 @@ object CoreConfigManager {
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
                 if (lacksChainHop(it, v2rayConfig.outbounds)) return chainHopFailure(context, guid)
-                if (lacksExitNode(it, v2rayConfig.outbounds)) return exitNodeFailure(context, guid)
+                exitNodeProblem(it, v2rayConfig.outbounds)?.let { problem -> return exitNodeFailure(context, guid, it, problem) }
                 routeAetherThroughXray(v2rayConfig, it, secondaryPort) ?: return secondaryPortFailure(context, guid, secondaryPort)
             }
             return toConfigResult(context, configContext, v2rayConfig, core)
@@ -83,6 +84,7 @@ object CoreConfigManager {
                 return buildV2rayCustomConfig(configContext)
             }
             // Only the primary outbound is measured; the routing outbounds lose their rules below.
+            unresolvedHopFailure(context, guid, configContext.resolvedOutbounds.take(1))?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
@@ -94,7 +96,7 @@ object CoreConfigManager {
             // which a test may measure through, through the session's inbound.
             val core = (dependency as? AetherDependency.Single)?.core
             if (core != null && lacksChainHop(core, v2rayConfig.outbounds)) return chainHopFailure(context, guid)
-            if (core != null && lacksExitNode(core, v2rayConfig.outbounds)) return exitNodeFailure(context, guid)
+            if (core != null) exitNodeProblem(core, v2rayConfig.outbounds)?.let { return exitNodeFailure(context, guid, core, it) }
             return toConfigResult(context, configContext, v2rayConfig, core)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config for speedtest", e)
@@ -575,14 +577,14 @@ object CoreConfigManager {
      * profile's finalMask and dialMode; and a rule ahead of every other that sends what comes in on that
      * inbound out by that outbound. Returns the core told to dial out through the inbound, or null, with
      * nothing added, when an inbound of the configuration listens on [port] already, or when the node
-     * gives no outbound, which [lacksExitNode] tells first. A core that names an upstream of its own, as
-     * a profile's hand-written command may, is left as it is.
+     * gives none, which [exitNodeProblem] tells first. A core that names an upstream of its own, as a
+     * profile's hand-written command may, is left as it is.
      */
     internal fun routeAetherThroughXray(
         v2rayConfig: V2rayConfig,
         core: AetherCore,
         port: Int,
-        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
+        nodeOutbound: (String) -> ExitNodeOutbound = CoreOutboundBuilder::toOutboundOfNode,
     ): AetherCore? {
         if (core.hasUpstream) return core
         if (v2rayConfig.inbounds.any { it.port == port }) return null
@@ -649,26 +651,48 @@ object CoreConfigManager {
         core.exit.hops != null && outbounds.none { it.tag == AppConfig.TAG_EXIT_NODE }
 
     /**
-     * PattNG: true when [core] dials out through a profile chosen as its exit-node, see [AetherExit.node],
-     * and neither do [outbounds] have the exit-node already, as a chain's hop would be, nor does the node
-     * give one, which [nodeOutbound] tells: it is gone, can be none, or gives no outbound. The core would
-     * reach the internet without it. A core that names an upstream of its own dials out through no exit-node.
+     * PattNG: why [core], which dials out through a profile chosen as its exit-node, see [AetherExit.node],
+     * cannot, as [nodeOutbound] tells: no profile has its name any more, several have it, or it gives no
+     * outbound. Null when it can, and when the node does not count: [outbounds] have the exit-node already,
+     * as a chain's hop would be, or the core names an upstream of its own and dials out through no exit-node.
+     * The core would reach the internet without its exit-node otherwise.
      */
-    internal fun lacksExitNode(
+    internal fun exitNodeProblem(
         core: AetherCore,
         outbounds: List<V2rayConfig.OutboundBean>,
-        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
-    ): Boolean =
-        !core.hasUpstream && core.exit.node != null && outbounds.none { it.tag == AppConfig.TAG_EXIT_NODE } &&
-            CoreOutboundBuilder.toOutboundAetherExit(core.exit, nodeOutbound) == null
+        nodeOutbound: (String) -> ExitNodeOutbound = CoreOutboundBuilder::toOutboundOfNode,
+    ): ExitNodeOutbound.Problem? {
+        val name = core.exit.node ?: return null
+        if (core.hasUpstream || outbounds.any { it.tag == AppConfig.TAG_EXIT_NODE }) return null
+        return nodeOutbound(name) as? ExitNodeOutbound.Problem
+    }
 
-    /** PattNG: see [lacksExitNode], as a failure whose message is meant for the screen. */
-    private fun exitNodeFailure(context: Context, guid: String): ConfigResult {
-        LogUtil.w(AppConfig.TAG, "The exit-node profile the Aether core dials out through is gone or gives no outbound, guid=$guid")
+    /** PattNG: see [exitNodeProblem], as a failure whose message, which names the exit-node of [core], is meant for the screen. */
+    private fun exitNodeFailure(context: Context, guid: String, core: AetherCore, problem: ExitNodeOutbound.Problem): ConfigResult {
+        LogUtil.w(AppConfig.TAG, "The exit-node profile the Aether core dials out through gives no exit-node ($problem), guid=$guid")
         return ConfigResult(
             status = false,
             guid = guid,
-            errorMessage = context.getString(R.string.aether_exit_node_unusable),
+            errorMessage = context.getString(problem.message, core.exit.node.orEmpty()),
+            localizedError = true,
+        )
+    }
+
+    /**
+     * PattNG: a proxy chain of [outbounds] that names a hop no profile has any more, as after it was renamed or
+     * deleted, or one several have, see [CoreConfigContext.ResolvedOutbound.unresolvedHop], as a failure whose
+     * message, which names it, is meant for the screen; null when every hop is found.
+     */
+    private fun unresolvedHopFailure(context: Context, guid: String, outbounds: List<CoreConfigContext.ResolvedOutbound>): ConfigResult? {
+        val hop = outbounds.firstNotNullOfOrNull { it.unresolvedHop } ?: return null
+        LogUtil.w(AppConfig.TAG, "A proxy chain names a hop that ${if (hop.several) "several profiles have" else "no profile has"}, guid=$guid")
+        return ConfigResult(
+            status = false,
+            guid = guid,
+            errorMessage = context.getString(
+                if (hop.several) R.string.toast_profile_name_duplicate else R.string.toast_profile_name_not_found,
+                hop.name,
+            ),
             localizedError = true,
         )
     }

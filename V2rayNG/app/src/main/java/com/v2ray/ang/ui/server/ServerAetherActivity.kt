@@ -642,11 +642,11 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
-        // A profile chosen as the exit-node that is gone by now: the core would reach WARP without it. Until the
-        // profiles are read, nothing is told.
-        val node = config.aetherExitNode
-        if (!node.isNullOrBlank() && viewModel.exitNodes.value?.none { it.guid == node } == true) {
-            toast(R.string.aether_exit_node_unusable)
+        // A profile chosen as the exit-node that no profile is named after any more, or several are: the core would
+        // reach WARP without it. Until the profiles are read, nothing is told.
+        val node = config.aetherExitNode.orEmpty().trim()
+        problemOfExitNode(node, viewModel.exitNodes.value)?.let { problem ->
+            toast(getString(problem.message, node))
             return false
         }
         // The core cannot listen where the local proxy of the app does, nor where the inbound it dials out

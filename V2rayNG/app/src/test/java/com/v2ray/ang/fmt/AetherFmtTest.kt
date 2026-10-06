@@ -939,10 +939,10 @@ class AetherFmtTest {
 
     @Test
     fun aLinkCarriesNoExitNodeProfile() {
-        // The guid is this device's alone; a link elsewhere would name nothing there.
-        val noded = profile { aetherExitNode = "guid-1" }
+        // The name is that of a profile of this device; a link elsewhere would name another there, or none.
+        val noded = profile { aetherExitNode = "germany" }
         val text = link(noded)
-        assertFalse(text.contains("guid-1"), text)
+        assertFalse(text.contains("germany"), text)
         assertEquals(link(profile { }), text)
         assertNull(AetherFmt.parse(text)?.aetherExitNode)
     }
