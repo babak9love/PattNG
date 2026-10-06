@@ -590,6 +590,7 @@
     <string name="aether_lab_wiw_outer">外层节点</string>
     <string name="aether_lab_wiw_inner">内层节点</string>
     <string name="aether_hint_endpoint">留空则自动扫描</string>
+    <string name="aether_hint_gool_peer">留空则使用 WARP 分配的端点</string>
     <string name="aether_action_scan">扫描服务器</string>
     <string name="aether_action_scanning">扫描中…</string>
     <string name="aether_scan_success">已找到服务器</string>

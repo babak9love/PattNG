@@ -76,6 +76,10 @@ class AetherCoreTest {
         val mim = AetherCore.of(profile { aetherProtocol = AetherProtocol.MIM.type; aetherWiwInner = "188.114.96.1:443" })
         assertEquals(mim, AetherCore.ofCommand(mim.command))
         assertEquals(AetherProtocol.MIM, AetherCore.ofCommand(mim.command)!!.protocol)
+
+        val goolOverMasque = AetherCore.of(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherWiwInner = "162.159.192.1:2408" })
+        assertEquals(goolOverMasque, AetherCore.ofCommand(goolOverMasque.command))
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCore.ofCommand(goolOverMasque.command)!!.protocol)
     }
 
     @Test
@@ -84,7 +88,9 @@ class AetherCoreTest {
         val core = AetherCore.ofCommand("aether --gool --scan balanced --bind 127.0.0.1:20808 --dns 1.1.1.1")!!
         assertEquals(listOf("--gool", "--scan", "balanced", "--bind", "127.0.0.1:20808", "--dns", "1.1.1.1"), core.arguments)
         assertEquals(20808, core.port)
-        assertEquals(AetherProtocol.GOOL, core.protocol)
+        // Gool is WireGuard over MASQUE to the core, unless something makes it the classic gool.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, core.protocol)
+        assertEquals(AetherProtocol.GOOL, AetherCore.ofCommand("aether --gool --gool-classic --bind 127.0.0.1:20808")!!.protocol)
     }
 
     @Test
@@ -216,7 +222,8 @@ class AetherCoreTest {
         assertEquals(listOf("WIREGUARD", "PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "chain")).path)
         assertEquals(listOf("PSIPHON"), AetherCore.of(pinned.copy(aetherPsiphon = "only")).path)
         assertEquals(listOf("TOR", "MASQUE"), AetherCore.of(pinned.copy(aetherProtocol = "masque", aetherTor = "reverse")).path)
-        assertEquals(listOf("GOOL", "TOR"), AetherCore.ofCommand("aether --gool --tor")!!.path)
+        assertEquals(listOf("WG_OVER_MASQUE", "TOR"), AetherCore.ofCommand("aether --gool --tor")!!.path)
+        assertEquals(listOf("GOOL", "TOR"), AetherCore.ofCommand("aether --gool-classic --tor")!!.path)
     }
 
     @Test

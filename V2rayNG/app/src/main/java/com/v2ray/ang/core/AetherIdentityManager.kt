@@ -44,6 +44,13 @@ object AetherIdentityManager {
     const val WIREGUARD_FILE = "aether-wg.toml"
     const val WIREGUARD_INNER_FILE = "aether-wg-secondary.toml"
 
+    /**
+     * The WireGuard key of WireGuard over MASQUE, beside [MASQUE_FILE] as the core names it. The core registers it
+     * through the MASQUE tunnel, from inside WARP, on the first scan or connection without it: no --register writes
+     * it, so it is none of [KEY_FILES], and no renewal touches it.
+     */
+    const val MASQUE_GOOL_FILE = "aether-masque-gool.toml"
+
     /** The key files of every kind, in the order the core registers them. */
     internal val KEY_FILES = listOf(WIREGUARD_FILE, WIREGUARD_INNER_FILE, MASQUE_FILE, MASQUE_INNER_FILE)
 
@@ -183,6 +190,12 @@ object AetherIdentityManager {
             read(File(workDir, MASQUE_FILE)),
             read(File(workDir, MASQUE_INNER_FILE)),
         )
+
+        AetherProtocol.WG_OVER_MASQUE -> AetherIdentityStatus(
+            protocol,
+            read(File(workDir, MASQUE_FILE)),
+            read(File(workDir, MASQUE_GOOL_FILE)),
+        )
     }
 
     /** The key files a registration of [kind] writes, in the order of [KEY_FILES]. */
@@ -200,17 +213,19 @@ object AetherIdentityManager {
         AetherProtocol.WIREGUARD -> listOf(WIREGUARD_FILE)
         AetherProtocol.GOOL -> listOf(WIREGUARD_FILE, WIREGUARD_INNER_FILE)
         AetherProtocol.MIM -> listOf(MASQUE_FILE, MASQUE_INNER_FILE)
+        AetherProtocol.WG_OVER_MASQUE -> listOf(MASQUE_FILE, MASQUE_GOOL_FILE)
     }
 
     /**
-     * The key files a core on [arguments] needs: those of the protocol they run, read as the core reads it, and none
-     * when they run Psiphon or Tor alone, with no WARP tunnel.
+     * The key files a core on [arguments] needs that the WARP keys page gets: those of the protocol they run, read as
+     * the core reads it, and none when they run Psiphon or Tor alone, with no WARP tunnel. The WireGuard key of
+     * WireGuard over MASQUE is not among them; only the core can register it, see [MASQUE_GOOL_FILE].
      */
     fun filesNeededBy(arguments: List<String>): List<String> =
         if (AetherCoreManager.psiphonModeOf(arguments) == AetherPsiphon.ONLY || AetherCoreManager.torModeOf(arguments) == AetherTor.ONLY) {
             emptyList()
         } else {
-            filesOf(AetherCoreManager.protocolOf(arguments))
+            filesOf(AetherCoreManager.protocolOf(arguments)).filter { it in KEY_FILES }
         }
 
     /** Which of [files] the identity folder lacks: not there, or not readable as a key. */
@@ -241,7 +256,10 @@ object AetherIdentityManager {
         return AetherIdentity(deviceId, fields["ipv4"].orEmpty(), fields["ipv6"].orEmpty())
     }
 
-    /** The tunnels over MASQUE share the MASQUE key and the others the WireGuard key; a two-hop tunnel adds a second key of its kind. */
+    /**
+     * The tunnels over MASQUE share the MASQUE key and the others the WireGuard key; a two-hop tunnel adds a second key, of its
+     * kind or, for WireGuard over MASQUE, a WireGuard key of its own, which no other tunnel uses.
+     */
     fun sharesIdentity(first: AetherProtocol, second: AetherProtocol): Boolean =
         first.overMasque == second.overMasque
 

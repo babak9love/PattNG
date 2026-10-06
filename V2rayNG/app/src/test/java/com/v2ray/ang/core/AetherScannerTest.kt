@@ -91,6 +91,36 @@ class AetherScannerTest {
     }
 
     @Test
+    fun wireGuardOverMasqueEndsOnItsReadyLineWithTheGatewayAlone() {
+        // The gateway is named first, then the tunnel comes up and the WireGuard inside it; only that ends the scan.
+        assertNull(AetherScanner.parse(AetherProtocol.WG_OVER_MASQUE, logLine("[+] selected MASQUE gateway 162.159.197.3:443 (rtt 84ms)")))
+        assertNull(AetherScanner.parse(AetherProtocol.WG_OVER_MASQUE, logLine("[+] using cloudflare edge 162.159.197.3:443")))
+        val found = AetherScanner.parse(
+            AetherProtocol.WG_OVER_MASQUE,
+            logLine("[+] gool ready: masque 162.159.197.3:443 carries wireguard 162.159.192.1:2408")
+        )
+        assertEquals(AetherEndpoint("162.159.197.3", 443), found?.endpoint)
+        // The WireGuard endpoint is the profile's own, which the scan kept, and no finding of its.
+        assertNull(found?.innerHop)
+        val ipv6 = AetherScanner.parse(
+            AetherProtocol.WG_OVER_MASQUE,
+            logLine("[+] gool ready: masque [2606:4700:102::3]:443 carries wireguard [2606:4700:d0::a29f:c001]:2408")
+        )
+        assertEquals(AetherEndpoint("2606:4700:102::3", 443), ipv6?.endpoint)
+        // The core says it is ready after it has checked the exit, so the line stands on its own.
+        val ruled = AetherScanner.matcher(AetherProtocol.WG_OVER_MASQUE, exitRuled = true)
+        assertNull(ruled(logLine("[+] selected MASQUE gateway 162.159.197.3:443 (rtt 84ms)")))
+        assertNull(ruled(logLine("[+] exit location DE accepted (not IR)")))
+        assertEquals(
+            AetherEndpoint("162.159.197.3", 443),
+            ruled(logLine("[+] gool ready: masque 162.159.197.3:443 carries wireguard 162.159.192.1:2408"))?.endpoint
+        )
+        // Nor does another protocol take it.
+        assertNull(AetherScanner.parse(AetherProtocol.GOOL, logLine("[+] gool ready: masque 162.159.197.3:443 carries wireguard 162.159.192.1:2408")))
+        assertNull(AetherScanner.parse(AetherProtocol.MASQUE, logLine("[+] gool ready: masque 162.159.197.3:443 carries wireguard 162.159.192.1:2408")))
+    }
+
+    @Test
     fun withAnExitRuleTheScanEndsOnTheEndpointWhoseExitTheCoreAccepted() {
         val match = AetherScanner.matcher(AetherProtocol.MASQUE, exitRuled = true)
         assertNull(match(logLine("[+] selected MASQUE gateway 162.159.197.3:443 (rtt 84ms)")))

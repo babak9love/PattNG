@@ -253,7 +253,7 @@ class ServerAetherViewModelTest {
 
     @Test
     fun aTwoHopProtocolReportsBothHopKeys() {
-        for (protocol in listOf(AetherProtocol.GOOL, AetherProtocol.MIM)) {
+        for (protocol in listOf(AetherProtocol.GOOL, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
             val status = AetherIdentityStatus(protocol, oldKey, null)
 
             assertEquals(
@@ -425,6 +425,11 @@ class ServerAetherViewModelTest {
         assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
         viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
         assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+
+        // WireGuard over MASQUE needs the MASQUE key alone: the core registers the WireGuard key inside the tunnel itself.
+        source.missingFiles += AetherIdentityManager.MASQUE_GOOL_FILE
+        viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type))
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
 
         // A command written by hand counts as it runs.
         source.missingFiles += AetherIdentityManager.WIREGUARD_FILE

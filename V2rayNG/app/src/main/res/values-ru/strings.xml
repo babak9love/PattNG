@@ -596,6 +596,7 @@
     <string name="aether_lab_wiw_outer">Внешний узел</string>
     <string name="aether_lab_wiw_inner">Внутренний узел</string>
     <string name="aether_hint_endpoint">Оставьте пустым для сканирования</string>
+    <string name="aether_hint_gool_peer">Оставьте пустым, чтобы использовать узел, назначенный WARP</string>
     <string name="aether_action_scan">Найти сервер</string>
     <string name="aether_action_scanning">Сканирование…</string>
     <string name="aether_scan_success">Сервер найден</string>

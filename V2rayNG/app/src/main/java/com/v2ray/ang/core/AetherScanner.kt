@@ -20,6 +20,7 @@ object AetherScanner {
     private val wireguardEndpoint = Regex("""selected WireGuard endpoint (\S+)""")
     private val goolHops = Regex("""using cloudflare edge (\S+) \(outer\) and (\S+) \(inner\)""")
     private val mimHops = Regex("""masque-in-masque ready: (\S+) \(outer\) and (\S+) \(inner\)""")
+    private val goolOverMasqueReady = Regex("""gool ready: masque (\S+) carries wireguard (\S+)""")
     private val exitAccepted = Regex("""exit location \S+ accepted""")
     private val exitRejected = Regex("""exit location \S+ rejected""")
 
@@ -45,10 +46,11 @@ object AetherScanner {
      * What ends a scan, line by line. Without an exit rule, the line that names the endpoint. With
      * one, the core names its endpoint before it checks the exit behind it and looks again when the
      * rule refuses it, so the endpoint named last counts only once the core has accepted its exit.
-     * Masque-in-masque names its hops after that check, so its line stands on its own either way.
+     * Masque-in-masque and WireGuard over MASQUE say they are ready after that check, so their line
+     * stands on its own either way.
      */
     internal fun matcher(protocol: AetherProtocol, exitRuled: Boolean): (String) -> AetherScanResult? {
-        if (!exitRuled || protocol == AetherProtocol.MIM) return { line -> parse(protocol, line) }
+        if (!exitRuled || protocol == AetherProtocol.MIM || protocol == AetherProtocol.WG_OVER_MASQUE) return { line -> parse(protocol, line) }
         var named: AetherScanResult? = null
         return { line ->
             val found = parse(protocol, line)
@@ -74,6 +76,8 @@ object AetherScanner {
         AetherProtocol.MIM -> hopsOf(mimHops, line)
         AetherProtocol.MASQUE -> masqueGateway.find(line)?.let { endpointOf(it.groupValues[1]) }?.let(::AetherScanResult)
         AetherProtocol.WIREGUARD -> wireguardEndpoint.find(line)?.let { endpointOf(it.groupValues[1]) }?.let(::AetherScanResult)
+        // Once the whole tunnel carries, the gateway alone: the WireGuard endpoint inside it is the profile's, which the scan kept.
+        AetherProtocol.WG_OVER_MASQUE -> goolOverMasqueReady.find(line)?.let { endpointOf(it.groupValues[1]) }?.let(::AetherScanResult)
     }
 
     private fun hopsOf(hops: Regex, line: String): AetherScanResult? = hops.find(line)?.let { match ->

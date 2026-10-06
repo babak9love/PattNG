@@ -590,6 +590,7 @@
     <string name="aether_lab_wiw_outer">Chặng ngoài</string>
     <string name="aether_lab_wiw_inner">Chặng trong</string>
     <string name="aether_hint_endpoint">Để trống để quét</string>
+    <string name="aether_hint_gool_peer">Để trống để dùng endpoint do WARP cấp</string>
     <string name="aether_action_scan">Tìm máy chủ</string>
     <string name="aether_action_scanning">Đang quét…</string>
     <string name="aether_scan_success">Đã tìm thấy máy chủ</string>

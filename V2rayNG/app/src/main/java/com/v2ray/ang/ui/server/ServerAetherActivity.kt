@@ -462,7 +462,10 @@ class ServerAetherActivity : BaseServerActivity() {
                         stringResource(R.string.aether_lab_wiw_inner),
                         uiState.aetherWiwInner,
                         { uiState.aetherWiwInner = it },
-                        placeholder = stringResource(R.string.aether_hint_endpoint)
+                        // No scan looks for the WireGuard endpoint inside the MASQUE tunnel; blank, it is the one WARP assigns.
+                        placeholder = stringResource(
+                            if (protocol == AetherProtocol.WG_OVER_MASQUE) R.string.aether_hint_gool_peer else R.string.aether_hint_endpoint
+                        )
                     )
                 } else {
                     FormTextField(
@@ -656,7 +659,8 @@ class ServerAetherActivity : BaseServerActivity() {
     private fun applyScanResult(state: ServerUiState, result: AetherScanResult) {
         if (AetherProtocol.fromString(state.aetherProtocol).twoHops) {
             state.aetherWiwOuter = result.endpoint.toString()
-            state.aetherWiwInner = result.innerHop?.toString().orEmpty()
+            // WireGuard over MASQUE finds its gateway alone, and keeps the WireGuard endpoint it scanned with.
+            result.innerHop?.let { state.aetherWiwInner = it.toString() }
         } else {
             state.address = result.endpoint.host
             state.port = result.endpoint.port.toString()

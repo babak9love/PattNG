@@ -206,7 +206,7 @@ class AetherDependencyTest {
         val core = coreOf(dependency)
         assertEquals(listOf("--gool", "--scan", "balanced", "--bind", "127.0.0.1:20808"), core.arguments)
         assertEquals(20808, core.port)
-        assertEquals(AetherProtocol.GOOL, core.protocol)
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, core.protocol)
     }
 
     @Test

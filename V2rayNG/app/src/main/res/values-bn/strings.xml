@@ -592,6 +592,7 @@
     <string name="aether_lab_wiw_outer">বাইরের হপ</string>
     <string name="aether_lab_wiw_inner">ভিতরের হপ</string>
     <string name="aether_hint_endpoint">স্ক্যান করতে খালি রাখুন</string>
+    <string name="aether_hint_gool_peer">WARP যে এন্ডপয়েন্ট দেয় সেটি ব্যবহার করতে খালি রাখুন</string>
     <string name="aether_action_scan">সার্ভার খুঁজুন</string>
     <string name="aether_action_scanning">স্ক্যান করা হচ্ছে…</string>
     <string name="aether_scan_success">সার্ভার পাওয়া গেছে</string>

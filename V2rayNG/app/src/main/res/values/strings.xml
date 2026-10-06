@@ -593,11 +593,12 @@
     <string name="aether_lab_fragment">Fragment ClientHello</string>
     <string name="aether_lab_fragment_size">Fragment size (bytes)</string>
     <string name="aether_lab_fragment_delay">Fragment delay (ms)</string>
-    <string name="aether_hint_fragment_size" translatable="false">16-32</string>
+    <string name="aether_hint_fragment_size" translatable="false">8-16</string>
     <string name="aether_hint_fragment_delay" translatable="false">2-10</string>
     <string name="aether_lab_wiw_outer">Outer hop</string>
     <string name="aether_lab_wiw_inner">Inner hop</string>
     <string name="aether_hint_endpoint">Leave blank to scan</string>
+    <string name="aether_hint_gool_peer">Leave blank for the endpoint WARP assigns</string>
     <string name="aether_action_scan">Scan for an endpoint</string>
     <string name="aether_action_scanning">Scanning…</string>
     <string name="aether_scan_success">Endpoint found</string>

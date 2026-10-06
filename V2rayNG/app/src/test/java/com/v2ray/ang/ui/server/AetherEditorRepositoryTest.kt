@@ -47,6 +47,19 @@ class AetherEditorRepositoryTest {
         assertFalse(gool.usesKeysOf(AetherKeyKind.MASQUE))
         assertFalse(gool.usesKeysOf(AetherKeyKind.MIM))
 
+        // WireGuard over MASQUE uses the MASQUE key outside; its WireGuard key is no kind's.
+        val goolOverMasque = AetherSession(AetherProtocol.WG_OVER_MASQUE)
+        assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.ALL))
+        assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.MASQUE))
+        assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.MIM))
+        assertFalse(goolOverMasque.usesKeysOf(AetherKeyKind.WIREGUARD))
+        assertFalse(goolOverMasque.usesKeysOf(AetherKeyKind.GOOL))
+        // Its scan opens a second tunnel on the MASQUE key, and only that disturbs it.
+        assertTrue(goolOverMasque.disturbedByScanOf(AetherProtocol.MASQUE))
+        assertTrue(masque.disturbedByScanOf(AetherProtocol.WG_OVER_MASQUE))
+        assertFalse(goolOverMasque.disturbedByScanOf(AetherProtocol.WIREGUARD))
+        assertFalse(gool.disturbedByScanOf(AetherProtocol.WG_OVER_MASQUE))
+
         // Only the listener was seen, so the session may use any key.
         val unknown = AetherSession(protocol = null)
         AetherKeyKind.entries.forEach { assertTrue(unknown.usesKeysOf(it), it.type) }

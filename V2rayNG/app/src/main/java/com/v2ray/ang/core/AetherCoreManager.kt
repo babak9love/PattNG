@@ -314,7 +314,10 @@ object AetherCoreManager {
         return buildList {
             addAll(listOf("--bind", "${AppConfig.LOOPBACK}:$own"))
             if (psiphon != AetherPsiphon.ONLY && tor != AetherTor.ONLY) {
-                addAll(listOf("--protocol", protocol.type))
+                addAll(listOf("--protocol", protocol.core))
+                // gool has meant WireGuard over MASQUE since aether 2.3.0; WARP-in-WARP is the classic gool, asked for
+                // by name rather than left to the hop settings that select it as well.
+                if (protocol == AetherProtocol.GOOL) add("--gool-classic")
                 addAll(listOf("--scan", AetherScanMode.fromString(profile.aetherScanMode).type))
                 // Automatic obfuscation is the core's own choice per protocol, so nothing is said about it; MASQUE over
                 // HTTP/2 takes none at all, since obfuscation shapes the UDP of WireGuard and HTTP/3 alone.
@@ -335,6 +338,9 @@ object AetherCoreManager {
                             ?.let { addAll(listOf("--fragment-size", it.toString())) }
                         AetherRange.parse(profile.aetherFragmentDelay, AetherRange.FRAGMENT_DELAY)
                             ?.let { addAll(listOf("--fragment-delay", it.toString())) }
+                    } else {
+                        // Said rather than left to the core, whose help has called fragmenting its default since 2.3.0.
+                        add("--no-fragment")
                     }
                 }
                 // Encrypted Client Hello hides the server name of the MASQUE handshake, on either carrier and both hops,
@@ -348,7 +354,13 @@ object AetherCoreManager {
                 // over HTTP/3, which carries TLS 1.3 alone, only its GREASE shows.
                 if (protocol.overMasque) addAll(AetherFingerprint.fromString(profile.aetherFingerprint).arguments)
 
-                if (protocol.twoHops) {
+                if (protocol == AetherProtocol.WG_OVER_MASQUE) {
+                    // The outer hop is a MASQUE gateway, which a scan looks for afresh. The inner one is the WireGuard
+                    // endpoint dialled inside the tunnel, the one WARP assigned the key unless one is named; no scan looks
+                    // for it, so a scan keeps the profile's own and finds a gateway that works with it.
+                    AetherEndpoint.parse(profile.aetherWiwOuter).takeUnless { scan }?.let { addAll(listOf("--peer", it.toString())) }
+                    AetherEndpoint.parse(profile.aetherWiwInner)?.let { addAll(listOf("--gool-peer", it.toString())) }
+                } else if (protocol.twoHops) {
                     val hop = if (protocol == AetherProtocol.MIM) "--mim" else "--wiw"
                     val outer = AetherEndpoint.parse(profile.aetherWiwOuter).takeUnless { scan }
                     val inner = AetherEndpoint.parse(profile.aetherWiwInner).takeUnless { scan }
@@ -1127,36 +1139,60 @@ object AetherCoreManager {
     /**
      * The protocol [argv] selects, read the way the core reads it: the last of --protocol and the
      * protocol flags wins, a hop named without any of them selects the two-hop protocol it belongs
-     * to, warp-in-warp before masque-in-masque, and nothing at all is masque.
+     * to, warp-in-warp before masque-in-masque, and nothing at all is masque. Gool is WireGuard over
+     * MASQUE unless --gool-classic or a warp-in-warp hop setting, a scan of the hops included, makes
+     * it WARP-in-WARP, the classic gool, wherever they stand.
      */
     internal fun protocolOf(argv: List<String>): AetherProtocol {
         var chosen: AetherProtocol? = null
         var wiwHopNamed = false
         var mimHopNamed = false
+        var classicGool = false
         for ((index, word) in argv.withIndex()) {
+            val value = argv.getOrNull(index + 1)
             when (word) {
-                "--protocol" -> chosen = argv.getOrNull(index + 1)?.let(::protocolNamed) ?: chosen
+                "--protocol" -> chosen = value?.let(::protocolNamed) ?: chosen
                 "--masque" -> chosen = AetherProtocol.MASQUE
                 "--wg", "--wireguard", "--warp" -> chosen = AetherProtocol.WIREGUARD
-                "--gool", "--wiw" -> chosen = AetherProtocol.GOOL
+                "--gool", "--wiw", "--gool-peer" -> chosen = AetherProtocol.WG_OVER_MASQUE
+                "--gool-classic" -> {
+                    chosen = AetherProtocol.WG_OVER_MASQUE
+                    classicGool = true
+                }
                 "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MIM
-                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> wiwHopNamed = true
-                "--wiw-peers", "--gool-peers" -> if (namesHops(argv.getOrNull(index + 1))) wiwHopNamed = true
+                // A blank value sets nothing for the core.
+                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> if (!value.isNullOrBlank()) {
+                    wiwHopNamed = true
+                    classicGool = true
+                }
+                "--wiw-peers", "--gool-peers" -> if (!value.isNullOrBlank()) {
+                    if (namesHops(value)) wiwHopNamed = true
+                    classicGool = true
+                }
+                "--wiw-scan", "--gool-scan" -> classicGool = true
                 "--mim-outer", "--mim-inner" -> mimHopNamed = true
-                "--mim-peers" -> if (namesHops(argv.getOrNull(index + 1))) mimHopNamed = true
+                "--mim-peers" -> if (namesHops(value)) mimHopNamed = true
             }
         }
-        return chosen ?: when {
-            wiwHopNamed -> AetherProtocol.GOOL
-            mimHopNamed -> AetherProtocol.MIM
-            else -> AetherProtocol.MASQUE
+        return when (chosen) {
+            AetherProtocol.WG_OVER_MASQUE -> if (classicGool) AetherProtocol.GOOL else AetherProtocol.WG_OVER_MASQUE
+            null -> when {
+                wiwHopNamed -> AetherProtocol.GOOL
+                mimHopNamed -> AetherProtocol.MIM
+                else -> AetherProtocol.MASQUE
+            }
+
+            else -> chosen
         }
     }
 
-    /** The protocol the core selects for [name] after --protocol, under any of the names it accepts. */
+    /**
+     * The protocol the core selects for [name] after --protocol, under any of the names it accepts; gool is WireGuard
+     * over MASQUE until [protocolOf] finds what makes it the classic one.
+     */
     private fun protocolNamed(name: String): AetherProtocol = when (name.trim().lowercase(Locale.US)) {
         "wg", "wireguard" -> AetherProtocol.WIREGUARD
-        "gool", "wiw", "warp-in-warp", "warpinwarp" -> AetherProtocol.GOOL
+        "gool", "wiw", "warp-in-warp", "warpinwarp" -> AetherProtocol.WG_OVER_MASQUE
         "mim", "m2", "masque-in-masque", "masqueinmasque" -> AetherProtocol.MIM
         else -> AetherProtocol.MASQUE
     }

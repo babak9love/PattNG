@@ -227,12 +227,14 @@
         <item>WireGuard</item>
         <item>WARP-in-WARP</item>
         <item>MASQUE-in-MASQUE</item>
+        <item>WireGuard over MASQUE</item>
     </string-array>
     <string-array name="aether_protocol_values" translatable="false">
         <item>masque</item>
         <item>wg</item>
         <item>gool</item>
         <item>mim</item>
+        <item>wg-over-masque</item>
     </string-array>
     <string-array name="aether_fingerprint_entries" translatable="false">
         <item>Chrome</item>

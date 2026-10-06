@@ -600,6 +600,7 @@
     <string name="aether_lab_wiw_outer">القفزة الخارجية</string>
     <string name="aether_lab_wiw_inner">القفزة الداخلية</string>
     <string name="aether_hint_endpoint">اتركه فارغًا للفحص</string>
+    <string name="aether_hint_gool_peer">اتركه فارغًا لاستخدام نقطة النهاية التي يعيّنها WARP</string>
     <string name="aether_action_scan">ابحث عن خادم</string>
     <string name="aether_action_scanning">جارٍ الفحص…</string>
     <string name="aether_scan_success">تم العثور على خادم</string>

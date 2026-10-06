@@ -2,17 +2,35 @@ package com.v2ray.ang.enums
 
 import java.util.Locale
 
-enum class AetherProtocol(val type: String) {
+/** A WARP protocol: [type] is what a profile and a link hold, [core] the word the core's --protocol takes for it. */
+enum class AetherProtocol(val type: String, val core: String = type) {
     MASQUE("masque"),
     WIREGUARD("wg"),
+
+    /** WARP-in-WARP: WireGuard carried in WireGuard, the gool the core has called classic since aether 2.3.0. */
     GOOL("gool"),
-    MIM("mim");
+    MIM("mim"),
+
+    /**
+     * WireGuard carried inside a MASQUE tunnel, the gool of aether 2.3.0: its WireGuard key is registered through the
+     * MASQUE tunnel, from inside WARP, so the traffic leaves from an address abroad.
+     */
+    WG_OVER_MASQUE("wg-over-masque", "gool");
 
     /** Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key. */
-    val overMasque: Boolean get() = this == MASQUE || this == MIM
+    val overMasque: Boolean get() = this == MASQUE || this == MIM || this == WG_OVER_MASQUE
 
     /** Whether the tunnel is two hops, an outer and an inner one, in place of one endpoint. */
-    val twoHops: Boolean get() = this == GOOL || this == MIM
+    val twoHops: Boolean get() = this == GOOL || this == MIM || this == WG_OVER_MASQUE
+
+    /** Whether the two hops must be different addresses, as the core requires of WARP-in-WARP and MASQUE-in-MASQUE. */
+    val distinctHops: Boolean get() = this == GOOL || this == MIM
+
+    /**
+     * Whether Tor or Psiphon around the tunnel can carry it: they carry TCP alone, which MASQUE takes over HTTP/2. The
+     * core refuses either gool there, WireGuard over MASQUE as well.
+     */
+    val carriedAround: Boolean get() = this == MASQUE || this == MIM
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: WIREGUARD
@@ -45,7 +63,7 @@ enum class AetherScanMode(val type: String) {
 
 /**
  * The obfuscation profile, named the way the core names it. [AUTO] leaves the choice to the core,
- * which takes firewall for MASQUE and balanced for WireGuard and gool.
+ * which takes firewall for the tunnels over MASQUE and balanced for WireGuard and WARP-in-WARP.
  */
 enum class AetherObfuscation(val type: String) {
     AUTO("auto"),

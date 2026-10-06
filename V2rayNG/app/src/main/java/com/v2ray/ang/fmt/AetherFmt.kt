@@ -85,7 +85,7 @@ object AetherFmt : FmtBase() {
 
         if (protocol.twoHops) {
             val outer = AetherEndpoint.parse(queryParam["outer"])
-            val inner = AetherEndpoint.parse(queryParam["inner"])?.takeUnless { it.host == outer?.host }
+            val inner = AetherEndpoint.parse(queryParam["inner"])?.takeUnless { protocol.distinctHops && it.host == outer?.host }
             config.aetherWiwOuter = outer?.toString()
             config.aetherWiwInner = inner?.toString()
         } else {
@@ -318,8 +318,8 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonBundledList = null
             return null
         }
-        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
-        if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
+        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair, and either gool.
+        if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).carriedAround) {
             return Problem.PSIPHON_NEEDS_MASQUE
         }
         config.aetherPsiphon = psiphon.type
@@ -342,8 +342,8 @@ object AetherFmt : FmtBase() {
             config.aetherTorRelays = null
             return null
         }
-        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair.
-        if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
+        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair, and either gool.
+        if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).carriedAround) {
             return Problem.TOR_NEEDS_MASQUE
         }
         // Tor and Psiphon go together only nested, one inside the tunnel and the other around it: two around
@@ -404,7 +404,8 @@ object AetherFmt : FmtBase() {
     }
 
     private fun normalizeEndpoints(config: ProfileItem): Problem? {
-        if (AetherProtocol.fromString(config.aetherProtocol).twoHops) {
+        val protocol = AetherProtocol.fromString(config.aetherProtocol)
+        if (protocol.twoHops) {
             val outerText = config.aetherWiwOuter?.trim().orEmpty()
             val innerText = config.aetherWiwInner?.trim().orEmpty()
             val outer = AetherEndpoint.parse(outerText)
@@ -412,7 +413,7 @@ object AetherFmt : FmtBase() {
             if (outerText.isNotEmpty() && outer == null || innerText.isNotEmpty() && inner == null) {
                 return Problem.INVALID_HOP
             }
-            if (outer != null && inner != null && outer.host == inner.host) {
+            if (protocol.distinctHops && outer != null && inner != null && outer.host == inner.host) {
                 return Problem.SHARED_HOP
             }
             config.aetherWiwOuter = outer?.toString()

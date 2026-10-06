@@ -19,6 +19,9 @@ class MainServerRowModelsTest {
         assertEquals("AETHER / PSIPHON", serverProtocolDescription(aether { aetherProtocol = "wg"; aetherPsiphon = "only" }))
         assertEquals("AETHER / TOR", serverProtocolDescription(aether { aetherTor = "only" }))
         // A command written by hand is read the same way.
-        assertEquals("AETHER / GOOL → TOR", serverProtocolDescription(aether { aetherCommand = "aether --gool --tor" }))
+        assertEquals("AETHER / WG_OVER_MASQUE → TOR", serverProtocolDescription(aether { aetherCommand = "aether --gool --tor" }))
+        assertEquals("AETHER / GOOL → TOR", serverProtocolDescription(aether { aetherCommand = "aether --gool-classic --tor" }))
+        assertEquals("AETHER / GOOL", serverProtocolDescription(aether { aetherProtocol = "gool" }))
+        assertEquals("AETHER / WG_OVER_MASQUE", serverProtocolDescription(aether { aetherProtocol = "wg-over-masque" }))
     }
 }

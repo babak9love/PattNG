@@ -592,6 +592,7 @@
     <string name="aether_lab_wiw_outer">مسیر بیرونی</string>
     <string name="aether_lab_wiw_inner">مسیر درونی</string>
     <string name="aether_hint_endpoint">خالی بگذارید تا اسکن شود</string>
+    <string name="aether_hint_gool_peer">خالی بگذارید تا نشانی‌ای که WARP می‌دهد استفاده شود</string>
     <string name="aether_action_scan">اسکن برای یافتن سرور</string>
     <string name="aether_action_scanning">در حال اسکن…</string>
     <string name="aether_scan_success">سرور پیدا شد</string>
