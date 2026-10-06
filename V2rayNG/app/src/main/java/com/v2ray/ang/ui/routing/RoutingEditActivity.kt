@@ -35,8 +35,11 @@ import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AppConfig.BUILTIN_OUTBOUND_TAGS
 import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
+import com.v2ray.ang.core.CoreConfigContextBuilder
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.extension.nullIfBlank
+import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.apppicker.AppPickerActivity
@@ -49,6 +52,7 @@ import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -61,6 +65,9 @@ class RoutingEditActivity : BaseComponentActivity() {
     private var initial: RulesetItem? = null
     private lateinit var outboundSuggestions: List<String>
     private var canUseProcess: Boolean = false
+
+    /** PattNG: the save under way; the profile a rule sends to is looked up, and the rule written, off the main thread. */
+    private var saveJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,17 +90,42 @@ class RoutingEditActivity : BaseComponentActivity() {
         )
     }
 
-    private fun saveServer(rulesetItem: RulesetItem): Boolean {
+    private fun saveServer(rulesetItem: RulesetItem) {
         if (rulesetItem.remarks.isNullOrEmpty()) {
-            return false
+            return
         }
-        if (position < 0 && rulesetItem.id.isEmpty()) {
-            rulesetItem.id = UUID.randomUUID().toString()
+        if (saveJob?.isActive == true) {
+            return
         }
-        SettingsManager.saveRoutingRuleset(position, rulesetItem)
-        toastSuccess(R.string.toast_success)
-        finish()
-        return true
+        saveJob = lifecycleScope.launch {
+            // PattNG: a rule that sends to a profile names it, and the name has to find that one profile, as at the
+            // start: a name no profile has, as after a rename or a delete, or several have, is told rather than saved.
+            val tag = rulesetItem.outboundTag
+            if (tag !in BUILTIN_OUTBOUND_TAGS) {
+                val found = withContext(Dispatchers.IO) {
+                    SettingsManager.findServerViaRemarks(tag, CoreConfigContextBuilder::takesAsRoutingTarget)
+                }
+                when (found) {
+                    ByName.None -> {
+                        toast(getString(R.string.toast_profile_name_not_found, tag.trim()))
+                        return@launch
+                    }
+
+                    ByName.Several -> {
+                        toast(getString(R.string.toast_profile_name_duplicate, tag.trim()))
+                        return@launch
+                    }
+
+                    is ByName.One -> Unit
+                }
+            }
+            if (position < 0 && rulesetItem.id.isEmpty()) {
+                rulesetItem.id = UUID.randomUUID().toString()
+            }
+            withContext(Dispatchers.IO) { SettingsManager.saveRoutingRuleset(position, rulesetItem) }
+            toastSuccess(R.string.toast_success)
+            finish()
+        }
     }
 
     private fun deleteServer(): Boolean {
@@ -114,7 +146,7 @@ fun RoutingEditScreen(
     outboundSuggestions: List<String>,
     canUseProcess: Boolean,
     onBackClick: () -> Unit,
-    onSave: (RulesetItem) -> Boolean,
+    onSave: (RulesetItem) -> Unit,
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
@@ -145,8 +177,9 @@ fun RoutingEditScreen(
         }
     }
 
+    // The rule as the screen opened with it, read by the activity, with what this screen edits set on it.
     fun buildRuleset(): RulesetItem {
-        val rulesetItem = SettingsManager.getRoutingRuleset(position) ?: RulesetItem()
+        val rulesetItem = initial?.copy() ?: RulesetItem()
         rulesetItem.apply {
             this.remarks = remarks
             this.locked = locked

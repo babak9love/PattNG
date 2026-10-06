@@ -44,7 +44,7 @@ object CoreConfigContextBuilder {
         }
 
         // Step 2: Resolve all non-builtin routing outbound tags.
-        val routingResolvedOutbounds = resolveRoutingOutbounds()
+        val (routingResolvedOutbounds, unresolvedRoutingTarget) = resolveRoutingOutbounds()
         val resolvedOutbounds = listOf(primaryResolvedOutbound) + routingResolvedOutbounds
         val fallbackResolvedOutbounds = resolveFallbackOutbounds(resolvedOutbounds)
         val routingDomainRules = collectRoutingDomainRulesForDns()
@@ -54,6 +54,7 @@ object CoreConfigContextBuilder {
             guid = guid,
             resolvedOutbounds = resolvedOutbounds + fallbackResolvedOutbounds,
             routingDomainRules = routingDomainRules,
+            unresolvedRoutingTarget = unresolvedRoutingTarget,
         )
     }
 
@@ -82,7 +83,8 @@ object CoreConfigContextBuilder {
             }
 
             else -> {
-                val chainProfiles = resolveProxyChainProfilesFromGroup(profile)
+                val (chainProfiles, unresolved) = resolveProxyChainProfilesFromGroup(profile)
+                unresolvedHop = unresolved
                 val type = if (chainProfiles.size <= 1) CoreResolvedType.NORMAL else CoreResolvedType.PROXYCHAIN
                 Pair(chainProfiles, type)
             }
@@ -100,12 +102,15 @@ object CoreConfigContextBuilder {
     /**
      * Collect and resolve non-builtin routing targets from enabled rules.
      *
-     * Invalid or empty targets are skipped and handled by fallback logic later.
+     * Invalid or empty targets are skipped and handled by fallback logic later. PattNG: a target is a profile's name;
+     * the first one that no profile has any more, or several have, goes beside them, for the session to be refused for
+     * it rather than send the rule's traffic by the proxy, or by a profile it may not mean.
      */
-    private fun resolveRoutingOutbounds(): List<CoreConfigContext.ResolvedOutbound> {
-        val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList()
+    private fun resolveRoutingOutbounds(): Pair<List<CoreConfigContext.ResolvedOutbound>, CoreConfigContext.UnresolvedName?> {
+        val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList<CoreConfigContext.ResolvedOutbound>() to null
         val resolvedOutbounds = mutableListOf<CoreConfigContext.ResolvedOutbound>()
         val processedTags = mutableSetOf<String>()
+        var unresolved: CoreConfigContext.UnresolvedName? = null
 
         try {
             rulesetItems
@@ -120,9 +125,14 @@ object CoreConfigContextBuilder {
                     processedTags.add(tag)
 
                     try {
-                        val profile = SettingsManager.getServerViaRemarks(tag) ?: run {
-                            LogUtil.w(AppConfig.TAG, "Routing tag '$tag' has no matching profile — will fall back to proxy at routing time")
-                            return@forEach
+                        val profile = when (val found = SettingsManager.findServerViaRemarks(tag, ::takesAsRoutingTarget)) {
+                            is ByName.One -> found.value
+                            ByName.None, ByName.Several -> {
+                                val several = found == ByName.Several
+                                LogUtil.w(AppConfig.TAG, "Routing tag '$tag' has ${if (several) "several matching profiles" else "no matching profile"}; the session is refused")
+                                if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), several)
+                                return@forEach
+                            }
                         }
                         val resolvedOutbound = resolveOutbound(tag, profile) ?: run {
                             LogUtil.w(AppConfig.TAG, "Cannot use CUSTOM profile as routing outbound for tag '$tag', skipping")
@@ -143,8 +153,11 @@ object CoreConfigContextBuilder {
             LogUtil.e(AppConfig.TAG, "Failed to resolve routing outbounds from rulesets", e)
         }
 
-        return resolvedOutbounds
+        return resolvedOutbounds to unresolved
     }
+
+    /** PattNG: whether [profile] can be what a routing rule sends to: any profile but a custom configuration. */
+    internal fun takesAsRoutingTarget(profile: ProfileItem): Boolean = profile.configType != EConfigType.CUSTOM
 
     private fun resolvePolicyGroupProfiles(config: ProfileItem): List<ProfileItem> {
         try {
@@ -234,30 +247,33 @@ object CoreConfigContextBuilder {
 
     /**
      * PattNG: true when [profile], selected, runs as a chain with the hops its subscription puts
-     * around every one of its profiles; see [resolveProxyChainProfilesFromGroup].
+     * around every one of its profiles, or would, but for a hop its subscription names that no
+     * profile, or several, have, for which it is refused as a chain; see [resolveProxyChainProfilesFromGroup].
      */
-    internal fun isChained(profile: ProfileItem): Boolean = resolveProxyChainProfilesFromGroup(profile).size > 1
+    internal fun isChained(profile: ProfileItem): Boolean =
+        resolveProxyChainProfilesFromGroup(profile).let { (profiles, unresolved) -> profiles.size > 1 || unresolved != null }
 
     /**
      * Resolve chain nodes from subscription neighbors in order: next, current, prev.
      *
-     * When no chain is available, return a single-node result.
+     * When no chain is available, return a single-node result. PattNG: the neighbors are found by their names, as the
+     * hops of a chain profile are, see [proxyChainHops]; the first name that finds no profile, or several, goes beside
+     * them, and the configuration is refused for it.
      */
-    private fun resolveProxyChainProfilesFromGroup(config: ProfileItem): List<ProfileItem> {
+    private fun resolveProxyChainProfilesFromGroup(config: ProfileItem): Pair<List<ProfileItem>, CoreConfigContext.UnresolvedName?> {
         if (config.subscriptionId.isEmpty()) {
-            return listOf(config)
+            return listOf(config) to null
         }
 
         try {
-            val subItem = MmkvManager.decodeSubscription(config.subscriptionId) ?: return listOf(config)
-            val resolved = mutableListOf<ProfileItem>()
-            SettingsManager.getServerViaRemarks(subItem.nextProfile)?.let { resolved.add(it) }
-            resolved.add(config)
-            SettingsManager.getServerViaRemarks(subItem.prevProfile)?.let { resolved.add(it) }
-            return resolved
+            val subItem = MmkvManager.decodeSubscription(config.subscriptionId) ?: return listOf(config) to null
+            val find = { name: String -> SettingsManager.findServerViaRemarks(name, ::takesAsHop) }
+            val (next, nextUnresolved) = proxyChainHops(listOfNotNull(subItem.nextProfile), find)
+            val (prev, prevUnresolved) = proxyChainHops(listOfNotNull(subItem.prevProfile), find)
+            return next + config + prev to (nextUnresolved ?: prevUnresolved)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain from group for '${config.remarks}'", e)
-            return listOf(config)
+            return listOf(config) to null
         }
     }
 

@@ -83,4 +83,12 @@ class CoreConfigContextBuilderTest {
             assertFalse(CoreConfigContextBuilder.takesAsHop(ProfileItem.create(type)), type.name)
         }
     }
+
+    @Test
+    fun aRoutingRuleSendsToAnyProfileButACustomConfiguration() {
+        for (type in EConfigType.entries.filter { it != EConfigType.CUSTOM }) {
+            assertTrue(CoreConfigContextBuilder.takesAsRoutingTarget(ProfileItem.create(type)), type.name)
+        }
+        assertFalse(CoreConfigContextBuilder.takesAsRoutingTarget(ProfileItem.create(EConfigType.CUSTOM)))
+    }
 }

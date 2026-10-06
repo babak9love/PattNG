@@ -39,7 +39,8 @@ internal sealed interface ProxyChainProblem {
 /**
  * PattNG: why a chain of [members], the names of its profiles in its order, cannot be saved, as the chain finds its
  * hops when it runs: the first name [find] finds no profile for, then the first several have, see [ByName], or a
- * second Aether member. Null when it can.
+ * second Aether member. Null when it can. The previous and the next profile of a subscription, which chain each of its
+ * profiles, are checked alike.
  */
 internal fun proxyChainProblem(members: List<String>, find: (String) -> ByName<ProfileItem>): ProxyChainProblem? {
     val found = members.map { it to find(it) }

@@ -43,7 +43,8 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext, routeAether = true)
             }
-            unresolvedHopFailure(context, guid, configContext.resolvedOutbounds)?.let { return it }
+            val unresolved = configContext.resolvedOutbounds.firstNotNullOfOrNull { it.unresolvedHop } ?: configContext.unresolvedRoutingTarget
+            unresolvedNameFailure(context, guid, unresolved)?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds)
             aetherFailure(context, guid, dependency)?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
@@ -84,7 +85,7 @@ object CoreConfigManager {
                 return buildV2rayCustomConfig(configContext)
             }
             // Only the primary outbound is measured; the routing outbounds lose their rules below.
-            unresolvedHopFailure(context, guid, configContext.resolvedOutbounds.take(1))?.let { return it }
+            unresolvedNameFailure(context, guid, configContext.resolvedOutbounds.take(1).firstNotNullOfOrNull { it.unresolvedHop })?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
@@ -679,19 +680,20 @@ object CoreConfigManager {
     }
 
     /**
-     * PattNG: a proxy chain of [outbounds] that names a hop no profile has any more, as after it was renamed or
-     * deleted, or one several have, see [CoreConfigContext.ResolvedOutbound.unresolvedHop], as a failure whose
-     * message, which names it, is meant for the screen; null when every hop is found.
+     * PattNG: [unresolved], a name by which a proxy chain, the subscription around a profile, or a routing rule names a
+     * profile, and which no profile has any more, as after it was renamed or deleted, or several have, see
+     * [CoreConfigContext.UnresolvedName], as a failure whose message, which names it, is meant for the screen; null when
+     * there is none.
      */
-    private fun unresolvedHopFailure(context: Context, guid: String, outbounds: List<CoreConfigContext.ResolvedOutbound>): ConfigResult? {
-        val hop = outbounds.firstNotNullOfOrNull { it.unresolvedHop } ?: return null
-        LogUtil.w(AppConfig.TAG, "A proxy chain names a hop that ${if (hop.several) "several profiles have" else "no profile has"}, guid=$guid")
+    private fun unresolvedNameFailure(context: Context, guid: String, unresolved: CoreConfigContext.UnresolvedName?): ConfigResult? {
+        val name = unresolved ?: return null
+        LogUtil.w(AppConfig.TAG, "A chain or a routing rule names a profile that ${if (name.several) "several profiles have" else "no profile has"}, guid=$guid")
         return ConfigResult(
             status = false,
             guid = guid,
             errorMessage = context.getString(
-                if (hop.several) R.string.toast_profile_name_duplicate else R.string.toast_profile_name_not_found,
-                hop.name,
+                if (name.several) R.string.toast_profile_name_duplicate else R.string.toast_profile_name_not_found,
+                name.name,
             ),
             localizedError = true,
         )

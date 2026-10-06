@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
+import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toLongEx
@@ -44,14 +45,21 @@ import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
+import com.v2ray.ang.ui.server.ProxyChainProblem
+import com.v2ray.ang.ui.server.proxyChainProblem
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SubEditActivity : BaseComponentActivity() {
     private val editSubId by lazy { intent.getStringExtra("subId").orEmpty() }
     private lateinit var suggestions: List<String>
     private lateinit var subItem: SubscriptionItem
+
+    /** PattNG: the save under way; the subscription is read and written off the main thread, one save at a time. */
+    private var saveJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,29 +86,70 @@ class SubEditActivity : BaseComponentActivity() {
         )
     }
 
-    private fun saveServer(subItem: SubscriptionItem): Boolean {
-        if (TextUtils.isEmpty(subItem.remarks)) {
-            return false
+    /**
+     * Saves the subscription as stored at this moment with the edits [applyEdits] sets on it, which reads the screen's
+     * state, so it runs on the main thread; it tells why, and gives false, when an edit cannot be saved. PattNG: the
+     * previous and the next profile are found by their names, as the chain finds them when it runs: a name no profile
+     * has, as after a rename or a delete, or several have, is told rather than saved.
+     */
+    private fun saveServer(applyEdits: (SubscriptionItem) -> Boolean) {
+        if (saveJob?.isActive == true) {
+            return
         }
-        if (subItem.url.isNotEmpty()) {
-            if (!Utils.isValidUrl(subItem.url)) {
-                return false
+        saveJob = lifecycleScope.launch {
+            val subItem = withContext(Dispatchers.IO) { MmkvManager.decodeSubscription(editSubId) } ?: SubscriptionItem()
+            if (!applyEdits(subItem)) {
+                return@launch
             }
-            if (!Utils.isValidSubUrl(subItem.url) && !subItem.allowInsecureUrl) {
-                return false
+            if (TextUtils.isEmpty(subItem.remarks)) {
+                return@launch
             }
-        }
+            if (subItem.url.isNotEmpty()) {
+                if (!Utils.isValidUrl(subItem.url)) {
+                    return@launch
+                }
+                if (!Utils.isValidSubUrl(subItem.url) && !subItem.allowInsecureUrl) {
+                    return@launch
+                }
+            }
 
-        if (subItem.autoUpdate && subItem.updateInterval < AppConfig.SUBSCRIPTION_MIN_INTERVAL_MINUTES) {
-            return false
-        }
+            if (subItem.autoUpdate && subItem.updateInterval < AppConfig.SUBSCRIPTION_MIN_INTERVAL_MINUTES) {
+                return@launch
+            }
 
-        MmkvManager.encodeSubscription(editSubId, subItem)
-        SubscriptionUpdater.syncOne(subId = editSubId)
-        SettingsChangeManager.makeSetupGroupTab()
-        toastSuccess(R.string.toast_success)
-        finish()
-        return true
+            val neighbors = listOfNotNull(subItem.prevProfile, subItem.nextProfile).map { it.trim() }.filter { it.isNotEmpty() }
+            val problem = withContext(Dispatchers.IO) {
+                proxyChainProblem(neighbors) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
+            }
+            when (problem) {
+                is ProxyChainProblem.NotFound -> {
+                    toast(getString(R.string.toast_profile_name_not_found, problem.name))
+                    return@launch
+                }
+
+                is ProxyChainProblem.SameName -> {
+                    toast(getString(R.string.toast_profile_name_duplicate, problem.name))
+                    return@launch
+                }
+
+                // The previous and the next profile chain every profile of the subscription. Either can be Aether,
+                // but not both: one core runs, so a chain can have one Aether profile.
+                ProxyChainProblem.SecondAether -> {
+                    toast(R.string.aether_chain_one_profile)
+                    return@launch
+                }
+
+                null -> Unit
+            }
+
+            withContext(Dispatchers.IO) {
+                MmkvManager.encodeSubscription(editSubId, subItem)
+                SubscriptionUpdater.syncOne(subId = editSubId)
+            }
+            SettingsChangeManager.makeSetupGroupTab()
+            toastSuccess(R.string.toast_success)
+            finish()
+        }
     }
 
     private fun deleteServer(): Boolean {
@@ -121,7 +170,7 @@ fun SubEditScreen(
     initial: SubscriptionItem,
     profileSuggestions: List<String>,
     onBackClick: () -> Unit,
-    onSave: (SubscriptionItem) -> Boolean,
+    onSave: ((SubscriptionItem) -> Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
@@ -146,20 +195,15 @@ fun SubEditScreen(
     val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
     val scrollState = rememberScrollState()
 
-    fun buildSubItem(): SubscriptionItem? {
+    // Sets what this screen edits on [subItem], the subscription as stored when it is saved; false, with the reason
+    // told, when a field cannot be saved. The profiles are read, and the subscription written, by the save.
+    fun applyEdits(subItem: SubscriptionItem): Boolean {
         val overridePortText = overridePort.trim()
         val overridePortValue = overridePortText.toIntOrNull()?.takeIf { it in 1..65535 }
         if (overridePortText.isNotEmpty() && overridePortValue == null) {
             context.toast(R.string.toast_invalid_override_port)
-            return null
+            return false
         }
-        // The previous and the next profile chain every profile of the subscription. Either can be Aether,
-        // but not both: one core runs, so a chain can have one Aether profile.
-        if (listOf(prevProfile, nextProfile).count { SettingsManager.getServerViaRemarks(it.trim())?.configType == EConfigType.AETHER } > 1) {
-            context.toast(R.string.aether_chain_one_profile)
-            return null
-        }
-        val subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()
         subItem.remarks = remarks
         subItem.url = url
         subItem.userAgent = userAgent
@@ -173,7 +217,7 @@ fun SubEditScreen(
         subItem.allowInsecureUrl = allowInsecureUrl
         subItem.overrideAddress = overrideAddress.trim().ifEmpty { null }
         subItem.overridePort = overridePortValue
-        return subItem
+        return true
     }
 
     Scaffold(
@@ -203,7 +247,7 @@ fun SubEditScreen(
 
                         val hasError = remarksErr || urlErr || intervalErr
                         if (!hasError) {
-                            buildSubItem()?.let { onSave(it) }
+                            onSave(::applyEdits)
                         }
                     }) {
                         Icon(painterResource(R.drawable.ic_fab_check), contentDescription = stringResource(R.string.acc_save))
