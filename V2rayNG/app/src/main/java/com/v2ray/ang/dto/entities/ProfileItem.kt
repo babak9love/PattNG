@@ -79,7 +79,7 @@ data class ProfileItem(
 
     var dialMode: String? = null,
 
-    /** Xray targetStrategy of the outbound built for this profile; null means the default, AsIs. */
+    /** Xray targetStrategy of the outbound built for this profile; null means the default of its type, see [defaultTargetStrategy]. */
     var targetStrategy: String? = null,
 
     var aetherProtocol: String? = null,
@@ -159,6 +159,16 @@ data class ProfileItem(
     companion object {
         fun create(configType: EConfigType): ProfileItem =
             ProfileItem(configType = configType)
+
+        /**
+         * The targetStrategy of a profile of [type] that stores none. Aether and WireGuard tunnels carry IP packets
+         * alone, so Xray's DNS, with its cache, looks a name up for them first, IPv4 before IPv6, and a name it cannot
+         * look up is not sent at all (ForceIPv4v6); every other type passes names on as they are (AsIs, Xray's own).
+         */
+        fun defaultTargetStrategy(type: EConfigType): String = when (type) {
+            EConfigType.AETHER, EConfigType.WIREGUARD -> AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+            else -> AppConfig.TARGET_STRATEGY_AS_IS
+        }
     }
 
     fun getServerAddressAndPort(): String {

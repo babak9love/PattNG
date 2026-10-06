@@ -154,6 +154,29 @@ class CoreOutboundBuilderTest {
     }
 
     @Test
+    fun test_applyTargetStrategy_aetherAndWireguardDefaultToForceIPv4v6() {
+        // Their tunnels carry IP packets alone, so Xray's DNS looks a name up for them first.
+        for (type in listOf(EConfigType.AETHER, EConfigType.WIREGUARD)) {
+            val outbound = OutboundBean(protocol = "socks")
+            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type))
+            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy, type.name)
+            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = " " })
+            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy, type.name)
+            // AsIs chosen for one of them stays AsIs, so its outbound carries none; any other choice is kept.
+            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS })
+            assertNull(outbound.targetStrategy, type.name)
+            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = "UseIPv6" })
+            assertEquals("UseIPv6", outbound.targetStrategy, type.name)
+        }
+        // Every other type keeps AsIs, Xray's own default.
+        for (type in EConfigType.entries.filter { it != EConfigType.AETHER && it != EConfigType.WIREGUARD }) {
+            val outbound = OutboundBean(protocol = "vless", targetStrategy = "UseIP")
+            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type))
+            assertNull(outbound.targetStrategy, type.name)
+        }
+    }
+
+    @Test
     fun test_toOutboundAetherExit_carriesTheFinalMaskAndDialModeOfTheAetherProfile() {
         val plain = CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN)!!
         assertEquals(AppConfig.TAG_EXIT_NODE, plain.tag)

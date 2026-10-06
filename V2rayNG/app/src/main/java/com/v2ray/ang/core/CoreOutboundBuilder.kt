@@ -68,12 +68,13 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * Copies the profile targetStrategy onto the outbound. Blank and AsIs, Xray's default, leave
-     * the field out, so a profile saved with the default emits nothing new.
+     * Copies the profile targetStrategy onto the outbound, or the default of its type when it stores none, see
+     * [ProfileItem.defaultTargetStrategy]. AsIs, Xray's default, leaves the field out.
      */
     internal fun applyTargetStrategy(outbound: OutboundBean, profileItem: ProfileItem) {
-        outbound.targetStrategy = profileItem.targetStrategy?.trim()
-            ?.takeIf { it.isNotEmpty() && !it.equals(AppConfig.TARGET_STRATEGY_AS_IS, ignoreCase = true) }
+        val strategy = profileItem.targetStrategy?.trim()?.takeIf { it.isNotEmpty() }
+            ?: ProfileItem.defaultTargetStrategy(profileItem.configType)
+        outbound.targetStrategy = strategy.takeUnless { it.equals(AppConfig.TARGET_STRATEGY_AS_IS, ignoreCase = true) }
     }
 
     /** Applies global outbound options (mux, protocol-specific tweaks, etc.). */

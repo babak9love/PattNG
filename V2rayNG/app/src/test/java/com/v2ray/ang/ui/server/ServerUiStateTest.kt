@@ -74,6 +74,22 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun aetherAndWireguardProfilesDefaultToForceIPv4v6AndKeepAsIsWhenChosen() {
+        for (type in listOf(EConfigType.AETHER, EConfigType.WIREGUARD)) {
+            val profile = ProfileItem.create(type)
+            val untouched = ServerUiState.from(profile)
+            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, untouched.targetStrategy, type.name)
+            // Their default is stored as none, so that the profile follows the default.
+            assertNull(untouched.toProfileItem(profile).targetStrategy, type.name)
+            // AsIs is not their default, so it is stored as it is, and read back so.
+            untouched.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+            val asIs = untouched.toProfileItem(profile)
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, asIs.targetStrategy, type.name)
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, ServerUiState.from(asIs).targetStrategy, type.name)
+        }
+    }
+
+    @Test
     fun aListenPortAProfileStillCarriesIsKeptAsItWasStored() {
         // Profiles stored while each profile had a listen port of its own may carry one still; the editor neither shows nor drops it.
         val stored = ProfileItem.create(EConfigType.AETHER).apply { aetherListenPort = "20808" }
@@ -242,6 +258,11 @@ class ServerUiStateTest {
         state.aetherExitLoc = ""
         state.targetStrategy = "UseIPv4v6"
         assertEquals(true, state.hasOtherAetherSettings)
+        // AsIs is no default of Aether's: it counts as a setting of its own.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertEquals(true, state.hasOtherAetherSettings)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(false, state.hasOtherAetherSettings)
         state.targetStrategy = ""
         // The exit-node's finalMask and dialMode stand outside the fold, after the fingerprint.
         state.finalMask = """{"tcp": []}"""

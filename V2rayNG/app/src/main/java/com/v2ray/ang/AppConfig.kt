@@ -334,8 +334,11 @@ object AppConfig {
     const val DEFAULT_SECURITY = "auto"
     const val DEFAULT_NETWORK = "tcp"
 
-    /** Xray's default targetStrategy; a profile stores null for it and its outbound carries none. */
+    /** Xray's default targetStrategy, and the default of most profile types; an outbound with it carries none. */
     const val TARGET_STRATEGY_AS_IS = "AsIs"
+
+    /** The default targetStrategy of Aether and WireGuard profiles, see ProfileItem.defaultTargetStrategy. */
+    const val TARGET_STRATEGY_FORCE_IPV4V6 = "ForceIPv4v6"
     const val TLS = "tls"
     const val REALITY = "reality"
     const val HEADER_TYPE_HTTP = "http"

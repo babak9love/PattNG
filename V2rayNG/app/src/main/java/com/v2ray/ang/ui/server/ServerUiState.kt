@@ -8,7 +8,6 @@ import com.v2ray.ang.AppConfig.AETHER_ECH_DNS
 import com.v2ray.ang.AppConfig.AETHER_ECH_DOMAIN
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
 import com.v2ray.ang.AppConfig.REALITY
-import com.v2ray.ang.AppConfig.TARGET_STRATEGY_AS_IS
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_REMOTE_DNS
@@ -69,7 +68,7 @@ class ServerUiState(
     kcpTti: String = "",
     browserDialerMode: String = "",
     dialMode: String = "",
-    targetStrategy: String = TARGET_STRATEGY_AS_IS,
+    targetStrategy: String = ProfileItem.defaultTargetStrategy(configType),
     streamSecurity: String = "",
     sni: String = "",
     allowInsecure: Boolean = false,
@@ -216,7 +215,7 @@ class ServerUiState(
     val hasOtherAetherSettings: Boolean
         get() = aetherDns.isNotBlank() ||
             aetherExitLoc.isNotBlank() ||
-            (targetStrategy.isNotBlank() && targetStrategy != TARGET_STRATEGY_AS_IS)
+            (targetStrategy.isNotBlank() && targetStrategy != ProfileItem.defaultTargetStrategy(configType))
 
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)
@@ -287,7 +286,8 @@ class ServerUiState(
                 null
             },
             dialMode = dialMode.nullIfBlank(),
-            targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == TARGET_STRATEGY_AS_IS },
+            // The default of the type is stored as none, so that the profile follows it; anything else as it is.
+            targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == ProfileItem.defaultTargetStrategy(configType) },
             security = streamSecurity,
             sni = sni,
             insecure = allowInsecure,
@@ -380,7 +380,7 @@ class ServerUiState(
                 kcpTti = initialConfig.kcpTti?.toString() ?: "",
                 browserDialerMode = initialConfig.browserDialerMode ?: "",
                 dialMode = initialConfig.dialMode ?: "",
-                targetStrategy = initialConfig.targetStrategy ?: TARGET_STRATEGY_AS_IS,
+                targetStrategy = initialConfig.targetStrategy ?: ProfileItem.defaultTargetStrategy(initialConfig.configType),
                 streamSecurity = initialConfig.security ?: "",
                 sni = initialConfig.sni ?: "",
                 allowInsecure = initialConfig.insecure == true,
