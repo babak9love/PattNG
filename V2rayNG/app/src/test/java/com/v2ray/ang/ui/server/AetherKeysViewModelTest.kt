@@ -100,6 +100,7 @@ class AetherKeysViewModelTest {
             AetherKey(AetherIdentityManager.WIREGUARD_INNER_FILE, null),
             AetherKey(AetherIdentityManager.MASQUE_FILE, oldKey),
             AetherKey(AetherIdentityManager.MASQUE_INNER_FILE, null),
+            AetherKey(AetherIdentityManager.MASQUE_GOOL_FILE, oldKey),
         )
         val viewModel = viewModel()
 
@@ -115,6 +116,7 @@ class AetherKeysViewModelTest {
                 resource(R.string.aether_log_wireguard_inner_key_missing),
                 resource(R.string.aether_log_masque_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
                 resource(R.string.aether_log_masque_inner_key_missing),
+                resource(R.string.aether_log_gool_key_ready, "a1b2c3d4…", "172.16.0.2", "2606:4700:110:8a36::1"),
             ),
             viewModel.texts()
         )

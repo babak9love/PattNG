@@ -463,10 +463,11 @@ class ServerAetherViewModelTest {
         viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
         assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
 
-        // WireGuard over MASQUE needs the MASQUE key alone: the core registers the WireGuard key inside the tunnel itself.
+        // WireGuard over MASQUE needs the WireGuard key it carries as well, which the WARP keys page gets.
         source.missingFiles += AetherIdentityManager.MASQUE_GOOL_FILE
         viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type))
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+        viewModel.onKeysCheckHandled()
 
         // A command written by hand counts as it runs.
         source.missingFiles += AetherIdentityManager.WIREGUARD_FILE

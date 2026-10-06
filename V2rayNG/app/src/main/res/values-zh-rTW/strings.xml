@@ -679,6 +679,8 @@
     <string name="aether_log_wireguard_inner_key_missing">WireGuard 內層節點金鑰：尚未註冊，將在首次掃描或連線時註冊</string>
     <string name="aether_log_masque_inner_key_ready">MASQUE 內層節點金鑰：裝置 %1$s，IPv4 %2$s，IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">MASQUE 內層節點金鑰：尚未註冊，將在首次掃描或連線時註冊</string>
+    <string name="aether_log_gool_key_ready">WireGuard over MASQUE 金鑰：裝置 %1$s，IPv4 %2$s，IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">WireGuard over MASQUE 金鑰：尚未註冊，將在首次掃描或連線時註冊</string>
     <string name="aether_renew_blocked">請先中斷 Aether 連線，再取得這些金鑰；目前的連線正在使用它們</string>
     <string name="aether_action_get_keys">取得新的 WARP 金鑰</string>
     <string name="aether_keys_lab_kind">要取得新金鑰的協定</string>

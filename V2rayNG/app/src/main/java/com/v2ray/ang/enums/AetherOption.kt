@@ -201,15 +201,21 @@ enum class AetherTorRelays(val type: String) {
 }
 
 /**
- * Which WARP keys a registration gets, named the way the core's --register names them: every key, or the keys of one
- * protocol, both hops' keys for a two-hop one.
+ * Which WARP keys a registration gets: every key, or the keys of one protocol, both hops' keys for a two-hop one.
+ * [type] is the protocol's own value, which the WARP keys page stores; [register] is the word the core's --register
+ * takes for those keys.
  */
-enum class AetherKeyKind(val type: String) {
-    ALL("all"),
-    WIREGUARD("wg"),
-    MASQUE("masque"),
-    GOOL("gool"),
-    MIM("mim");
+enum class AetherKeyKind(val type: String, val register: String) {
+    ALL("all", "all"),
+    WIREGUARD("wg", "wg"),
+    MASQUE("masque", "masque"),
+
+    /** WARP-in-WARP, the older gool: both WireGuard hops' keys, which the core registers as gool-classic. */
+    GOOL("gool", "gool-classic"),
+    MIM("mim", "mim"),
+
+    /** WireGuard over MASQUE, the gool of the core's --gool: the MASQUE key and the WireGuard key it carries inside. */
+    WG_OVER_MASQUE("wg-over-masque", "gool");
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: ALL
@@ -219,8 +225,9 @@ enum class AetherKeyKind(val type: String) {
             "all" -> ALL
             "wg", "wireguard", "warp" -> WIREGUARD
             "masque" -> MASQUE
-            "gool", "wiw", "warp-in-warp" -> GOOL
+            "gool-classic", "wiw", "warp-in-warp" -> GOOL
             "mim", "masque-in-masque" -> MIM
+            "gool", "wg-over-masque" -> WG_OVER_MASQUE
             else -> null
         }
     }

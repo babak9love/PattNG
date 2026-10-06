@@ -383,34 +383,31 @@ class AetherIdentityManagerTest {
         assertEquals(listOf(masque), AetherIdentityManager.filesOf(AetherKeyKind.MASQUE))
         assertEquals(listOf(wireguard, wireguardInner), AetherIdentityManager.filesOf(AetherKeyKind.GOOL))
         assertEquals(listOf(masque, masqueInner), AetherIdentityManager.filesOf(AetherKeyKind.MIM))
+        val gool = AetherIdentityManager.MASQUE_GOOL_FILE
+        assertEquals(listOf(masque, gool), AetherIdentityManager.filesOf(AetherKeyKind.WG_OVER_MASQUE))
+        assertEquals(listOf(wireguard, wireguardInner, masque, masqueInner, gool), AetherIdentityManager.KEY_FILES)
 
         // A tunnel uses the keys its protocol registers, its outer hop the key of the one-hop protocol.
-        for (protocol in AetherProtocol.entries - AetherProtocol.WG_OVER_MASQUE) {
+        for (protocol in AetherProtocol.entries) {
             val kind = AetherKeyKind.entries.single { it.type == protocol.type }
             assertEquals(AetherIdentityManager.filesOf(kind), AetherIdentityManager.filesOf(protocol))
         }
-        // WireGuard over MASQUE is no kind of keys: the core registers its WireGuard key through the tunnel.
-        assertEquals(listOf(masque, AetherIdentityManager.MASQUE_GOOL_FILE), AetherIdentityManager.filesOf(AetherProtocol.WG_OVER_MASQUE))
-        assertFalse(AetherIdentityManager.MASQUE_GOOL_FILE in AetherIdentityManager.KEY_FILES)
-        assertTrue(AetherKeyKind.entries.none { AetherIdentityManager.MASQUE_GOOL_FILE in AetherIdentityManager.filesOf(it) })
     }
 
     @Test
-    fun aRenewalLeavesTheWireGuardKeyOfWireGuardOverMasqueAlone() = runBlocking {
+    fun aRenewalOfTheMasqueKeyLeavesTheWireGuardKeyOfWireGuardOverMasqueAlone() = runBlocking {
         val dir = keysInUse()
-        File(dir, AetherIdentityManager.MASQUE_GOOL_FILE).writeText(keyFile("gool"))
         val renewal = File(folder, "aether-renewal")
 
-        val renewed = AetherIdentityManager.renew(dir, renewal, AetherIdentityManager.filesOf(AetherKeyKind.ALL)) {
-            // A run that left such a key beside the ones asked for.
-            register(renewal, AetherIdentityManager.KEY_FILES)
-            File(renewal, AetherIdentityManager.MASQUE_GOOL_FILE).writeText(keyFile("new-gool"))
+        val renewed = AetherIdentityManager.renew(dir, renewal, AetherIdentityManager.filesOf(AetherKeyKind.MASQUE)) {
+            // A run that left gool's WireGuard key beside the MASQUE key asked for.
+            register(renewal, listOf(AetherIdentityManager.MASQUE_FILE, AetherIdentityManager.MASQUE_GOOL_FILE))
             true
         }
 
         assertTrue(renewed)
-        assertEquals(every("new"), devices(dir))
-        assertEquals("gool", AetherIdentityManager.status(dir, AetherProtocol.WG_OVER_MASQUE).secondary?.deviceId)
+        assertEquals(AetherIdentityManager.KEY_FILES.map { if (it == AetherIdentityManager.MASQUE_FILE) "new" else "old" }, devices(dir))
+        assertEquals("old", AetherIdentityManager.status(dir, AetherProtocol.WG_OVER_MASQUE).secondary?.deviceId)
         assertFalse(renewal.exists())
     }
 
@@ -422,7 +419,7 @@ class AetherIdentityManagerTest {
             AetherIdentityManager.MASQUE_FILE to "device_id = \"\"",
         )
 
-        assertEquals(listOf("outer", null, null, "masque-inner"), AetherIdentityManager.keys(dir, AetherIdentityManager.KEY_FILES).map { it.identity?.deviceId })
+        assertEquals(listOf("outer", null, null, "masque-inner", null), AetherIdentityManager.keys(dir, AetherIdentityManager.KEY_FILES).map { it.identity?.deviceId })
         assertEquals(AetherIdentityManager.KEY_FILES, AetherIdentityManager.keys(dir, AetherIdentityManager.KEY_FILES).map { it.file })
     }
 
@@ -457,7 +454,7 @@ class AetherIdentityManagerTest {
         }
 
         assertTrue(renewed)
-        assertEquals(listOf("new", "old", "old", "old"), devices(dir))
+        assertEquals(listOf("new", "old", "old", "old", "old"), devices(dir))
         assertFalse(renewal.exists())
     }
 
@@ -486,8 +483,8 @@ class AetherIdentityManagerTest {
         assertEquals(listOf(wireguard), needed("--protocol", "wg", "--tor"))
         assertEquals(listOf(wireguard, AetherIdentityManager.WIREGUARD_INNER_FILE), needed("--wiw-outer", "162.159.192.1:2408"))
         assertEquals(listOf(masque, AetherIdentityManager.MASQUE_INNER_FILE), needed("--protocol", "mim", "--psiphon-reverse"))
-        // WireGuard over MASQUE needs the MASQUE key from the WARP keys page; the core registers its WireGuard key itself.
-        assertEquals(listOf(masque), needed("--protocol", "gool", "--gool-peer", "162.159.192.1:2408"))
+        // WireGuard over MASQUE needs the MASQUE key and the WireGuard key it carries, both from the WARP keys page.
+        assertEquals(listOf(masque, AetherIdentityManager.MASQUE_GOOL_FILE), needed("--protocol", "gool", "--gool-peer", "162.159.192.1:2408"))
         assertEquals(listOf(wireguard, AetherIdentityManager.WIREGUARD_INNER_FILE), needed("--protocol", "gool", "--gool-classic", "--wiw-scan"))
         // With no protocol named the core runs MASQUE.
         assertEquals(listOf(masque), needed())

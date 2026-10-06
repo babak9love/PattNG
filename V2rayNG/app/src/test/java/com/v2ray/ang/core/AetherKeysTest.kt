@@ -129,10 +129,19 @@ class AetherKeysTest {
     }
 
     @Test
+    fun aKindStoredBeforeWireGuardOverMasqueKeepsItsKeys() {
+        // The page stored the type of the protocol; WARP-in-WARP's keys are still both WireGuard hops' ones.
+        assertEquals(AetherKeyKind.GOOL, AetherKeyKind.fromString("gool"))
+        assertEquals("gool-classic", AetherKeyKind.GOOL.register)
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeyKind.fromString("wg-over-masque"))
+        assertEquals(AetherKeyKind.ALL, AetherKeyKind.fromString(null))
+    }
+
+    @Test
     fun eachKindRegistersItsKeysAndReadsBack() {
         for (kind in AetherKeyKind.entries) {
             val arguments = AetherKeys.arguments(AetherKeysSettings(kind = kind))
-            assertEquals(listOf("--register", kind.type), arguments.take(2))
+            assertEquals(listOf("--register", kind.register), arguments.take(2))
             assertEquals(kind, AetherKeys.kindOf(arguments))
         }
     }
@@ -143,6 +152,10 @@ class AetherKeysTest {
         assertEquals(AetherKeyKind.WIREGUARD, AetherKeys.kindOf(listOf("--register", "warp")))
         assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", "warp-in-warp")))
         assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", " wiw ")))
+        assertEquals(AetherKeyKind.GOOL, AetherKeys.kindOf(listOf("--register", "gool-classic")))
+        // gool is what the core's --gool runs, WireGuard over MASQUE.
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeys.kindOf(listOf("--register", "gool")))
+        assertEquals(AetherKeyKind.WG_OVER_MASQUE, AetherKeys.kindOf(listOf("--register", "WG-over-MASQUE")))
         assertEquals(AetherKeyKind.MIM, AetherKeys.kindOf(listOf("--register", "masque-in-masque")))
         // The last one counts.
         assertEquals(AetherKeyKind.MASQUE, AetherKeys.kindOf(listOf("--register", "all", "--register", "masque")))

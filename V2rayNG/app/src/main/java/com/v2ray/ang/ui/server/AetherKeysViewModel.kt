@@ -255,6 +255,9 @@ class AetherKeysViewModel(
             AetherIdentityManager.MASQUE_FILE ->
                 ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_masque_key_ready, R.string.aether_log_masque_key_missing)
 
+            AetherIdentityManager.MASQUE_GOOL_FILE ->
+                ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_gool_key_ready, R.string.aether_log_gool_key_missing)
+
             else ->
                 ServerAetherViewModel.keyLine(key.identity, R.string.aether_log_masque_inner_key_ready, R.string.aether_log_masque_inner_key_missing)
         }

@@ -65,7 +65,7 @@ object AetherKeys {
      * the fingerprint has none.
      */
     fun arguments(settings: AetherKeysSettings): List<String> = buildList {
-        addAll(listOf(REGISTER, settings.kind.type))
+        addAll(listOf(REGISTER, settings.kind.register))
         settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--enroll-address", it)) }
         if (settings.fragment) {
             add("--api-fragment")

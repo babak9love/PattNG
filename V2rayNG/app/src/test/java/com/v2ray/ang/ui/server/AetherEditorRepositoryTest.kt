@@ -39,6 +39,8 @@ class AetherEditorRepositoryTest {
         assertTrue(masque.usesKeysOf(AetherKeyKind.MIM))
         assertFalse(masque.usesKeysOf(AetherKeyKind.WIREGUARD))
         assertFalse(masque.usesKeysOf(AetherKeyKind.GOOL))
+        // WireGuard over MASQUE replaces the MASQUE key as its outer hop key too.
+        assertTrue(masque.usesKeysOf(AetherKeyKind.WG_OVER_MASQUE))
 
         // Warp-in-warp uses the WireGuard key as its outer hop key, and an inner one of its own.
         val gool = AetherSession(AetherProtocol.GOOL)
@@ -46,12 +48,14 @@ class AetherEditorRepositoryTest {
         assertTrue(gool.usesKeysOf(AetherKeyKind.GOOL))
         assertFalse(gool.usesKeysOf(AetherKeyKind.MASQUE))
         assertFalse(gool.usesKeysOf(AetherKeyKind.MIM))
+        assertFalse(gool.usesKeysOf(AetherKeyKind.WG_OVER_MASQUE))
 
-        // WireGuard over MASQUE uses the MASQUE key outside; its WireGuard key is no kind's.
+        // WireGuard over MASQUE uses the MASQUE key outside and a WireGuard key of its own inside.
         val goolOverMasque = AetherSession(AetherProtocol.WG_OVER_MASQUE)
         assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.ALL))
         assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.MASQUE))
         assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.MIM))
+        assertTrue(goolOverMasque.usesKeysOf(AetherKeyKind.WG_OVER_MASQUE))
         assertFalse(goolOverMasque.usesKeysOf(AetherKeyKind.WIREGUARD))
         assertFalse(goolOverMasque.usesKeysOf(AetherKeyKind.GOOL))
         // Its scan opens a second tunnel on the MASQUE key, and only that disturbs it.

@@ -685,6 +685,8 @@
     <string name="aether_log_wireguard_inner_key_missing">Ключ внутреннего узла WireGuard: ещё не зарегистрирован; будет создан при первом сканировании или подключении</string>
     <string name="aether_log_masque_inner_key_ready">Ключ внутреннего узла MASQUE: устройство %1$s, IPv4 %2$s, IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">Ключ внутреннего узла MASQUE: ещё не зарегистрирован; будет создан при первом сканировании или подключении</string>
+    <string name="aether_log_gool_key_ready">Ключ WireGuard over MASQUE: устройство %1$s, IPv4 %2$s, IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">Ключ WireGuard over MASQUE: ещё не зарегистрирован; будет создан при первом сканировании или подключении</string>
     <string name="aether_renew_blocked">Отключите профиль Aether, прежде чем получать эти ключи: текущее подключение использует их</string>
     <string name="aether_action_get_keys">Получить новые ключи WARP</string>
     <string name="aether_keys_lab_kind">Получить новые ключи для</string>

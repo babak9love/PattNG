@@ -681,6 +681,8 @@
     <string name="aether_log_wireguard_inner_key_missing">WireGuard ভিতরের হপের কী: এখনও নিবন্ধিত নয়; প্রথম স্ক্যান বা সংযোগে নিবন্ধিত হবে</string>
     <string name="aether_log_masque_inner_key_ready">MASQUE ভিতরের হপের কী: ডিভাইস %1$s, IPv4 %2$s, IPv6 %3$s</string>
     <string name="aether_log_masque_inner_key_missing">MASQUE ভিতরের হপের কী: এখনও নিবন্ধিত নয়; প্রথম স্ক্যান বা সংযোগে নিবন্ধিত হবে</string>
+    <string name="aether_log_gool_key_ready">WireGuard over MASQUE কী: ডিভাইস %1$s, IPv4 %2$s, IPv6 %3$s</string>
+    <string name="aether_log_gool_key_missing">WireGuard over MASQUE কী: এখনও নিবন্ধিত নয়; প্রথম স্ক্যান বা সংযোগে নিবন্ধিত হবে</string>
     <string name="aether_renew_blocked">এই কীগুলো নেওয়ার আগে Aether সংযোগ বিচ্ছিন্ন করুন; চলমান সংযোগ এগুলো ব্যবহার করছে</string>
     <string name="aether_action_get_keys">নতুন WARP কী নিন</string>
     <string name="aether_keys_lab_kind">যার জন্য নতুন কী নেওয়া হবে</string>

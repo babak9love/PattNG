@@ -45,14 +45,14 @@ object AetherIdentityManager {
     const val WIREGUARD_INNER_FILE = "aether-wg-secondary.toml"
 
     /**
-     * The WireGuard key of WireGuard over MASQUE, beside [MASQUE_FILE] as the core names it. The core registers it
-     * through the MASQUE tunnel, from inside WARP, on the first scan or connection without it: no --register writes
-     * it, so it is none of [KEY_FILES], and no renewal touches it.
+     * The WireGuard key of WireGuard over MASQUE, beside [MASQUE_FILE] as the core names it. --register gool writes it
+     * as it writes the other keys; a scan or a connection without it has the core register one through the MASQUE
+     * tunnel, from inside WARP.
      */
     const val MASQUE_GOOL_FILE = "aether-masque-gool.toml"
 
     /** The key files of every kind, in the order the core registers them. */
-    internal val KEY_FILES = listOf(WIREGUARD_FILE, WIREGUARD_INNER_FILE, MASQUE_FILE, MASQUE_INNER_FILE)
+    internal val KEY_FILES = listOf(WIREGUARD_FILE, WIREGUARD_INNER_FILE, MASQUE_FILE, MASQUE_INNER_FILE, MASQUE_GOOL_FILE)
 
     private const val WORK_DIR = "aether"
 
@@ -75,7 +75,7 @@ object AetherIdentityManager {
      */
     private const val PREVIOUS_DIR = "aether-previous"
 
-    /** Four registrations and two MASQUE key enrollments at most, each of which the core may retry. */
+    /** Five registrations and two MASQUE key enrollments at most, each of which the core may retry. */
     private const val RENEW_TIMEOUT_MS = 4 * 60_000L
 
     /**
@@ -205,6 +205,7 @@ object AetherIdentityManager {
         AetherKeyKind.MASQUE -> listOf(MASQUE_FILE)
         AetherKeyKind.GOOL -> listOf(WIREGUARD_FILE, WIREGUARD_INNER_FILE)
         AetherKeyKind.MIM -> listOf(MASQUE_FILE, MASQUE_INNER_FILE)
+        AetherKeyKind.WG_OVER_MASQUE -> listOf(MASQUE_FILE, MASQUE_GOOL_FILE)
     }
 
     /** The key files a tunnel of [protocol] uses: its own, and the inner hop's for a two-hop one. */
@@ -217,15 +218,14 @@ object AetherIdentityManager {
     }
 
     /**
-     * The key files a core on [arguments] needs that the WARP keys page gets: those of the protocol they run, read as
-     * the core reads it, and none when they run Psiphon or Tor alone, with no WARP tunnel. The WireGuard key of
-     * WireGuard over MASQUE is not among them; only the core can register it, see [MASQUE_GOOL_FILE].
+     * The key files a core on [arguments] needs, which the WARP keys page gets: those of the protocol they run, read
+     * as the core reads it, and none when they run Psiphon or Tor alone, with no WARP tunnel.
      */
     fun filesNeededBy(arguments: List<String>): List<String> =
         if (AetherCoreManager.psiphonModeOf(arguments) == AetherPsiphon.ONLY || AetherCoreManager.torModeOf(arguments) == AetherTor.ONLY) {
             emptyList()
         } else {
-            filesOf(AetherCoreManager.protocolOf(arguments)).filter { it in KEY_FILES }
+            filesOf(AetherCoreManager.protocolOf(arguments))
         }
 
     /** Which of [files] the identity folder lacks: not there, or not readable as a key. */
