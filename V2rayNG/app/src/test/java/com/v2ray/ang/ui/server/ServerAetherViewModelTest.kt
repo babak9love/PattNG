@@ -448,6 +448,42 @@ class ServerAetherViewModelTest {
     }
 
     @Test
+    fun wireGuardOverMasqueWarnsWhenItsOuterMasqueKeyOrItsInnerWireGuardKeyIsMissing() {
+        var scans = 0
+        source.scanner = { _, _ -> scans++; null }
+        val viewModel = viewModel()
+        val goolOverMasque = profile.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type)
+
+        for (missing in listOf(AetherIdentityManager.MASQUE_FILE, AetherIdentityManager.MASQUE_GOOL_FILE)) {
+            source.missingFiles.clear()
+            source.missingFiles += missing
+
+            viewModel.checkKeysBeforeSave(goolOverMasque)
+            assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value, missing)
+            viewModel.onKeysCheckHandled()
+
+            viewModel.scan(goolOverMasque)
+            assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value, missing)
+            assertEquals(0, scans, missing)
+            viewModel.onKeysCheckHandled()
+        }
+
+        // With both of its keys there nothing is asked; the keys of the other protocols do not count.
+        source.missingFiles.clear()
+        source.missingFiles += listOf(
+            AetherIdentityManager.WIREGUARD_FILE,
+            AetherIdentityManager.WIREGUARD_INNER_FILE,
+            AetherIdentityManager.MASQUE_INNER_FILE,
+        )
+        viewModel.checkKeysBeforeSave(goolOverMasque)
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        viewModel.onKeysCheckHandled()
+        viewModel.scan(goolOverMasque)
+        assertNull(viewModel.keysCheck.value)
+        assertEquals(1, scans)
+    }
+
+    @Test
     fun aSaveGoesOnOnlyWhenTheKeysTheProfileNeedsAreThere() {
         val viewModel = viewModel()
 
