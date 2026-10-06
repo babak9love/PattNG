@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import android.util.Log
 import com.google.gson.JsonParser
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -1288,6 +1289,38 @@ class AetherCoreManagerTest {
                 AetherCoreManager.exitConfiguration(AetherExit.through(listOf(profile())), configuration, "warning"),
             )
         }
+    }
+
+    @Test
+    fun theExitOfACoreOfItsOwnOpensWithTheOutboundOfItsNode() {
+        val ech = """{"tag": "ech-query", "protocol": "freedom"}"""
+        val node = V2rayConfig.OutboundBean(
+            tag = "proxy",
+            protocol = "vless",
+            streamSettings = V2rayConfig.OutboundBean.StreamSettingsBean(
+                network = "tcp",
+                security = "tls",
+                tlsSettings = V2rayConfig.OutboundBean.StreamSettingsBean.TlsSettingsBean(echConfigList = "AEX+DQ", echOutbound = ech),
+            ),
+        )
+        val opened = JsonParser.parseString(
+            AetherCoreManager.exitConfiguration(AetherExit(node = "guid-1"), configuration = null, logLevel = "warning") {
+                if (it == "guid-1") node else null
+            }
+        ).asJsonObject
+        val outbounds = opened.getAsJsonArray("outbounds").map { it.asJsonObject }
+        // The node's outbound under the tag of the exit-node, and its ECH outbound linked to it, as in a session.
+        assertEquals(listOf("exit-node", "ech-query"), outbounds.map { it.get("tag").asString })
+        assertEquals("vless", outbounds.first().get("protocol").asString)
+        val tls = outbounds.first().getAsJsonObject("streamSettings").getAsJsonObject("tlsSettings")
+        assertEquals("ech-query", tls.getAsJsonObject("echSockopt").get("dialerProxy").asString)
+        assertEquals("warning", opened.getAsJsonObject("log").get("loglevel").asString)
+
+        // A node that gives no outbound opens no exit: the core would reach the internet without it.
+        assertNull(AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), configuration = null, logLevel = "warning") { null })
+        // A configuration under test that has the exit-node, a chain's hop, keeps it, as for any exit.
+        val chained = """{"outbounds": [{"tag": "proxy", "protocol": "socks"}, {"tag": "exit-node", "protocol": "trojan"}]}"""
+        assertEquals(chained, AetherCoreManager.exitConfiguration(AetherExit(node = "gone"), chained, "warning") { null })
     }
 
     @Test

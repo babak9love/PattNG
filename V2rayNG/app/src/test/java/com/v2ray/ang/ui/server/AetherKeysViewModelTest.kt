@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherExit
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherKey
@@ -46,6 +47,8 @@ class AetherKeysViewModelTest {
         var inUse: List<AetherKey> = AetherIdentityManager.KEY_FILES.map { AetherKey(it, null) }
         val runs = mutableListOf<Run>()
         var renewer: suspend ((String) -> Unit) -> List<AetherKey>? = { null }
+        var nodes: List<AetherExitNode> = emptyList()
+        val usable = mutableSetOf<String>()
 
         override suspend fun isCoreAvailable() = available
         override suspend fun activeSession() = session
@@ -59,6 +62,9 @@ class AetherKeysViewModelTest {
             runs += Run(kind, arguments, exit)
             return renewer(onOutput)
         }
+
+        override suspend fun exitNodes() = nodes
+        override suspend fun exitNodeUsable(guid: String) = guid in usable
     }
 
     private val source = FakeSource()
@@ -220,6 +226,49 @@ class AetherKeysViewModelTest {
         viewModel.getKeys()
 
         assertEquals(listOf(Run(AetherKeyKind.MIM, listOf("--register", "mim", "--psiphon-reverse"), AetherExit())), source.runs)
+    }
+
+    @Test
+    fun theProfilesThatCanBeTheExitNodeAreReadAndWhatIsChosenIsKept() {
+        source.nodes = listOf(AetherExitNode("guid-1", "germany"))
+        val viewModel = viewModel()
+        assertEquals(source.nodes, viewModel.exitNodes.value)
+
+        viewModel.setExitNode("guid-1")
+        viewModel.setFragment(true)
+        viewModel.setFragmentSize("8-16")
+        viewModel.setFragmentDelay("5")
+        val kept = AetherKeysSettings(exitNode = "guid-1", fragment = true, fragmentSize = "8-16", fragmentDelay = "5")
+        assertEquals(kept, viewModel.settings)
+        assertEquals(kept, source.saved.last())
+        viewModel.setExitNode("")
+        assertEquals("", source.saved.last().exitNode)
+    }
+
+    @Test
+    fun aRunDoesNotDialOutThroughAnExitNodeProfileThatIsGone() {
+        source.stored = AetherKeysSettings(exitNode = "guid-1")
+        val viewModel = viewModel()
+
+        viewModel.getKeys()
+        assertEquals(AetherKeysNotice.Invalid(R.string.aether_exit_node_unusable), viewModel.notice.value)
+        assertTrue(source.runs.isEmpty())
+        assertFalse(viewModel.isRenewing.value)
+
+        // Once it gives an exit-node, the run dials out through it.
+        viewModel.onNoticeShown()
+        source.usable += "guid-1"
+        viewModel.getKeys()
+        assertEquals(AetherExit(node = "guid-1"), source.runs.single().exit)
+    }
+
+    @Test
+    fun aFragmentShapeThatIsNoRangeIsToldAndNothingRuns() {
+        source.stored = AetherKeysSettings(fragment = true, fragmentSize = "0")
+        val viewModel = viewModel()
+        viewModel.getKeys()
+        assertEquals(AetherKeysNotice.Invalid(R.string.aether_invalid_fragment), viewModel.notice.value)
+        assertTrue(source.runs.isEmpty())
     }
 
     @Test

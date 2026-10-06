@@ -586,6 +586,11 @@
     <string name="aether_lab_obfuscation">مبهم‌سازی</string>
     <string name="aether_lab_ip_version">نسخه IP</string>
     <string name="aether_lab_exit_final_mask">finalMask خام JSON سی exit-node، قالوو: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom (پؽش فرز)</string>
+    <string name="aether_exit_node_missing">پروفایل پیدا نبی</string>
+    <string name="aether_hint_exit_node">هسته زه ری خروجی ای پروفایل وو بیرون وصل ابۊ، چی گامی زه زنجیره پروکسی؛ finalMask وو dialMode پایین فقط سی freedom ـن</string>
+    <string name="aether_exit_node_unusable">پروفایل exit-node پیدا نبی یا خروجیش ساخته نبی؛ یه پروفایل دیه یا freedom انتخاب کنین</string>
+    <string name="aether_keys_hint_fragment">ClientHello درخواستا WARP API تکه‌تکه فرستاده ابۊ، سی شبکه‌یایی که نوم API نه فیلتر اکنن</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌یل (بایت)</string>
     <string name="aether_lab_fragment_delay">تأخیر میون تکه‌یل (میلی‌ثانیه)</string>

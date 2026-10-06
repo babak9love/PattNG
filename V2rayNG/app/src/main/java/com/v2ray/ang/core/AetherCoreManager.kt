@@ -3,13 +3,12 @@ package com.v2ray.ang.core
 import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.AetherEndpoint
 import com.v2ray.ang.dto.AetherRange
+import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -25,7 +24,6 @@ import com.v2ray.ang.enums.AetherTorRelays
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CancellationException
@@ -601,7 +599,13 @@ object AetherCoreManager {
         turns = exitTurns,
         open = {
             val logLevel = MmkvManager.decodeSettingsString(AppConfig.PREF_LOGLEVEL) ?: DEFAULT_XRAY_LOG_LEVEL
-            openExit(context, exitConfiguration(exit, configuration, logLevel), source)
+            val exitConfiguration = exitConfiguration(exit, configuration, logLevel)
+            if (exitConfiguration == null) {
+                LogUtil.w(AppConfig.TAG, "AetherCore: the exit-node $source dials out through gives no outbound, its profile gone or its ECH outbound unusable; no core runs")
+                null
+            } else {
+                openExit(context, exitConfiguration, source)
+            }
         },
         close = { CoreNativeManager.closeExit() },
     ) { exitPort ->
@@ -697,14 +701,27 @@ object AetherCoreManager {
      * The configuration the exit of a core of its own opens with, whose outbound tagged exit-node the
      * core dials out by: [configuration], the configuration under test, when it has such an outbound,
      * as that of a core dialling out through a hop of its proxy chain has, or a custom configuration
-     * exported from a session; otherwise one with the plain exit-node of [exit] alone, which logs at
-     * [logLevel], the Xray log level of the app, should it start the shared Xray of the process.
+     * exported from a session; otherwise one with the exit-node of [exit] alone, see
+     * [CoreOutboundBuilder.toOutboundAetherExit], with the ECH outbound of a node linked as in a session,
+     * which logs at [logLevel], the Xray log level of the app, should it start the shared Xray of the
+     * process. Null when the node [nodeOutbound] looks up gives no outbound, or its ECH outbound is unusable.
      */
-    internal fun exitConfiguration(exit: AetherExit, configuration: String?, logLevel: String): String =
-        configuration?.takeIf(::hasExitNode) ?: JsonObject().apply {
-            add("log", JsonObject().apply { addProperty("loglevel", logLevel) })
-            add("outbounds", JsonArray().apply { add(JsonParser.parseString(JsonUtil.toJson(CoreOutboundBuilder.toOutboundAetherExit(exit)))) })
-        }.toString()
+    internal fun exitConfiguration(
+        exit: AetherExit,
+        configuration: String?,
+        logLevel: String,
+        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
+    ): String? {
+        configuration?.takeIf(::hasExitNode)?.let { return it }
+        val exitNode = CoreOutboundBuilder.toOutboundAetherExit(exit, nodeOutbound) ?: return null
+        val config = V2rayConfig(
+            log = V2rayConfig.LogBean(loglevel = logLevel),
+            inbounds = arrayListOf(),
+            outbounds = arrayListOf(exitNode),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+        )
+        return (EchOutbound.serialize(config) as? EchOutbound.Result.Done)?.content
+    }
 
     /** Whether the configuration [content] has an outbound tagged exit-node. */
     private fun hasExitNode(content: String): Boolean = try {

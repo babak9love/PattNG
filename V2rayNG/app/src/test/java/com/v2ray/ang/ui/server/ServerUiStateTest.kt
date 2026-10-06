@@ -183,6 +183,25 @@ class ServerUiStateTest {
     }
 
     @Test
+    fun theExitNodeIsTheGuidOfAProfileAndIsStoredOnlyWhenOneIsChosen() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        assertEquals("", state.aetherExitNode)
+        assertNull(state.toProfileItem(profile).aetherExitNode)
+
+        state.aetherExitNode = "guid-1"
+        val chosen = state.toProfileItem(profile)
+        assertEquals("guid-1", chosen.aetherExitNode)
+        assertEquals("guid-1", ServerUiState.from(chosen).aetherExitNode)
+        // The finalMask and the dialMode set before are kept, out of use, for freedom again.
+        state.finalMask = """{"tcp": []}"""
+        assertEquals("""{"tcp": []}""", state.toProfileItem(profile).finalMask)
+        // No other type of profile has one.
+        state.configType = EConfigType.VLESS
+        assertNull(state.toProfileItem(profile).aetherExitNode)
+    }
+
+    @Test
     fun theCdnSetsAreChosenOneByOneAndStoredInTheOrderTheCoreTriesThem() {
         val blank = ProfileItem.create(EConfigType.AETHER)
         val state = ServerUiState.from(blank.apply { aetherPsiphon = "chain" })

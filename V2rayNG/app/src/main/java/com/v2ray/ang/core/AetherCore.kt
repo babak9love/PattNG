@@ -4,7 +4,10 @@ import com.google.gson.JsonParser
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.nullIfBlank
+import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.JsonUtil
 import java.security.MessageDigest
 
@@ -148,22 +151,55 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
  * In a proxy chain where the Aether profile is not the entry hop, the one that dials the internet
  * itself, the core dials out through the hop on its entry side instead: that hop's outbound, as the
  * chain builds it, is the exit-node, and [hops] tells those hops apart. The profile's finalMask and
- * dialMode do not count then, nor does anything else of a plain exit-node.
+ * dialMode do not count then, nor does anything else of a plain exit-node, its [node] included.
+ *
+ * Without a chain, the profile, or the WARP keys page, can name a profile of its own as the
+ * exit-node, one a chain takes for a hop: [node], by its guid. That profile's outbound, as a chain
+ * builds it, is the exit-node then, changed in its tag alone, and the finalMask and the dialMode do
+ * not count either. Who builds it looks the profile up, see [CoreOutboundBuilder.toOutboundAetherExit].
  */
-data class AetherExit(val finalMask: String? = null, val dialMode: String? = null, val hops: String? = null) {
+data class AetherExit(
+    val finalMask: String? = null,
+    val dialMode: String? = null,
+    val hops: String? = null,
+    val node: String? = null,
+) {
 
     /**
      * What tells this exit-node from another in another process, without what it is made of: a digest
-     * of it, which the session's core carries in its environment, see [AetherCoreManager.EXIT_ENV].
+     * of it, which the session's core carries in its environment, see [AetherCoreManager.EXIT_ENV]. A
+     * node joins only where there is one, so that the key of any other exit-node stays what it was.
      */
-    val key: String get() = digest(listOf(finalMask, dialMode, hops).joinToString("\u0000") { it.orEmpty() })
+    val key: String get() = digest((listOf(finalMask, dialMode, hops) + listOfNotNull(node)).joinToString("\u0000") { it.orEmpty() })
 
     companion object {
         /** An exit-node with nothing set, as the core of a custom configuration dials out through. */
         val PLAIN = AetherExit()
 
-        /** The exit-node of the core of [profile]. */
-        fun of(profile: ProfileItem): AetherExit = AetherExit(profile.finalMask.nullIfBlank(), profile.dialMode.nullIfBlank())
+        /** The exit-node of the core of [profile]: the profile it names as its node, or else a plain one with its finalMask and dialMode. */
+        fun of(profile: ProfileItem): AetherExit =
+            profile.aetherExitNode.nullIfBlank()?.let { AetherExit(node = it) }
+                ?: AetherExit(profile.finalMask.nullIfBlank(), profile.dialMode.nullIfBlank())
+
+        /**
+         * Whether [profile] can be an exit-node: a profile a proxy chain takes for a hop, and no Aether one, whose
+         * core is the one that dials out.
+         */
+        fun takesAsNode(profile: ProfileItem): Boolean =
+            !profile.configType.isComplexType() && profile.configType != EConfigType.AETHER
+
+        /** The profile [guid] names, when it can be an exit-node; null when it is gone or can be none. */
+        fun nodeProfile(guid: String): ProfileItem? = MmkvManager.decodeServerConfig(guid)?.takeIf(::takesAsNode)
+
+        /** Every profile that can be an exit-node, in the order of the server list. */
+        fun nodes(): List<AetherExitNode> =
+            MmkvManager.decodeAllServerList().mapNotNull { guid ->
+                MmkvManager.decodeServerConfig(guid)?.takeIf(::takesAsNode)?.let { AetherExitNode(guid, nameOf(it)) }
+            }
+
+        /** What a list of exit-nodes calls [profile]: its remarks, or its type and address when it has none. */
+        internal fun nameOf(profile: ProfileItem): String =
+            profile.remarks.trim().ifEmpty { "${profile.configType.name} ${profile.server.orEmpty()}:${profile.serverPort.orEmpty()}" }
 
         /**
          * Whether an exit-node takes [finalMask]: blank, or a JSON object, read by the parser JsonUtil uses but
@@ -188,3 +224,6 @@ data class AetherExit(val finalMask: String? = null, val dialMode: String? = nul
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 }
+
+/** PattNG: a profile that can be the exit-node of an Aether core, see [AetherExit.node]: its [guid], and the [name] a list shows. */
+data class AetherExitNode(val guid: String, val name: String)

@@ -119,6 +119,7 @@ class ServerAetherActivity : BaseServerActivity() {
         val log by viewModel.log.collectAsStateWithLifecycle()
         val listenPort by viewModel.listenPort.collectAsStateWithLifecycle()
         val keysCheck by viewModel.keysCheck.collectAsStateWithLifecycle()
+        val exitNodes by viewModel.exitNodes.collectAsStateWithLifecycle()
         // Folded away unless one of its settings holds a value, so a profile that set one shows it at once.
         var showOther by rememberSaveable { mutableStateOf(uiState.hasOtherAetherSettings) }
         val isScanning = scanState == AetherScanState.Scanning
@@ -282,16 +283,25 @@ class ServerAetherActivity : BaseServerActivity() {
                     )
                 }
             }
-            // Set on the exit-node, where what the core sends leaves Xray, as an ordinary profile sets them on its outbound.
+            // The exit-node, where what the core sends leaves Xray: freedom, with the finalMask and the dialMode below set on
+            // it as an ordinary profile sets them on its outbound, or a profile's own outbound, which leaves those out of use.
+            ExitNodeField(
+                value = uiState.aetherExitNode,
+                nodes = exitNodes,
+                onValueChange = { uiState.aetherExitNode = it }
+            )
+            val freedom = uiState.aetherExitNode.isBlank()
             FinalMaskField(
                 stringResource(R.string.aether_lab_exit_final_mask),
                 uiState.finalMask,
-                { uiState.finalMask = it }
+                { uiState.finalMask = it },
+                enabled = freedom
             )
             FormTextField(
                 stringResource(R.string.aether_lab_exit_dial_mode),
                 uiState.dialMode,
-                { uiState.dialMode = it }
+                { uiState.dialMode = it },
+                enabled = freedom
             )
             AetherDropdownField(
                 label = R.string.aether_lab_psiphon,
@@ -620,16 +630,25 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     // The finalMask of an Aether profile is that of its exit-node: a bad one is named by its own label and checked as
-    // on the WARP keys page, before the check every profile has would name it the outbound's.
+    // on the WARP keys page, before the check every profile has would name it the outbound's. With a profile as the
+    // exit-node it is out of use, and not checked at all.
     override fun validateCommonConfig(state: ServerUiState, config: ProfileItem): Boolean {
-        if (!AetherExit.takesFinalMask(config.finalMask)) {
+        val freedom = config.aetherExitNode.isNullOrBlank()
+        if (freedom && !AetherExit.takesFinalMask(config.finalMask)) {
             toast(R.string.aether_lab_exit_final_mask)
             return false
         }
-        return super.validateCommonConfig(state, config)
+        return super.validateCommonConfig(state, if (freedom) config else config.copy(finalMask = null))
     }
 
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
+        // A profile chosen as the exit-node that is gone by now: the core would reach WARP without it. Until the
+        // profiles are read, nothing is told.
+        val node = config.aetherExitNode
+        if (!node.isNullOrBlank() && viewModel.exitNodes.value?.none { it.guid == node } == true) {
+            toast(R.string.aether_exit_node_unusable)
+            return false
+        }
         // The core cannot listen where the local proxy of the app does, nor where the inbound it dials out
         // through does; Xray would get the port first.
         val takenPorts = SettingsManager.getLocalProxyPorts() + AetherCoreManager.secondarySocksPort

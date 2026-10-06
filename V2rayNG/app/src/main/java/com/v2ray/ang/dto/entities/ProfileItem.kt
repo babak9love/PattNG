@@ -115,6 +115,13 @@ data class ProfileItem(
     var aetherExitLoc: String? = null,
 
     /**
+     * The guid of the profile the core dials out through: its outbound is the exit-node, as a proxy chain's hop is.
+     * Null means freedom, with the finalMask and the dialMode of this profile. No link carries it: the guid is this
+     * device's alone.
+     */
+    var aetherExitNode: String? = null,
+
+    /**
      * The loopback port the Aether core of this profile listened on, from before every core came to
      * listen on the Aether listen port of the settings. Nothing reads it any more; profiles that carry
      * it keep it as they were stored.

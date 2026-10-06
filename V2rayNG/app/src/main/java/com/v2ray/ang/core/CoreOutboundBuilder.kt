@@ -763,12 +763,15 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * PattNG: the exit-node of an Aether core, the freedom outbound that what the core dials out through
-     * leaves Xray by, with the finalMask and the dialMode of [exit] set as an ordinary profile sets them on
-     * its own outbound. The session's configuration carries it, and a core of its own dials out through it
-     * as well, see [AetherCoreManager.withProcess].
+     * PattNG: the exit-node of an Aether core, the outbound that what the core dials out through leaves Xray
+     * by: the outbound of the profile [exit] names as its node, which [nodeOutbound] gives, as a proxy chain
+     * builds its hop, and changed in its tag alone; or else a freedom outbound with the finalMask and the
+     * dialMode of [exit] set as an ordinary profile sets them on its own outbound. Null when the node gives
+     * no outbound: the core would reach the internet without it. The session's configuration carries it,
+     * and a core of its own dials out through it as well, see [AetherCoreManager.withProcess].
      */
-    fun toOutboundAetherExit(exit: AetherExit): OutboundBean {
+    fun toOutboundAetherExit(exit: AetherExit, nodeOutbound: (String) -> OutboundBean? = ::toOutboundOfNode): OutboundBean? {
+        exit.node?.let { guid -> return nodeOutbound(guid)?.apply { tag = AppConfig.TAG_EXIT_NODE } }
         val outbound = OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "freedom", mux = null)
         if (!exit.finalMask.isNullOrBlank()) {
             // A freedom outbound has no transport; the stream settings carry the mask alone.
@@ -778,4 +781,10 @@ object CoreOutboundBuilder {
         applyDialMode(outbound, exit.dialMode)
         return outbound
     }
+
+    /**
+     * PattNG: the outbound of the profile [guid] names, built as for a hop of a proxy chain; null when the
+     * profile is gone, can be no exit-node, or gives no outbound. See [AetherExit.node].
+     */
+    fun toOutboundOfNode(guid: String): OutboundBean? = AetherExit.nodeProfile(guid)?.let(::convert)
 }

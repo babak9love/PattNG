@@ -8,6 +8,7 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
@@ -87,6 +88,10 @@ class ServerAetherViewModel(
     private val _keysCheck = MutableStateFlow<AetherKeysCheck?>(null)
     val keysCheck: StateFlow<AetherKeysCheck?> = _keysCheck.asStateFlow()
 
+    /** The profiles the core can dial out through in place of freedom; null until they are read. */
+    private val _exitNodes = MutableStateFlow<List<AetherExitNode>?>(null)
+    val exitNodes: StateFlow<List<AetherExitNode>?> = _exitNodes.asStateFlow()
+
     private val nextLogId = AtomicLong()
     private var scanJob: Job? = null
     private var reportedIdentity: AetherIdentityStatus? = null
@@ -100,6 +105,7 @@ class ServerAetherViewModel(
         viewModelScope.launch { _isTorTransportsAvailable.value = source.isTorTransportsAvailable() }
         viewModelScope.launch { _psiphonRegions.value = source.psiphonRegions() }
         viewModelScope.launch { _listenPort.value = source.listenPort() }
+        viewModelScope.launch { _exitNodes.value = source.exitNodes() }
         refreshSession()
     }
 
@@ -122,6 +128,13 @@ class ServerAetherViewModel(
                 if (session?.disturbedByScanOf(AetherProtocol.fromString(profile.aetherProtocol)) == true) {
                     _scanState.value = AetherScanState.Idle
                     append(Log.WARN, AetherLogText.Resource(R.string.aether_scan_blocked))
+                    return@launch
+                }
+                // The profile chosen as the exit-node may be gone since the screen opened; the scan would reach WARP without it.
+                val node = profile.aetherExitNode
+                if (!node.isNullOrBlank() && !source.exitNodeUsable(node)) {
+                    _scanState.value = AetherScanState.Idle
+                    append(Log.ERROR, AetherLogText.Resource(R.string.aether_exit_node_unusable))
                     return@launch
                 }
                 if (!anyway) {

@@ -40,6 +40,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherKeys
 import com.v2ray.ang.core.AetherKeysSettings
 import com.v2ray.ang.enums.AetherFingerprint
@@ -85,6 +86,7 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
         val session by viewModel.session.collectAsStateWithLifecycle()
         val log by viewModel.log.collectAsStateWithLifecycle()
         val notice by viewModel.notice.collectAsStateWithLifecycle()
+        val exitNodes by viewModel.exitNodes.collectAsStateWithLifecycle()
         val settings = viewModel.settings
         val scrollState = rememberScrollState()
 
@@ -119,7 +121,7 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
             ) {
                 // Shown once the settings are read, so that nothing typed before is overwritten by them.
                 if (settings != null) {
-                    KeysForm(settings, isCoreAvailable, isRenewing, session)
+                    KeysForm(settings, exitNodes, isCoreAvailable, isRenewing, session)
                 }
                 AetherLogPanel(entries = log, emptyText = R.string.aether_keys_log_empty)
                 NavigationBarsSpacer()
@@ -128,7 +130,13 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
     }
 
     @Composable
-    private fun KeysForm(settings: AetherKeysSettings, isCoreAvailable: Boolean, isRenewing: Boolean, session: AetherSession?) {
+    private fun KeysForm(
+        settings: AetherKeysSettings,
+        exitNodes: List<AetherExitNode>?,
+        isCoreAvailable: Boolean,
+        isRenewing: Boolean,
+        session: AetherSession?,
+    ) {
         val enabled = !isRenewing
         PreferenceGroupHeader(title = stringResource(R.string.aether_keys_lab_kind))
         // The protocols by the names the editor gives them, matched by the word the core takes for each.
@@ -162,6 +170,30 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
             enabled = enabled,
             keyboardType = KeyboardType.Uri
         )
+        // --api-fragment, in the pieces the editor's fragmenting of MASQUE over HTTP/2 takes as well.
+        SettingsSwitchItem(
+            title = stringResource(R.string.aether_lab_fragment),
+            summary = stringResource(R.string.aether_keys_hint_fragment),
+            checked = settings.fragment,
+            onCheckedChange = viewModel::setFragment,
+            enabled = enabled
+        )
+        if (settings.fragment) {
+            FormTextField(
+                stringResource(R.string.aether_lab_fragment_size),
+                settings.fragmentSize,
+                viewModel::setFragmentSize,
+                enabled = enabled,
+                placeholder = stringResource(R.string.aether_hint_fragment_size)
+            )
+            FormTextField(
+                stringResource(R.string.aether_lab_fragment_delay),
+                settings.fragmentDelay,
+                viewModel::setFragmentDelay,
+                enabled = enabled,
+                placeholder = stringResource(R.string.aether_hint_fragment_delay)
+            )
+        }
         SettingsSwitchItem(
             title = stringResource(R.string.aether_lab_ech),
             summary = stringResource(R.string.aether_keys_hint_ech),
@@ -199,18 +231,26 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
             onValueChange = { picked -> AetherFingerprint.entries.getOrNull(fingerprintLabels.indexOf(picked))?.let(viewModel::setFingerprint) },
             enabled = enabled
         )
-        // Set on the exit-node, the Xray outbound by which what the core sends leaves, as the editor sets a profile's.
+        // The exit-node, the Xray outbound by which what the core sends leaves, as the editor sets a profile's: freedom,
+        // with the finalMask and the dialMode below, or a profile's own outbound, which leaves those out of use.
+        ExitNodeField(
+            value = settings.exitNode,
+            nodes = exitNodes,
+            onValueChange = viewModel::setExitNode,
+            enabled = enabled
+        )
+        val freedom = settings.exitNode.isBlank()
         FinalMaskField(
             stringResource(R.string.aether_lab_exit_final_mask),
             settings.finalMask,
             viewModel::setFinalMask,
-            enabled = enabled
+            enabled = enabled && freedom
         )
         FormTextField(
             stringResource(R.string.aether_lab_exit_dial_mode),
             settings.dialMode,
             viewModel::setDialMode,
-            enabled = enabled
+            enabled = enabled && freedom
         )
         // A session keeps the keys it uses; the keys of the other protocols can change under it.
         val blocked = AetherKeys.kindOf(AetherKeys.runArguments(settings))?.let { session?.usesKeysOf(it) } == true

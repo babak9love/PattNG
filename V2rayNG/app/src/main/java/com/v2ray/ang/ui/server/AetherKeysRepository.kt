@@ -3,6 +3,7 @@ package com.v2ray.ang.ui.server
 import android.content.Context
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.core.AetherExit
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherKey
 import com.v2ray.ang.core.AetherKeysSettings
@@ -29,6 +30,12 @@ interface AetherKeysSource {
 
     /** Registers new keys of [kind] with the core on [arguments], dialling out through [exit]; the new keys, or null when the old ones stay. */
     suspend fun renew(kind: AetherKeyKind, arguments: List<String>, exit: AetherExit, onOutput: (String) -> Unit): List<AetherKey>?
+
+    /** The profiles a run can dial out through in place of freedom, see [AetherExit.nodes]. */
+    suspend fun exitNodes(): List<AetherExitNode>
+
+    /** Whether the profile [guid] names gives an exit-node still, see [AetherExit.node]. */
+    suspend fun exitNodeUsable(guid: String): Boolean
 }
 
 /**
@@ -49,10 +56,14 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
         AetherKeysSettings(
             kind = AetherKeyKind.fromString(MmkvManager.decodeSettingsString(AppConfig.PREF_AETHER_KEYS_KIND)),
             enrollAddress = text(AppConfig.PREF_AETHER_KEYS_ENROLL_ADDRESS, defaults.enrollAddress),
+            fragment = MmkvManager.decodeSettingsBool(AppConfig.PREF_AETHER_KEYS_FRAGMENT, defaults.fragment),
+            fragmentSize = text(AppConfig.PREF_AETHER_KEYS_FRAGMENT_SIZE, defaults.fragmentSize),
+            fragmentDelay = text(AppConfig.PREF_AETHER_KEYS_FRAGMENT_DELAY, defaults.fragmentDelay),
             ech = MmkvManager.decodeSettingsBool(AppConfig.PREF_AETHER_KEYS_ECH, defaults.ech),
             echDns = text(AppConfig.PREF_AETHER_KEYS_ECH_DNS, defaults.echDns),
             echDomain = text(AppConfig.PREF_AETHER_KEYS_ECH_DOMAIN, defaults.echDomain),
             fingerprint = AetherFingerprint.fromString(MmkvManager.decodeSettingsString(AppConfig.PREF_AETHER_KEYS_FINGERPRINT)),
+            exitNode = text(AppConfig.PREF_AETHER_KEYS_EXIT_NODE, defaults.exitNode),
             finalMask = text(AppConfig.PREF_AETHER_KEYS_FINAL_MASK, defaults.finalMask),
             dialMode = text(AppConfig.PREF_AETHER_KEYS_DIAL_MODE, defaults.dialMode),
             command = text(AppConfig.PREF_AETHER_KEYS_COMMAND, defaults.command),
@@ -71,10 +82,14 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
         listOf(
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_KIND, settings.kind.type),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_ENROLL_ADDRESS, settings.enrollAddress),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT, settings.fragment),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT_SIZE, settings.fragmentSize),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FRAGMENT_DELAY, settings.fragmentDelay),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_ECH, settings.ech),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_ECH_DNS, unlessDefault(settings.echDns, AppConfig.AETHER_ECH_DNS)),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_ECH_DOMAIN, unlessDefault(settings.echDomain, AppConfig.AETHER_ECH_DOMAIN)),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FINGERPRINT, settings.fingerprint.type),
+            MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_EXIT_NODE, settings.exitNode),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_FINAL_MASK, settings.finalMask),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_DIAL_MODE, settings.dialMode),
             MmkvManager.encodeSettings(AppConfig.PREF_AETHER_KEYS_COMMAND, settings.command),
@@ -84,6 +99,10 @@ class AetherKeysRepository(private val context: Context) : AetherKeysSource {
 
     override suspend fun renew(kind: AetherKeyKind, arguments: List<String>, exit: AetherExit, onOutput: (String) -> Unit): List<AetherKey>? =
         AetherIdentityManager.renew(context, kind, arguments, exit, onOutput)
+
+    override suspend fun exitNodes(): List<AetherExitNode> = editor.exitNodes()
+
+    override suspend fun exitNodeUsable(guid: String): Boolean = editor.exitNodeUsable(guid)
 
     private fun text(key: String, default: String): String = MmkvManager.decodeSettingsString(key, default) ?: default
 

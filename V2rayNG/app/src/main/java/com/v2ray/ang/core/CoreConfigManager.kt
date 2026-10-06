@@ -51,6 +51,7 @@ object CoreConfigManager {
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
                 if (lacksChainHop(it, v2rayConfig.outbounds)) return chainHopFailure(context, guid)
+                if (lacksExitNode(it, v2rayConfig.outbounds)) return exitNodeFailure(context, guid)
                 routeAetherThroughXray(v2rayConfig, it, secondaryPort) ?: return secondaryPortFailure(context, guid, secondaryPort)
             }
             return toConfigResult(context, configContext, v2rayConfig, core)
@@ -93,6 +94,7 @@ object CoreConfigManager {
             // which a test may measure through, through the session's inbound.
             val core = (dependency as? AetherDependency.Single)?.core
             if (core != null && lacksChainHop(core, v2rayConfig.outbounds)) return chainHopFailure(context, guid)
+            if (core != null && lacksExitNode(core, v2rayConfig.outbounds)) return exitNodeFailure(context, guid)
             return toConfigResult(context, configContext, v2rayConfig, core)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to get V2ray config for speedtest", e)
@@ -568,15 +570,27 @@ object CoreConfigManager {
      * PattNG: has what the Aether [core] sends out leave through Xray: the secondary-socks inbound on
      * [port], three above the Aether listen port, after the other inbounds, with no sniffing; the
      * exit-node of the core, after the other outbounds, unless a hop of a chain the core dials out
-     * through is the exit-node already, see [handleProxyChainResolvedOutbound]: a freedom outbound
-     * with its profile's finalMask and dialMode; and a rule ahead of every other that sends what comes
-     * in on that inbound out by that outbound. Returns the core told to dial out through the inbound,
-     * or null, with nothing added, when an inbound of the configuration listens on [port] already. A
-     * core that names an upstream of its own, as a profile's hand-written command may, is left as it is.
+     * through is the exit-node already, see [handleProxyChainResolvedOutbound]: the outbound of the
+     * profile its exit names as its node, which [nodeOutbound] gives, or else a freedom outbound with its
+     * profile's finalMask and dialMode; and a rule ahead of every other that sends what comes in on that
+     * inbound out by that outbound. Returns the core told to dial out through the inbound, or null, with
+     * nothing added, when an inbound of the configuration listens on [port] already, or when the node
+     * gives no outbound, which [lacksExitNode] tells first. A core that names an upstream of its own, as
+     * a profile's hand-written command may, is left as it is.
      */
-    internal fun routeAetherThroughXray(v2rayConfig: V2rayConfig, core: AetherCore, port: Int): AetherCore? {
+    internal fun routeAetherThroughXray(
+        v2rayConfig: V2rayConfig,
+        core: AetherCore,
+        port: Int,
+        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
+    ): AetherCore? {
         if (core.hasUpstream) return core
         if (v2rayConfig.inbounds.any { it.port == port }) return null
+        val exitNode = if (v2rayConfig.outbounds.any { it.tag == AppConfig.TAG_EXIT_NODE }) {
+            null
+        } else {
+            CoreOutboundBuilder.toOutboundAetherExit(core.exit, nodeOutbound) ?: return null
+        }
         v2rayConfig.inbounds.add(
             V2rayConfig.InboundBean(
                 tag = AppConfig.TAG_SECONDARY_SOCKS,
@@ -586,9 +600,7 @@ object CoreConfigManager {
                 settings = V2rayConfig.InboundBean.InSettingsBean(udp = true),
             )
         )
-        if (v2rayConfig.outbounds.none { it.tag == AppConfig.TAG_EXIT_NODE }) {
-            v2rayConfig.outbounds.add(CoreOutboundBuilder.toOutboundAetherExit(core.exit))
-        }
+        if (exitNode != null) v2rayConfig.outbounds.add(exitNode)
         v2rayConfig.routing.rules.add(
             0,
             V2rayConfig.RoutingBean.RulesBean(
@@ -635,6 +647,31 @@ object CoreConfigManager {
      */
     internal fun lacksChainHop(core: AetherCore, outbounds: List<V2rayConfig.OutboundBean>): Boolean =
         core.exit.hops != null && outbounds.none { it.tag == AppConfig.TAG_EXIT_NODE }
+
+    /**
+     * PattNG: true when [core] dials out through a profile chosen as its exit-node, see [AetherExit.node],
+     * and neither do [outbounds] have the exit-node already, as a chain's hop would be, nor does the node
+     * give one, which [nodeOutbound] tells: it is gone, can be none, or gives no outbound. The core would
+     * reach the internet without it. A core that names an upstream of its own dials out through no exit-node.
+     */
+    internal fun lacksExitNode(
+        core: AetherCore,
+        outbounds: List<V2rayConfig.OutboundBean>,
+        nodeOutbound: (String) -> V2rayConfig.OutboundBean? = CoreOutboundBuilder::toOutboundOfNode,
+    ): Boolean =
+        !core.hasUpstream && core.exit.node != null && outbounds.none { it.tag == AppConfig.TAG_EXIT_NODE } &&
+            CoreOutboundBuilder.toOutboundAetherExit(core.exit, nodeOutbound) == null
+
+    /** PattNG: see [lacksExitNode], as a failure whose message is meant for the screen. */
+    private fun exitNodeFailure(context: Context, guid: String): ConfigResult {
+        LogUtil.w(AppConfig.TAG, "The exit-node profile the Aether core dials out through is gone or gives no outbound, guid=$guid")
+        return ConfigResult(
+            status = false,
+            guid = guid,
+            errorMessage = context.getString(R.string.aether_exit_node_unusable),
+            localizedError = true,
+        )
+    }
 
     /** PattNG: see [lacksChainHop], as a failure whose message is meant for the screen. */
     private fun chainHopFailure(context: Context, guid: String): ConfigResult {

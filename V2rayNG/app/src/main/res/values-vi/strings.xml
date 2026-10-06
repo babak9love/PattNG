@@ -584,6 +584,11 @@
     <string name="aether_lab_obfuscation">Làm rối</string>
     <string name="aether_lab_ip_version">Phiên bản IP</string>
     <string name="aether_lab_exit_final_mask">JSON thô của finalMask cho exit-node, định dạng: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom (mặc định)</string>
+    <string name="aether_exit_node_missing">Không tìm thấy hồ sơ</string>
+    <string name="aether_hint_exit_node">Lõi kết nối ra ngoài qua outbound của hồ sơ này, như qua một chặng của chuỗi proxy; finalMask và dialMode bên dưới chỉ dùng cho freedom</string>
+    <string name="aether_exit_node_unusable">Hồ sơ exit-node không còn hoặc không tạo được outbound; hãy chọn hồ sơ khác, hoặc freedom</string>
+    <string name="aether_keys_hint_fragment">Gửi ClientHello của các yêu cầu tới WARP API thành từng mảnh, cho các mạng lọc tên của API</string>
     <string name="aether_lab_fragment">Phân mảnh ClientHello</string>
     <string name="aether_lab_fragment_size">Kích thước mảnh (byte)</string>
     <string name="aether_lab_fragment_delay">Độ trễ giữa các mảnh (ms)</string>

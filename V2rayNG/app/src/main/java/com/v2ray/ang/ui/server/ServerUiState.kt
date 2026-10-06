@@ -101,6 +101,7 @@ class ServerUiState(
     aetherEchDomain: String = AETHER_ECH_DOMAIN,
     aetherDns: String = "",
     aetherExitLoc: String = "",
+    aetherExitNode: String = "",
     aetherPsiphon: String = AetherPsiphon.OFF.type,
     aetherPsiphonMode: String = AetherPsiphonMode.AUTO.type,
     aetherPsiphonCdnIps: String = "",
@@ -182,6 +183,9 @@ class ServerUiState(
     var aetherEchDomain by mutableStateOf(aetherEchDomain)
     var aetherDns by mutableStateOf(aetherDns)
     var aetherExitLoc by mutableStateOf(aetherExitLoc)
+
+    /** The guid of the profile the core dials out through, see ProfileItem.aetherExitNode; blank for freedom. */
+    var aetherExitNode by mutableStateOf(aetherExitNode)
     var aetherPsiphon by mutableStateOf(aetherPsiphon)
     var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)
     var aetherPsiphonCdnIps by mutableStateOf(aetherPsiphonCdnIps)
@@ -314,6 +318,7 @@ class ServerUiState(
             aetherEchDomain = if (isAether) aetherEchDomain.nullIfBlank() else null,
             aetherDns = if (isAether) aetherDns.nullIfBlank() else null,
             aetherExitLoc = if (isAether) aetherExitLoc.nullIfBlank() else null,
+            aetherExitNode = if (isAether) aetherExitNode.nullIfBlank() else null,
             aetherPsiphon = if (isPsiphon) aetherPsiphon else null,
             aetherPsiphonMode = if (isPsiphon) aetherPsiphonMode else null,
             aetherPsiphonCdnIps = if (isPsiphon) aetherPsiphonCdnIps.nullIfBlank() else null,
@@ -408,6 +413,7 @@ class ServerUiState(
                 aetherEchDomain = initialConfig.aetherEchDomain.nullIfBlank() ?: AETHER_ECH_DOMAIN,
                 aetherDns = initialConfig.aetherDns ?: "",
                 aetherExitLoc = initialConfig.aetherExitLoc ?: "",
+                aetherExitNode = initialConfig.aetherExitNode ?: "",
                 aetherPsiphon = AetherPsiphon.fromString(initialConfig.aetherPsiphon).type,
                 aetherPsiphonMode = AetherPsiphonMode.fromString(initialConfig.aetherPsiphonMode).type,
                 aetherPsiphonCdnIps = initialConfig.aetherPsiphonCdnIps ?: "",

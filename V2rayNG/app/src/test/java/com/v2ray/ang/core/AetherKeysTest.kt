@@ -235,6 +235,44 @@ class AetherKeysTest {
     }
 
     @Test
+    fun theFragmentSendsTheClientHelloOfTheApiInPiecesShapedAsSet() {
+        val on = AetherKeysSettings(fragment = true)
+        assertEquals(
+            listOf(
+                "--register", "all",
+                "--enroll-address", "api.cloudflareclient.com",
+                "--api-fragment",
+                "--tls-ciphers", "ALL:!aPSK:!ECDSA+SHA1:!3DES",
+            ),
+            AetherKeys.arguments(on)
+        )
+        val shaped = AetherKeys.arguments(on.copy(fragmentSize = " 16 - 8 ", fragmentDelay = "5"))
+        assertEquals("8-16", valueAfter(shaped, "--fragment-size"))
+        assertEquals("5", valueAfter(shaped, "--fragment-delay"))
+        // Off, the sizes are kept, but nothing of them reaches the core.
+        val off = AetherKeys.arguments(on.copy(fragment = false, fragmentSize = "8", fragmentDelay = "5"))
+        assertFalse("--api-fragment" in off)
+        assertFalse("--fragment-size" in off)
+        assertFalse("--fragment-delay" in off)
+        // A size or a delay that is no number or range stops the run, only while fragmenting is on.
+        assertEquals(AetherKeys.Problem.INVALID_FRAGMENT, AetherKeys.problem(on.copy(fragmentSize = "0")))
+        assertEquals(AetherKeys.Problem.INVALID_FRAGMENT, AetherKeys.problem(on.copy(fragmentDelay = "x")))
+        assertNull(AetherKeys.problem(on.copy(fragmentSize = "8-16", fragmentDelay = "2-10")))
+        assertNull(AetherKeys.problem(on.copy(fragment = false, fragmentSize = "0")))
+    }
+
+    @Test
+    fun aProfileAsTheExitNodeLeavesTheFinalMaskAndTheDialModeOutOfUse() {
+        val noded = AetherKeysSettings(exitNode = "guid-1", finalMask = "{not json", dialMode = "ForceIP")
+        assertEquals(AetherExit(node = "guid-1"), noded.exit)
+        assertNull(AetherKeys.problem(noded))
+        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(exitNode = "")))
+        assertEquals(AetherExit(dialMode = "ForceIP"), noded.copy(exitNode = " ", finalMask = "").exit)
+        // The exit-node is Xray's, so the command of the run stays as it was.
+        assertEquals(AetherKeys.arguments(AetherKeysSettings()), AetherKeys.arguments(AetherKeysSettings(exitNode = "guid-1")))
+    }
+
+    @Test
     fun theExitNodeTakesTheFinalMaskAndTheDialMode() {
         val settings = AetherKeysSettings(finalMask = """{"tcp": []}""", dialMode = "ForceIP")
         assertEquals(AetherExit("""{"tcp": []}""", "ForceIP"), settings.exit)

@@ -155,22 +155,37 @@ class CoreOutboundBuilderTest {
 
     @Test
     fun test_toOutboundAetherExit_carriesTheFinalMaskAndDialModeOfTheAetherProfile() {
-        val plain = CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN)
+        val plain = CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN)!!
         assertEquals(AppConfig.TAG_EXIT_NODE, plain.tag)
         assertEquals("freedom", plain.protocol)
         assertNull(plain.mux)
         assertNull(plain.streamSettings)
 
         val mask = """{"tcp": [{"type": "fragment", "settings": {"packets": "tlshello"}}]}"""
-        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(finalMask = mask, dialMode = "code-1"))
+        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(finalMask = mask, dialMode = "code-1"))!!
         assertEquals(JsonUtil.parseString(mask), exit.streamSettings?.finalmask)
         assertEquals("code-1", exit.streamSettings?.sockopt?.dialMode)
         // A freedom outbound has no transport to name.
         assertNull(exit.streamSettings?.network)
 
-        val dialOnly = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(dialMode = "code-1"))
+        val dialOnly = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(dialMode = "code-1"))!!
         assertEquals("code-1", dialOnly.streamSettings?.sockopt?.dialMode)
         assertNull(dialOnly.streamSettings?.finalmask)
         assertNull(dialOnly.streamSettings?.network)
+    }
+
+    @Test
+    fun test_toOutboundAetherExit_takesTheOutboundOfItsNodeChangedInItsTagAlone() {
+        val node = OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "vless", streamSettings = OutboundBean.StreamSettingsBean(network = "ws"))
+        val nodes = mapOf("guid-1" to node)
+        val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "guid-1")) { nodes[it] }!!
+        assertEquals(AppConfig.TAG_EXIT_NODE, exit.tag)
+        assertEquals("vless", exit.protocol)
+        assertEquals("ws", exit.streamSettings?.network)
+        assertNull(exit.streamSettings?.sockopt)
+        // A node that gives no outbound gives no exit-node, rather than freedom.
+        assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "gone")) { nodes[it] })
+        // Without one, the lookup is not asked.
+        assertEquals("freedom", CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN) { error("no node to look up") }?.protocol)
     }
 }

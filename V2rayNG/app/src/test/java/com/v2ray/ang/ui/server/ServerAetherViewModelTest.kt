@@ -3,6 +3,7 @@ package com.v2ray.ang.ui.server
 import android.app.Application
 import android.util.Log
 import com.v2ray.ang.R
+import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
 import com.v2ray.ang.core.AetherIdentityManager
 import com.v2ray.ang.core.AetherIdentityStatus
@@ -45,6 +46,8 @@ class ServerAetherViewModelTest {
         var port = 10819
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
         val missingFiles = mutableSetOf<String>()
+        var nodes: List<AetherExitNode> = emptyList()
+        val usable = mutableSetOf<String>()
 
         override suspend fun isCoreAvailable() = available
         override suspend fun isPsiphonAvailable(): Boolean = false
@@ -58,6 +61,8 @@ class ServerAetherViewModelTest {
         override suspend fun clearPsiphonData() = clearer()
         override suspend fun psiphonRegions() = regions
         override suspend fun listenPort() = port
+        override suspend fun exitNodes() = nodes
+        override suspend fun exitNodeUsable(guid: String) = guid in usable
     }
 
     private val source = FakeSource()
@@ -391,6 +396,29 @@ class ServerAetherViewModelTest {
         assertEquals(1, scans)
         assertNull(viewModel.keysCheck.value)
         assertEquals(AetherScanState.Found(found), viewModel.scanState.value)
+    }
+
+    @Test
+    fun theProfilesThatCanBeTheExitNodeAreRead() {
+        source.nodes = listOf(AetherExitNode("guid-1", "germany"), AetherExitNode("guid-2", "france"))
+        assertEquals(source.nodes, viewModel().exitNodes.value)
+    }
+
+    @Test
+    fun aScanDoesNotDialOutThroughAnExitNodeProfileThatIsGone() {
+        var scans = 0
+        source.scanner = { _, _ -> scans++; null }
+        val viewModel = viewModel()
+        val noded = profile.copy(aetherExitNode = "guid-1")
+
+        viewModel.scan(noded)
+        assertEquals(0, scans)
+        assertEquals(AetherScanState.Idle, viewModel.scanState.value)
+        assertEquals(resource(R.string.aether_exit_node_unusable), viewModel.texts().last())
+
+        source.usable += "guid-1"
+        viewModel.scan(noded)
+        assertEquals(1, scans)
     }
 
     @Test

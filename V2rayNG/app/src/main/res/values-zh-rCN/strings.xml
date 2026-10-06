@@ -584,6 +584,11 @@
     <string name="aether_lab_obfuscation">混淆</string>
     <string name="aether_lab_ip_version">IP 版本</string>
     <string name="aether_lab_exit_final_mask">exit-node 的 finalMask 原始 JSON 格式: { FinalMaskObject }</string>
+    <string name="aether_exit_node_freedom">freedom（默认）</string>
+    <string name="aether_exit_node_missing">找不到该配置</string>
+    <string name="aether_hint_exit_node">内核经由此配置的出站向外连接，如同经由代理链的一跳；下方的 finalMask 和 dialMode 只用于 freedom</string>
+    <string name="aether_exit_node_unusable">exit-node 的配置已不存在或无法生成出站；请另选一个，或选择 freedom</string>
+    <string name="aether_keys_hint_fragment">将 WARP API 请求的 ClientHello 分片发送，用于会过滤 API 名称的网络</string>
     <string name="aether_lab_fragment">分片 ClientHello</string>
     <string name="aether_lab_fragment_size">分片大小（字节）</string>
     <string name="aether_lab_fragment_delay">分片间隔（毫秒）</string>

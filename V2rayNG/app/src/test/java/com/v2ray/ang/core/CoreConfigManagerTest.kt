@@ -121,6 +121,55 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun aProfileChosenAsTheExitNodeIsTheExitNodeChangedInItsTagAlone() {
+        val config = V2rayConfig(
+            log = V2rayConfig.LogBean(),
+            inbounds = arrayListOf(),
+            outbounds = arrayListOf(socks(AppConfig.LOOPBACK, 10819)),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+        )
+        val node = V2rayConfig.OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "trojan")
+        val core = AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --protocol masque")!!.copy(exit = AetherExit(node = "guid-1"))
+
+        val routed = CoreConfigManager.routeAetherThroughXray(config, core, 10822) { if (it == "guid-1") node else null }!!
+
+        val exitNode = config.outbounds.last()
+        assertEquals(AppConfig.TAG_EXIT_NODE, exitNode.tag)
+        assertEquals("trojan", exitNode.protocol)
+        assertEquals(AppConfig.TAG_EXIT_NODE, config.routing.rules.first().outboundTag)
+        assertEquals(core.exit, routed.exit)
+        assertEquals("socks5://127.0.0.1:10822", routed.arguments.last())
+    }
+
+    @Test
+    fun aCoreWhoseExitNodeProfileGivesNoOutboundDoesNotStartWithoutIt() {
+        val gone = AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --protocol masque")!!.copy(exit = AetherExit(node = "gone"))
+        val toCore = socks(AppConfig.LOOPBACK, 10819).apply { tag = AppConfig.TAG_PROXY }
+        val vless = V2rayConfig.OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "vless")
+        assertTrue(CoreConfigManager.lacksExitNode(gone, listOf(toCore)) { null })
+        assertFalse(CoreConfigManager.lacksExitNode(gone, listOf(toCore)) { vless })
+        // A chain's hop that is the exit-node already, or freedom, needs no node.
+        val hop = V2rayConfig.OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "vless")
+        assertFalse(CoreConfigManager.lacksExitNode(gone, listOf(toCore, hop)) { null })
+        assertFalse(CoreConfigManager.lacksExitNode(gone.copy(exit = AetherExit.PLAIN), listOf(toCore)) { null })
+        // A core with an upstream of its own dials out through no exit-node at all.
+        val own = AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --upstream socks5://127.0.0.1:1080")!!.copy(exit = AetherExit(node = "gone"))
+        assertFalse(CoreConfigManager.lacksExitNode(own, listOf(toCore)) { null })
+
+        // And the configuration is left as it was.
+        val config = V2rayConfig(
+            log = V2rayConfig.LogBean(),
+            inbounds = arrayListOf(),
+            outbounds = arrayListOf(toCore),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+        )
+        assertNull(CoreConfigManager.routeAetherThroughXray(config, gone, 10822) { null })
+        assertTrue(config.inbounds.isEmpty())
+        assertEquals(listOf(toCore), config.outbounds)
+        assertTrue(config.routing.rules.isEmpty())
+    }
+
+    @Test
     fun aCoreWithAnUpstreamOfItsOwnLeavesTheConfigurationAlone() {
         val config = V2rayConfig(
             log = V2rayConfig.LogBean(),

@@ -2,6 +2,7 @@ package com.v2ray.ang.core
 
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.AetherEndpoint
+import com.v2ray.ang.dto.AetherRange
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.extension.nullIfBlank
@@ -15,16 +16,24 @@ import com.v2ray.ang.fmt.AetherFmt
 data class AetherKeysSettings(
     val kind: AetherKeyKind = AetherKeyKind.ALL,
     val enrollAddress: String = AppConfig.AETHER_ENROLL_ADDRESS,
+    val fragment: Boolean = false,
+    val fragmentSize: String = "",
+    val fragmentDelay: String = "",
     val ech: Boolean = false,
     val echDns: String = AppConfig.AETHER_ECH_DNS,
     val echDomain: String = AppConfig.AETHER_ECH_DOMAIN,
     val fingerprint: AetherFingerprint = AetherFingerprint.CHROME,
+    val exitNode: String = "",
     val finalMask: String = "",
     val dialMode: String = "",
     val command: String = "",
 ) {
-    /** The exit-node the run dials out through: a plain one, with the finalMask and the dialMode set here. */
-    val exit: AetherExit get() = AetherExit(finalMask.nullIfBlank(), dialMode.nullIfBlank())
+    /**
+     * The exit-node the run dials out through: the profile [exitNode] names by its guid, see [AetherExit.node], or
+     * else a plain one, with the finalMask and the dialMode set here.
+     */
+    val exit: AetherExit
+        get() = exitNode.nullIfBlank()?.let { AetherExit(node = it) } ?: AetherExit(finalMask.nullIfBlank(), dialMode.nullIfBlank())
 }
 
 /**
@@ -41,6 +50,7 @@ object AetherKeys {
     /** Why settings cannot run. */
     enum class Problem {
         INVALID_ENROLL_ADDRESS,
+        INVALID_FRAGMENT,
         INVALID_ECH_DNS,
         INVALID_ECH_DOMAIN,
         INVALID_FINAL_MASK,
@@ -49,13 +59,19 @@ object AetherKeys {
 
     /**
      * The arguments [settings] give: the keys to register first, the address the calls to the WARP API go to unless
-     * it is left blank, Encrypted Client Hello on those calls with the key of the ECH domain, asked of the ECH DNS,
-     * and the TLS 1.2 cipher suites of the fingerprint, Chrome's as its rule, with GREASE left out where the
-     * fingerprint has none.
+     * it is left blank, the ClientHello of those calls in pieces when fragmenting is on, sized and spaced as set or
+     * as the core has them by default, Encrypted Client Hello on those calls with the key of the ECH domain, asked of
+     * the ECH DNS, and the TLS 1.2 cipher suites of the fingerprint, Chrome's as its rule, with GREASE left out where
+     * the fingerprint has none.
      */
     fun arguments(settings: AetherKeysSettings): List<String> = buildList {
         addAll(listOf(REGISTER, settings.kind.type))
         settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--enroll-address", it)) }
+        if (settings.fragment) {
+            add("--api-fragment")
+            AetherRange.parse(settings.fragmentSize, AetherRange.FRAGMENT_SIZE)?.let { addAll(listOf("--fragment-size", it.toString())) }
+            AetherRange.parse(settings.fragmentDelay, AetherRange.FRAGMENT_DELAY)?.let { addAll(listOf("--fragment-delay", it.toString())) }
+        }
         if (settings.ech) {
             addAll(listOf("--ech", "auto"))
             addAll(listOf("--ech-dns", settings.echDns.trim().ifEmpty { AppConfig.AETHER_ECH_DNS }))
@@ -82,13 +98,17 @@ object AetherKeys {
     /**
      * Why [settings] cannot run, or null when they can. A command written by hand is only checked for what it
      * registers: the settings it replaces do not count, and the core names what else it does not take. The
-     * finalMask counts either way, since the run dials out through it.
+     * finalMask counts either way, since the run dials out through it, unless a profile is the exit-node, which
+     * leaves it out of use. Whether that profile is still there is for the run to look up.
      */
     fun problem(settings: AetherKeysSettings): Problem? {
-        if (!AetherExit.takesFinalMask(settings.finalMask)) return Problem.INVALID_FINAL_MASK
+        if (settings.exitNode.isBlank() && !AetherExit.takesFinalMask(settings.finalMask)) return Problem.INVALID_FINAL_MASK
         if (isCustom(settings)) return Problem.INVALID_COMMAND.takeIf { kindOf(runArguments(settings)) == null }
         val address = settings.enrollAddress.trim()
         if (address.isNotEmpty() && !isEnrollAddress(address)) return Problem.INVALID_ENROLL_ADDRESS
+        if (settings.fragment && !(takesRange(settings.fragmentSize, AetherRange.FRAGMENT_SIZE) && takesRange(settings.fragmentDelay, AetherRange.FRAGMENT_DELAY))) {
+            return Problem.INVALID_FRAGMENT
+        }
         if (settings.ech) {
             val dns = settings.echDns.trim()
             if (dns.isNotEmpty() && !AetherFmt.isEchDns(dns)) return Problem.INVALID_ECH_DNS
@@ -112,6 +132,9 @@ object AetherKeys {
         val port = value.substring(separator + 1)
         return port.length in 1..5 && port.all { it in '0'..'9' } && port.toInt() in 1..65535 && isEnrollHost(host)
     }
+
+    /** Whether [text] is blank, the core's own default, or a number or range within [bounds]. */
+    private fun takesRange(text: String, bounds: IntRange): Boolean = text.isBlank() || AetherRange.parse(text, bounds) != null
 
     /** An IP address, an IPv6 one with or without brackets, or a domain name. */
     private fun isEnrollHost(host: String): Boolean = AetherEndpoint.of(host, "443") != null || AetherFmt.isEchDomain(host)

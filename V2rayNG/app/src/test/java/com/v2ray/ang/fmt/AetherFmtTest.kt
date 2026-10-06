@@ -938,6 +938,16 @@ class AetherFmtTest {
     }
 
     @Test
+    fun aLinkCarriesNoExitNodeProfile() {
+        // The guid is this device's alone; a link elsewhere would name nothing there.
+        val noded = profile { aetherExitNode = "guid-1" }
+        val text = link(noded)
+        assertFalse(text.contains("guid-1"), text)
+        assertEquals(link(profile { }), text)
+        assertNull(AetherFmt.parse(text)?.aetherExitNode)
+    }
+
+    @Test
     fun aListenPortALinkStillNamesCountsNoMore() {
         // Links from before every core listened on the Aether listen port of the settings may name a port of their own.
         val plain = link(profile { })

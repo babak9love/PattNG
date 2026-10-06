@@ -69,6 +69,24 @@ class AetherDependencyTest {
     }
 
     @Test
+    fun aChainsHopTakesThePlaceOfTheExitNodeAProfileNames() {
+        val noded = masque.copy(remarks = "warp through", aetherExitNode = "guid-1")
+        // On its own, or as a chain's entry hop, the core dials out through the profile it names.
+        assertEquals(AetherExit(node = "guid-1"), coreOf(AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.NORMAL, noded)))).exit)
+        assertEquals(
+            AetherExit(node = "guid-1"),
+            coreOf(AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.PROXYCHAIN, vless, noded)))).exit
+        )
+        // Anywhere else in a chain, through the hops on its entry side, as for the finalMask and the dialMode.
+        assertEquals(through(masque, vless), AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.PROXYCHAIN, noded, vless))))
+        // One tunnel cannot dial out through freedom and a profile at once.
+        assertEquals(
+            AetherDependency.TwoExits,
+            AetherDependency.of(listOf(outbound("proxy", CoreResolvedType.NORMAL, masque), outbound("warp", CoreResolvedType.NORMAL, noded)))
+        )
+    }
+
+    @Test
     fun theHopsAnAetherHopDialsOutThroughAreTheCoresOwn() {
         // Two chains through the same hops share the core; one core cannot dial out two ways.
         assertEquals(

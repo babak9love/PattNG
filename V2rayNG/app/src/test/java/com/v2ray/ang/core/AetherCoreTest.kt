@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.security.MessageDigest
 
 class AetherCoreTest {
 
@@ -80,6 +81,39 @@ class AetherCoreTest {
         val goolOverMasque = AetherCore.of(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherWiwInner = "162.159.192.1:2408" })
         assertEquals(goolOverMasque, AetherCore.ofCommand(goolOverMasque.command))
         assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCore.ofCommand(goolOverMasque.command)!!.protocol)
+    }
+
+    @Test
+    fun aProfileNamedAsTheExitNodeTakesThePlaceOfFreedom() {
+        val masked = profile { finalMask = """{"tcp": []}"""; dialMode = "code-1" }
+        assertEquals(AetherExit("""{"tcp": []}""", "code-1"), AetherExit.of(masked))
+        // With a node, the finalMask and the dialMode are out of use.
+        val noded = masked.copy(aetherExitNode = "guid-1")
+        assertEquals(AetherExit(node = "guid-1"), AetherExit.of(noded))
+        assertEquals(AetherExit(node = "guid-1"), AetherCore.of(noded).exit)
+        assertEquals(AetherCore.of(masked).arguments, AetherCore.of(noded).arguments)
+        assertEquals(AetherExit.of(masked), AetherExit.of(masked.copy(aetherExitNode = " ")))
+        // The node tells exits apart.
+        assertNotEquals(AetherExit.PLAIN.key, AetherExit(node = "guid-1").key)
+        assertNotEquals(AetherExit(node = "guid-1").key, AetherExit(node = "guid-2").key)
+        // The key of an exit without one is what it was before nodes.
+        fun digest(text: String) =
+            MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        assertEquals(digest("\u0000code-1\u0000"), AetherExit(dialMode = "code-1").key)
+        assertEquals(digest("\u0000\u0000hops"), AetherExit(hops = "hops").key)
+    }
+
+    @Test
+    fun anyProfileAChainTakesForAHopCanBeTheExitNodeButAnAetherOne() {
+        for (type in listOf(EConfigType.VMESS, EConfigType.VLESS, EConfigType.TROJAN, EConfigType.SHADOWSOCKS, EConfigType.SOCKS, EConfigType.HTTP, EConfigType.WIREGUARD, EConfigType.HYSTERIA2)) {
+            assertTrue(AetherExit.takesAsNode(ProfileItem.create(type)), type.name)
+        }
+        for (type in listOf(EConfigType.AETHER, EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)) {
+            assertFalse(AetherExit.takesAsNode(ProfileItem.create(type)), type.name)
+        }
+        // A list names a profile by its remarks, or by its type and address without them.
+        assertEquals("germany", AetherExit.nameOf(ProfileItem.create(EConfigType.VLESS).apply { remarks = " germany " }))
+        assertEquals("VLESS 1.2.3.4:443", AetherExit.nameOf(ProfileItem.create(EConfigType.VLESS).apply { remarks = ""; server = "1.2.3.4"; serverPort = "443" }))
     }
 
     @Test
