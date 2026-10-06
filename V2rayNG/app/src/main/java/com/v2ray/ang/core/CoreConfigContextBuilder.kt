@@ -46,7 +46,7 @@ object CoreConfigContextBuilder {
         // Step 2: Resolve all non-builtin routing outbound tags.
         val (routingResolvedOutbounds, unresolvedRoutingTarget) = resolveRoutingOutbounds()
         val resolvedOutbounds = listOf(primaryResolvedOutbound) + routingResolvedOutbounds
-        val fallbackResolvedOutbounds = resolveFallbackOutbounds(resolvedOutbounds)
+        val (fallbackResolvedOutbounds, unresolvedFallback) = resolveFallbackOutbounds(resolvedOutbounds)
         val routingDomainRules = collectRoutingDomainRulesForDns()
 
         return CoreConfigContext(
@@ -54,7 +54,7 @@ object CoreConfigContextBuilder {
             guid = guid,
             resolvedOutbounds = resolvedOutbounds + fallbackResolvedOutbounds,
             routingDomainRules = routingDomainRules,
-            unresolvedRoutingTarget = unresolvedRoutingTarget,
+            unresolvedTarget = unresolvedRoutingTarget ?: unresolvedFallback,
         )
     }
 
@@ -310,23 +310,38 @@ object CoreConfigContextBuilder {
     /**
      * Resolve and collect fallback outbounds from all POLICYGROUP nodes.
      *
-     * Fallback targets must not overlap with already resolved tags or builtin tags.
+     * Fallback targets must not overlap with already resolved tags or builtin tags. PattNG: a target is a profile's
+     * name; the first one that no profile has any more, or several have, goes beside them, for the session to be
+     * refused for it rather than fall back to an outbound that is not there, or to a profile it may not mean.
      */
-    private fun resolveFallbackOutbounds(resolvedOutbounds: List<CoreConfigContext.ResolvedOutbound>): List<CoreConfigContext.ResolvedOutbound> {
-        return resolvedOutbounds
+    private fun resolveFallbackOutbounds(
+        resolvedOutbounds: List<CoreConfigContext.ResolvedOutbound>,
+    ): Pair<List<CoreConfigContext.ResolvedOutbound>, CoreConfigContext.UnresolvedName?> {
+        var unresolved: CoreConfigContext.UnresolvedName? = null
+        val fallbacks = resolvedOutbounds
             .asSequence()
             .filter { it.resolvedType == CoreResolvedType.POLICYGROUP }
             .filter { BalancerStrategyType.from(it.profile.policyGroupType).supportsObservatory && it.profile.policyGroupTestOutbounds != false }
-            .mapNotNull { it.profile.policyGroupFallbackTag }
+            .mapNotNull { it.profile.policyGroupFallbackTag?.takeIf(String::isNotBlank) }
             .filter { it !in AppConfig.BUILTIN_OUTBOUND_TAGS && resolvedOutbounds.none { outbound -> outbound.tag == it } }
             .distinct()
             .mapNotNull { tag ->
-                SettingsManager.getServerViaRemarks(tag)
-                    ?.takeUnless { it.configType == EConfigType.CUSTOM || it.configType == EConfigType.POLICYGROUP }
-                    ?.let { resolveOutbound(tag, it) }
+                when (val found = SettingsManager.findServerViaRemarks(tag, ::takesAsFallback)) {
+                    is ByName.One -> resolveOutbound(tag, found.value)
+                    ByName.None, ByName.Several -> {
+                        LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' has ${if (found == ByName.Several) "several matching profiles" else "no matching profile"}; the session is refused")
+                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), found == ByName.Several)
+                        null
+                    }
+                }
             }
             .toList()
+        return fallbacks to unresolved
     }
+
+    /** PattNG: whether [profile] can be the fallback of a policy group: any profile but a group or a custom configuration. */
+    internal fun takesAsFallback(profile: ProfileItem): Boolean =
+        profile.configType != EConfigType.CUSTOM && profile.configType != EConfigType.POLICYGROUP
 
     /**
      * A group is filled by a filter rather than by named members, so it can catch several Aether

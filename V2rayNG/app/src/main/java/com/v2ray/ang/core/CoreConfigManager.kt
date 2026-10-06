@@ -43,7 +43,7 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext, routeAether = true)
             }
-            val unresolved = configContext.resolvedOutbounds.firstNotNullOfOrNull { it.unresolvedHop } ?: configContext.unresolvedRoutingTarget
+            val unresolved = configContext.resolvedOutbounds.firstNotNullOfOrNull { it.unresolvedHop } ?: configContext.unresolvedTarget
             unresolvedNameFailure(context, guid, unresolved)?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds)
             aetherFailure(context, guid, dependency)?.let { return it }
@@ -680,8 +680,9 @@ object CoreConfigManager {
     }
 
     /**
-     * PattNG: [unresolved], a name by which a proxy chain, the subscription around a profile, or a routing rule names a
-     * profile, and which no profile has any more, as after it was renamed or deleted, or several have, see
+     * PattNG: [unresolved], a name by which a proxy chain, the subscription around a profile, a routing rule or the
+     * fallback of a policy group names a profile, and which no profile has any more, as after it was renamed or
+     * deleted, or several have, see
      * [CoreConfigContext.UnresolvedName], as a failure whose message, which names it, is meant for the screen; null when
      * there is none.
      */

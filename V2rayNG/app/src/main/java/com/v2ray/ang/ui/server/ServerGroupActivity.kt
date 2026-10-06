@@ -23,9 +23,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AppConfig.BUILTIN_OUTBOUND_TAGS
 import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
+import com.v2ray.ang.core.CoreConfigContextBuilder
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.EConfigType
@@ -41,6 +44,10 @@ import com.v2ray.ang.ui.compose.FormDropdownField
 import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ServerGroupActivity : BaseComponentActivity() {
 
@@ -61,6 +68,9 @@ class ServerGroupActivity : BaseComponentActivity() {
     private var initialSubIndex: Int = 0
     private var initialTestOutbounds: Boolean = false
     private lateinit var initialFallbackTag: String
+
+    /** PattNG: the save under way; the fallback is looked up, and the group read and written, off the main thread. */
+    private var saveJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,58 +124,87 @@ class ServerGroupActivity : BaseComponentActivity() {
         subIdx: Int,
         testOutbounds: Boolean,
         fallbackTag: String,
-    ): Boolean {
+    ) {
         if (remarks.isBlank()) {
-            return false
+            return
+        }
+        if (saveJob?.isActive == true) {
+            return
         }
 
-        val config =
-            MmkvManager.decodeServerConfig(editGuid)
-                ?: ProfileItem.create(EConfigType.POLICYGROUP)
-
-        config.remarks = remarks.trim()
-        config.policyGroupFilter = filter.trim()
-        config.policyGroupType = typeIdx.toString()
-        config.policyGroupSubscriptionId =
-            subIds.getOrNull(subIdx)
-        config.policyGroupTestOutbounds = testOutbounds
-        config.policyGroupFallbackTag = fallbackTag.trim().takeIf { it.isNotEmpty() }
-
-        if (
-            config.subscriptionId.isEmpty() &&
-            !subscriptionId.isNullOrEmpty()
-        ) {
-            config.subscriptionId = subscriptionId.orEmpty()
-        }
-
+        val fallback = fallbackTag.trim().takeIf { it.isNotEmpty() }
+        val subscription = subIds.getOrNull(subIdx)
         val typeDisplay =
             stringArrayPolicyGroupType()
                 .getOrNull(typeIdx)
                 .orEmpty()
+        val subscriptionDisplay = subDisplay.getOrNull(subIdx).orEmpty()
 
-        config.description = buildString {
-            append(typeDisplay)
-            append(" - ")
-            append(subDisplay.getOrNull(subIdx).orEmpty())
-            append(" - ")
-            append(config.policyGroupFilter)
+        saveJob = lifecycleScope.launch {
+            // PattNG: the fallback names a profile, and the name has to find that one profile, as at the start: a name no
+            // profile has, as after a rename or a delete, or several have, is told rather than saved.
+            val fallsBack = BalancerStrategyType.from(typeIdx.toString()).supportsObservatory && testOutbounds
+            if (fallsBack && fallback != null && fallback !in BUILTIN_OUTBOUND_TAGS) {
+                val found = withContext(Dispatchers.IO) {
+                    SettingsManager.findServerViaRemarks(fallback, CoreConfigContextBuilder::takesAsFallback)
+                }
+                when (found) {
+                    ByName.None -> {
+                        toast(getString(R.string.toast_profile_name_not_found, fallback))
+                        return@launch
+                    }
+
+                    ByName.Several -> {
+                        toast(getString(R.string.toast_profile_name_duplicate, fallback))
+                        return@launch
+                    }
+
+                    is ByName.One -> Unit
+                }
+            }
+
+            val savedGuid = withContext(Dispatchers.IO) {
+                val config =
+                    MmkvManager.decodeServerConfig(editGuid)
+                        ?: ProfileItem.create(EConfigType.POLICYGROUP)
+
+                config.remarks = remarks.trim()
+                config.policyGroupFilter = filter.trim()
+                config.policyGroupType = typeIdx.toString()
+                config.policyGroupSubscriptionId = subscription
+                config.policyGroupTestOutbounds = testOutbounds
+                config.policyGroupFallbackTag = fallback
+
+                if (
+                    config.subscriptionId.isEmpty() &&
+                    !subscriptionId.isNullOrEmpty()
+                ) {
+                    config.subscriptionId = subscriptionId.orEmpty()
+                }
+
+                config.description = buildString {
+                    append(typeDisplay)
+                    append(" - ")
+                    append(subscriptionDisplay)
+                    append(" - ")
+                    append(config.policyGroupFilter)
+                }
+
+                MmkvManager.encodeServerConfig(
+                    editGuid,
+                    config
+                )
+            }
+
+            toastSuccess(R.string.toast_success)
+
+            ProfileEditorResult.run {
+                finishSaved(
+                    guid = savedGuid,
+                    restartService = isRunning
+                )
+            }
         }
-
-        val savedGuid = MmkvManager.encodeServerConfig(
-            editGuid,
-            config
-        )
-
-        toastSuccess(R.string.toast_success)
-
-        ProfileEditorResult.run {
-            finishSaved(
-                guid = savedGuid,
-                restartService = isRunning
-            )
-        }
-
-        return true
     }
 
     private fun deleteServer(): Boolean {
@@ -220,7 +259,7 @@ fun ServerGroupScreen(
     initialFallbackTag: String,
     fallbackSuggestions: List<String>,
     onBackClick: () -> Unit,
-    onSave: (String, String, Int, Int, Boolean, String) -> Boolean,
+    onSave: (String, String, Int, Int, Boolean, String) -> Unit,
     onDelete: () -> Unit
 ) {
     val typeEntries = stringArrayResource(R.array.policy_group_type).toList()

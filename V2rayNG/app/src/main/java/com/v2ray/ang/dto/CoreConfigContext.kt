@@ -10,8 +10,11 @@ data class CoreConfigContext(
     val isCustom: Boolean = false,
     val resolvedOutbounds: List<ResolvedOutbound> = emptyList(),
     val routingDomainRules: List<RoutingDomainRule> = emptyList(),
-    /** PattNG: a profile a routing rule sends to by a name no profile has, or several have; the session is refused for it. */
-    val unresolvedRoutingTarget: UnresolvedName? = null,
+    /**
+     * PattNG: a profile a routing rule sends to, or a policy group falls back to, by a name no profile has, or several
+     * have; the session is refused for it.
+     */
+    val unresolvedTarget: UnresolvedName? = null,
 ) {
     data class ResolvedOutbound(
         val tag: String,

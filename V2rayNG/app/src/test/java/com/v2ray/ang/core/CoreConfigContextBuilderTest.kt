@@ -91,4 +91,15 @@ class CoreConfigContextBuilderTest {
         }
         assertFalse(CoreConfigContextBuilder.takesAsRoutingTarget(ProfileItem.create(EConfigType.CUSTOM)))
     }
+
+    @Test
+    fun aGroupFallsBackToAnyProfileButAGroupOrACustomConfiguration() {
+        val others = setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP)
+        for (type in EConfigType.entries.filter { it !in others }) {
+            assertTrue(CoreConfigContextBuilder.takesAsFallback(ProfileItem.create(type)), type.name)
+        }
+        for (type in others) {
+            assertFalse(CoreConfigContextBuilder.takesAsFallback(ProfileItem.create(type)), type.name)
+        }
+    }
 }
