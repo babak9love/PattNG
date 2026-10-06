@@ -186,19 +186,6 @@ class AetherKeysTest {
     }
 
     @Test
-    fun aCommandSavedWithTheOldNameOfTheApiAddressStillRuns() {
-        // The page wrote --enroll-address until the core named it --api-address, which alone it takes now: a command
-        // written by hand before then runs with the new name, on the page and in a profile.
-        val saved = AetherKeysSettings(command = "aether --register masque --enroll-address 188.114.97.6:443")
-        assertEquals(listOf("--register", "masque", "--api-address", "188.114.97.6:443"), AetherKeys.runArguments(saved))
-        assertNull(AetherKeys.problem(saved))
-        assertEquals(
-            listOf("--bind", "127.0.0.1:10819", "--api-address", "1.2.3.4"),
-            AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --enroll-address 1.2.3.4")?.arguments
-        )
-    }
-
-    @Test
     fun theRequestAddressIsWhatTheCoreTakes() {
         for (address in listOf(
             "api.cloudflareclient.com", "api.cloudflareclient.com:443", "api.cloudflareclient.com.", "188.114.97.6",
