@@ -318,8 +318,9 @@ object AetherFmt : FmtBase() {
             config.aetherPsiphonBundledList = null
             return null
         }
-        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair, and either gool.
-        if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).carriedAround) {
+        // Psiphon carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair. WireGuard over
+        // MASQUE goes, as its WireGuard rides inside the MASQUE tunnel.
+        if (psiphon == AetherPsiphon.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
             return Problem.PSIPHON_NEEDS_MASQUE
         }
         config.aetherPsiphon = psiphon.type
@@ -342,8 +343,9 @@ object AetherFmt : FmtBase() {
             config.aetherTorRelays = null
             return null
         }
-        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair, and either gool.
-        if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).carriedAround) {
+        // Tor carries TCP alone and WARP's WireGuard endpoints answer on UDP; the core refuses the pair. WireGuard over
+        // MASQUE goes, as its WireGuard rides inside the MASQUE tunnel.
+        if (tor == AetherTor.REVERSE && !AetherProtocol.fromString(config.aetherProtocol).overMasque) {
             return Problem.TOR_NEEDS_MASQUE
         }
         // Tor and Psiphon go together only nested, one inside the tunnel and the other around it: two around

@@ -788,6 +788,12 @@ class AetherCoreManagerTest {
         assertFalse(AetherCoreManager.masqueOverHttp2(AetherProtocol.MASQUE, AetherTransport.HTTP3, AetherTor.CHAIN, AetherPsiphon.CHAIN))
         assertFalse(AetherCoreManager.masqueOverHttp2(AetherProtocol.GOOL, AetherTransport.HTTP2, AetherTor.OFF, AetherPsiphon.OFF))
         assertTrue(AetherCoreManager.masqueOverHttp2(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2, AetherTor.OFF, AetherPsiphon.OFF))
+        // Tor or Psiphon around WireGuard over MASQUE carry its MASQUE over HTTP/2.
+        assertTrue(AetherCoreManager.masqueOverHttp2(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP3, AetherTor.REVERSE, AetherPsiphon.OFF))
+        val throughTor = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE).copy(aetherTor = "reverse"), 10819)
+        assertTrue(throughTor.contains("--tor-reverse"))
+        assertEquals("gool", valueAfter(throughTor, "--protocol"))
+        assertNull(valueAfter(throughTor, "--noize"))
         assertNull(valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2), 10819), "--noize"))
         assertEquals("aggressive", valueAfter(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE), 10819), "--noize"))
     }

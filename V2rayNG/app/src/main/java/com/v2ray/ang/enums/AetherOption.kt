@@ -17,7 +17,10 @@ enum class AetherProtocol(val type: String, val core: String = type) {
      */
     WG_OVER_MASQUE("wg-over-masque", "gool");
 
-    /** Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key. */
+    /**
+     * Whether MASQUE carries the tunnel, which then uses the MASQUE transport, fragmentation and key, and goes
+     * through Tor or Psiphon around it, which carry TCP alone, over HTTP/2.
+     */
     val overMasque: Boolean get() = this == MASQUE || this == MIM || this == WG_OVER_MASQUE
 
     /** Whether the tunnel is two hops, an outer and an inner one, in place of one endpoint. */
@@ -25,12 +28,6 @@ enum class AetherProtocol(val type: String, val core: String = type) {
 
     /** Whether the two hops must be different addresses, as the core requires of WARP-in-WARP and MASQUE-in-MASQUE. */
     val distinctHops: Boolean get() = this == GOOL || this == MIM
-
-    /**
-     * Whether Tor or Psiphon around the tunnel can carry it: they carry TCP alone, which MASQUE takes over HTTP/2. The
-     * core refuses either gool there, WireGuard over MASQUE as well.
-     */
-    val carriedAround: Boolean get() = this == MASQUE || this == MIM
 
     companion object {
         fun fromString(type: String?) = entries.find { it.type == type } ?: WIREGUARD

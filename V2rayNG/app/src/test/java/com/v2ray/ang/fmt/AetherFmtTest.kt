@@ -158,11 +158,8 @@ class AetherFmtTest {
             AetherFmt.Problem.PSIPHON_NEEDS_MASQUE,
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherPsiphon = "reverse" })
         )
-        // The core refuses either gool around Psiphon, though WireGuard over MASQUE dials MASQUE alone.
-        assertEquals(
-            AetherFmt.Problem.PSIPHON_NEEDS_MASQUE,
-            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherPsiphon = "reverse" })
-        )
+        // WireGuard over MASQUE dials MASQUE alone, with its WireGuard inside that tunnel.
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherPsiphon = "reverse" }))
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherPsiphon = "chain" }))
         // WireGuard inside Psiphon is fine: Psiphon carries the tunnel only the other way round.
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherPsiphon = "chain" }))
@@ -257,10 +254,7 @@ class AetherFmtTest {
             AetherFmt.Problem.TOR_NEEDS_MASQUE,
             AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.GOOL.type; aetherTor = "reverse" })
         )
-        assertEquals(
-            AetherFmt.Problem.TOR_NEEDS_MASQUE,
-            AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherTor = "reverse" })
-        )
+        assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type; aetherTor = "reverse" }))
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.MIM.type; aetherTor = "reverse" }))
         // Inside the tunnel or alone, Tor does not care what carries WARP.
         assertNull(AetherFmt.normalize(profile { aetherProtocol = AetherProtocol.WIREGUARD.type; aetherTor = "chain" }))
