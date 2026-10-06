@@ -75,7 +75,10 @@ object AetherIdentityManager {
      */
     private const val PREVIOUS_DIR = "aether-previous"
 
-    /** Five registrations and two MASQUE key enrollments at most, each of which the core may retry. */
+    /**
+     * Five registrations, two MASQUE key enrollments and five WARP enablings at most, each of which the core may retry:
+     * a key is saved only once WARP is enabled on it.
+     */
     private const val RENEW_TIMEOUT_MS = 4 * 60_000L
 
     /**
