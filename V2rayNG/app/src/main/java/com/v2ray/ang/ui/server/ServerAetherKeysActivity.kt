@@ -171,7 +171,8 @@ class ServerAetherKeysActivity : BaseComponentActivity() {
             enabled = enabled,
             keyboardType = KeyboardType.Uri
         )
-        // --api-fragment, in the pieces the editor's fragmenting of MASQUE over HTTP/2 takes as well.
+        // --fragment, which in a run that only registers keys sends the ClientHello of the calls to the WARP API in
+        // pieces, as the editor's fragmenting of MASQUE over HTTP/2 does for those calls and the handshake.
         SettingsSwitchItem(
             title = stringResource(R.string.aether_lab_fragment),
             summary = stringResource(R.string.aether_keys_hint_fragment),

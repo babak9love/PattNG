@@ -254,7 +254,7 @@ class AetherKeysTest {
             listOf(
                 "--register", "all",
                 "--enroll-address", "api.cloudflareclient.com",
-                "--api-fragment",
+                "--fragment",
                 "--tls-ciphers", "ALL:!aPSK:!ECDSA+SHA1:!3DES",
             ),
             AetherKeys.arguments(on)
@@ -262,9 +262,10 @@ class AetherKeysTest {
         val shaped = AetherKeys.arguments(on.copy(fragmentSize = " 16 - 8 ", fragmentDelay = "5"))
         assertEquals("8-16", valueAfter(shaped, "--fragment-size"))
         assertEquals("5", valueAfter(shaped, "--fragment-delay"))
-        // Off, the sizes are kept, but nothing of them reaches the core.
+        // Off, the sizes are kept, but nothing of them reaches the core, and no flag says off: the core takes none.
         val off = AetherKeys.arguments(on.copy(fragment = false, fragmentSize = "8", fragmentDelay = "5"))
-        assertFalse("--api-fragment" in off)
+        assertFalse("--fragment" in off)
+        assertFalse("--no-fragment" in off)
         assertFalse("--fragment-size" in off)
         assertFalse("--fragment-delay" in off)
         // A size or a delay that is no number or range stops the run, only while fragmenting is on.

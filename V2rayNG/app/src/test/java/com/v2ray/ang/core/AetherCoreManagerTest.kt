@@ -121,14 +121,12 @@ class AetherCoreManagerTest {
 
         val http2 = AetherCoreManager.buildArguments(profile(transport = AetherTransport.HTTP2), 10819)
         assertTrue(http2.contains("--h2"))
+        // Off is no flag at all: the core fragments nothing unless told to, and has no flag for off.
         assertFalse(http2.contains("--fragment"))
-        // Off is said, whatever the core takes for its default.
-        assertTrue(http2.contains("--no-fragment"))
-        assertFalse(AetherCoreManager.buildArguments(profile(), 10819).contains("--no-fragment"))
+        assertFalse(http2.contains("--no-fragment"))
 
         val fragmented = AetherCoreManager.buildArguments(profile(transport = AetherTransport.HTTP2, fragment = true), 10819)
         assertTrue(fragmented.contains("--fragment"))
-        assertFalse(fragmented.contains("--no-fragment"))
 
         val wireguard = AetherCoreManager.buildArguments(
             profile(AetherProtocol.WIREGUARD, AetherTransport.HTTP2, fragment = true),
@@ -136,14 +134,12 @@ class AetherCoreManagerTest {
         )
         assertFalse(wireguard.contains("--h2"))
         assertFalse(wireguard.contains("--fragment"))
-        assertFalse(wireguard.contains("--no-fragment"))
-        assertFalse(AetherCoreManager.buildArguments(profile(AetherProtocol.GOOL, AetherTransport.HTTP2), 10819).contains("--no-fragment"))
 
         // WireGuard over MASQUE rides the MASQUE carrier chosen here, as the WireGuard inside it does.
         val goolOverMasque = AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2, fragment = true), 10819)
         assertTrue(goolOverMasque.contains("--h2"))
         assertTrue(goolOverMasque.contains("--fragment"))
-        assertTrue(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2), 10819).contains("--no-fragment"))
+        assertFalse(AetherCoreManager.buildArguments(profile(AetherProtocol.WG_OVER_MASQUE, AetherTransport.HTTP2), 10819).contains("--fragment"))
 
         // Both masque-in-masque hops ride on the carrier chosen here.
         val mim = AetherCoreManager.buildArguments(profile(AetherProtocol.MIM, AetherTransport.HTTP2, fragment = true), 10819)
@@ -163,9 +159,9 @@ class AetherCoreManagerTest {
         assertEquals("5", valueAfter(arguments, "--fragment-delay"))
 
         val off = AetherCoreManager.buildArguments(tuned.copy(aetherFragment = false), 10819)
+        assertFalse(off.contains("--fragment"))
         assertFalse(off.contains("--fragment-size"))
         assertFalse(off.contains("--fragment-delay"))
-        assertTrue(off.contains("--no-fragment"))
 
         val invalid = AetherCoreManager.buildArguments(tuned.copy(aetherFragmentSize = "0", aetherFragmentDelay = "x"), 10819)
         assertTrue(invalid.contains("--fragment"))

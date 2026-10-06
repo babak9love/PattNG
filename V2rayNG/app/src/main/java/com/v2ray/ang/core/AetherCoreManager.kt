@@ -330,15 +330,14 @@ object AetherCoreManager {
 
                 if (protocol.overMasque && transport == AetherTransport.HTTP2) {
                     add("--h2")
+                    // The ClientHello of the MASQUE handshake, and of the calls to the WARP API the core makes for a
+                    // key it does not have; without the flag the core sends both whole.
                     if (profile.aetherFragment == true) {
                         add("--fragment")
                         AetherRange.parse(profile.aetherFragmentSize, AetherRange.FRAGMENT_SIZE)
                             ?.let { addAll(listOf("--fragment-size", it.toString())) }
                         AetherRange.parse(profile.aetherFragmentDelay, AetherRange.FRAGMENT_DELAY)
                             ?.let { addAll(listOf("--fragment-delay", it.toString())) }
-                    } else {
-                        // Said rather than left to the core, whose help has called fragmenting its default since 2.3.0.
-                        add("--no-fragment")
                     }
                 }
                 // Encrypted Client Hello hides the server name of the MASQUE handshake, on either carrier and both hops,

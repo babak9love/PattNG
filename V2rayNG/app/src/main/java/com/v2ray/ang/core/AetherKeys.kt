@@ -59,8 +59,9 @@ object AetherKeys {
 
     /**
      * The arguments [settings] give: the keys to register first, the address the calls to the WARP API go to unless
-     * it is left blank, the ClientHello of those calls in pieces when fragmenting is on, sized and spaced as set or
-     * as the core has them by default, Encrypted Client Hello on those calls with the key of the ECH domain, asked of
+     * it is left blank, the ClientHello of those calls in pieces when fragmenting is on (--fragment, which a run that
+     * only registers keys applies to those calls alone), sized and spaced as set or as the core has them by default,
+     * and whole without the flag, Encrypted Client Hello on those calls with the key of the ECH domain, asked of
      * the ECH DNS, and the TLS 1.2 cipher suites of the fingerprint, Chrome's as its rule, with GREASE left out where
      * the fingerprint has none.
      */
@@ -68,7 +69,7 @@ object AetherKeys {
         addAll(listOf(REGISTER, settings.kind.register))
         settings.enrollAddress.trim().takeIf { it.isNotEmpty() }?.let { addAll(listOf("--enroll-address", it)) }
         if (settings.fragment) {
-            add("--api-fragment")
+            add("--fragment")
             AetherRange.parse(settings.fragmentSize, AetherRange.FRAGMENT_SIZE)?.let { addAll(listOf("--fragment-size", it.toString())) }
             AetherRange.parse(settings.fragmentDelay, AetherRange.FRAGMENT_DELAY)?.let { addAll(listOf("--fragment-delay", it.toString())) }
         }
