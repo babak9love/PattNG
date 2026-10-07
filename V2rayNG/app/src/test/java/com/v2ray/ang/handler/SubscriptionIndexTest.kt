@@ -547,6 +547,15 @@ class SubscriptionIndexTest {
         verify(raws).removeValuesForKeys(arrayOf("p2"))
         verify(affiliations).removeValuesForKeys(arrayOf("p2"))
         assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+        // The results read, and the payloads gone, in one hold of both locks, the profile index lock taken first.
+        assertEquals(listOf(true, true, true), affiliationReadsLocked)
+        assertEquals(listOf(true), payloadRemovalsUnderResultLock)
+        val order = inOrder(main, affiliations, profiles)
+        order.verify(main).lock()
+        order.verify(affiliations).lock()
+        order.verify(profiles).removeValuesForKeys(arrayOf("p2"))
+        order.verify(affiliations).unlock()
+        order.verify(main).unlock()
     }
 
     @Test
@@ -557,7 +566,7 @@ class SubscriptionIndexTest {
         refusedMainKeys += "SUB_SERVERS_a"
 
         mockStatic(Log::class.java).use {
-            assertFalse(MmkvManager.tryRemoveServersWhere("a") { it == "p2" })
+            assertFalse(MmkvManager.tryRemoveFailedServers("a"))
         }
 
         assertEquals(stored, mainValues["SUB_SERVERS_a"])

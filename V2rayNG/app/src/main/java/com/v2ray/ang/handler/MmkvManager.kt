@@ -92,9 +92,9 @@ object MmkvManager {
 
     /**
      * PattNG: runs [block] holding the lock of the test results, across the app's processes, so that a result written
-     * or cleared and the main screen's removal of a profile whose test failed, see [tryRemoveFailedServer], which looks
-     * at its result under it, come one after the other. Taken after the profile index lock when both are held, never
-     * before it.
+     * or cleared and a removal of the profiles whose test failed, see [tryRemoveFailedServer] and
+     * [tryRemoveFailedServers], which look at their results under it, come one after the other. Taken after the profile
+     * index lock when both are held, never before it.
      */
     private inline fun <T> withTestResultLock(block: () -> T): T {
         return synchronized(serverAffStorage) {
@@ -463,27 +463,33 @@ object MmkvManager {
     }
 
     /**
-     * PattNG: removes the profiles of [subscriptionId] that [remove] picks, among those listed when the profile index lock
+     * PattNG: removes the profiles of [subscriptionId] whose test failed, among those listed when the profile index lock
      * is held, so that a profile listed or removed meanwhile, as by an update or a delete of the subscription, is not
-     * undone: out of the list first, checked, then the selection when it is one of them, and their payloads, their raw
-     * configurations among them. Whether the storage took it: false, with nothing removed, when it refused the list,
-     * which is logged.
+     * undone, as their results say under the lock of the test results as well, so that a test that passes one meanwhile,
+     * or a clearing of its result, keeps it: out of the list first, checked, then the selection when it is one of them,
+     * and their payloads, their raw configurations among them. Whether the storage took it: false, with nothing
+     * removed, when it refused the list, which is logged.
      */
-    fun tryRemoveServersWhere(subscriptionId: String, remove: (guid: String) -> Boolean): Boolean = withProfileIndexLock {
-        val subId = getSubscriptionId(subscriptionId)
-        val serverList = decodeServerList(subId)
-        val removed = serverList.filter(remove)
-        if (removed.isEmpty()) return@withProfileIndexLock true
-        if (!persistServerList(serverList - removed.toSet(), subId)) {
-            LogUtil.e(TAG, "MmkvManager: the storage refused the list of group $subId without ${removed.size} of its profiles")
-            return@withProfileIndexLock false
+    fun tryRemoveFailedServers(subscriptionId: String): Boolean = withProfileIndexLock {
+        withTestResultLock {
+            val subId = getSubscriptionId(subscriptionId)
+            val serverList = decodeServerList(subId)
+            val removed = serverList.filter { guid ->
+                val aff = decodeServerAffiliationInfo(guid)
+                aff != null && aff.testDelayMillis < 0L
+            }
+            if (removed.isEmpty()) return@withTestResultLock true
+            if (!persistServerList(serverList - removed.toSet(), subId)) {
+                LogUtil.e(TAG, "MmkvManager: the storage refused the list of group $subId without ${removed.size} of its profiles")
+                return@withTestResultLock false
+            }
+            val selected = getSelectServer()
+            if (selected != null && selected in removed) {
+                mainStorage.remove(KEY_SELECTED_SERVER)
+            }
+            removeProfilePayloads(removed)
+            true
         }
-        val selected = getSelectServer()
-        if (selected != null && selected in removed) {
-            mainStorage.remove(KEY_SELECTED_SERVER)
-        }
-        removeProfilePayloads(removed)
-        true
     }
 
     /**

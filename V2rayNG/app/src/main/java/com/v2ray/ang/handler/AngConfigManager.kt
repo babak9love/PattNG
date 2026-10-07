@@ -575,11 +575,9 @@ object AngConfigManager {
      */
     fun removeInvalidServer(subId: String) {
         // PattNG: among the profiles listed under the profile index lock, so that a profile an update stored, or a delete
-        // of the subscription removed, meanwhile, is not undone; a refusal is logged there.
-        MmkvManager.tryRemoveServersWhere(subId) { guid ->
-            val aff = MmkvManager.decodeServerAffiliationInfo(guid)
-            aff != null && aff.testDelayMillis < 0L
-        }
+        // of the subscription removed, meanwhile, is not undone, by their results under the lock of the test results, so
+        // that a test passing one meanwhile keeps it; a refusal is logged there.
+        MmkvManager.tryRemoveFailedServers(subId)
     }
 
     /**
