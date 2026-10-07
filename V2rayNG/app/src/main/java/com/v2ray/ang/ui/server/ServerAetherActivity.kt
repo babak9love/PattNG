@@ -615,10 +615,13 @@ class ServerAetherActivity : BaseServerActivity() {
     private fun requestSave(state: ServerUiState, listenPort: Int) {
         if (isFinishing) return
         if (!validateBasicConfig(state)) return
-        val config = state.toProfileItem(initialConfig, listenPort)
+        // PattNG: the checks normalize the profile in place, so they get a copy: the outcome carries the profile as the
+        // screen holds it, for the screen to tell whether it holds that one still, see saveChecked.
+        val held = state.toProfileItem(initialConfig, listenPort)
+        val config = held.copy()
         if (!validateCommonConfig(state, config)) return
         if (!validateProtocolConfig(config)) return
-        viewModel.checkKeysBeforeSave(config)
+        viewModel.checkKeysBeforeSave(config, held)
     }
 
     /**

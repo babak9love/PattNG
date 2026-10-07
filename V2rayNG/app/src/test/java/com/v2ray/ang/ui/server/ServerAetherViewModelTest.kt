@@ -517,6 +517,16 @@ class ServerAetherViewModelTest {
         // The outcome carries the profile checked: the screen saves it only while it holds that one still.
         assertSame(profile, (viewModel.keysCheck.value as AetherKeysCheck.SaveReady).profile)
         viewModel.onKeysCheckHandled()
+        // Or, when the check got a normalized copy of it, the profile as the screen held it.
+        val held = profile.copy(aetherEchDns = "udp://1.1.1.1")
+        viewModel.checkKeysBeforeSave(profile, held)
+        assertSame(held, (viewModel.keysCheck.value as AetherKeysCheck.SaveReady).profile)
+        viewModel.onKeysCheckHandled()
+        source.missingFiles += AetherIdentityManager.MASQUE_FILE
+        viewModel.checkKeysBeforeSave(profile, held)
+        assertSame(held, (viewModel.keysCheck.value as AetherKeysCheck.Missing).profile)
+        source.missingFiles.clear()
+        viewModel.onKeysCheckHandled()
         assertNull(viewModel.keysCheck.value)
 
         // A MASQUE profile needs no inner hop key; masque-in-masque does.

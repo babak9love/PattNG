@@ -189,9 +189,10 @@ class ServerAetherViewModel(
      * [AetherKeysCheck.SaveReady], or [AetherKeysCheck.Missing] for the screen to ask first. A profile that
      * runs Psiphon or Tor alone needs none. The profile it names as its exit-node is looked up first, as the
      * session will: one no profile, or several, have the name of by now, or one that gives no outbound, is
-     * [AetherKeysCheck.Refused].
+     * [AetherKeysCheck.Refused]. PattNG: the outcome carries [held], the profile as the screen held it when it asked,
+     * which [profile] is normalized from, so that the screen can tell whether it holds that one still.
      */
-    fun checkKeysBeforeSave(profile: ProfileItem) {
+    fun checkKeysBeforeSave(profile: ProfileItem, held: ProfileItem = profile) {
         viewModelScope.launch {
             val node = profile.aetherExitNode?.trim().orEmpty()
             if (node.isNotEmpty()) {
@@ -202,9 +203,9 @@ class ServerAetherViewModel(
             }
             val needed = AetherIdentityManager.filesNeededBy(AetherCore.of(profile, _listenPort.value).arguments)
             _keysCheck.value = if (source.missingKeys(needed).isEmpty()) {
-                AetherKeysCheck.SaveReady(profile)
+                AetherKeysCheck.SaveReady(held)
             } else {
-                AetherKeysCheck.Missing(scan = false, profile = profile)
+                AetherKeysCheck.Missing(scan = false, profile = held)
             }
         }
     }

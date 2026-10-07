@@ -12,7 +12,9 @@ import com.v2ray.ang.enums.AetherScanMode
 import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.fmt.AetherFmt
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -408,5 +410,23 @@ class ServerUiStateTest {
         assertNull(state.toProfileItem(profile, 20808).aetherCommand)
         // On another port the same words say something else than the settings do.
         assertEquals(built, state.toProfileItem(profile, 10819).aetherCommand)
+    }
+
+    @Test
+    fun theProfileTheEditorHoldsIsBuiltAgainEqualWhileItsChecksNormalizeACopy() {
+        val initial = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(initial)
+        val held = state.toProfileItem(initial, 20808)
+        val checked = held.copy()
+
+        assertNull(AetherFmt.normalize(checked))
+        // Normalized, the default ECH resolver and domain are left out: the profile checked is not the one held, so the
+        // screen weighs the one it holds, which the outcome of the check carries.
+        assertNotEquals(held, checked)
+        assertEquals(AppConfig.AETHER_ECH_DNS, held.aetherEchDns)
+        // Built again from the same screen it is equal, and not once the screen is edited.
+        assertEquals(held, state.toProfileItem(initial, 20808))
+        state.remarks = "edited"
+        assertNotEquals(held, state.toProfileItem(initial, 20808))
     }
 }
