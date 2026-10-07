@@ -686,7 +686,7 @@
     <string name="aether_keys_hint_ech">نام سرور را در درخواست‌های WARP API پنهان می‌کند؛ بدون کلید ECH قابل استفاده، هیچ کلید WARP درخواست نمی‌شود</string>
     <string name="aether_lab_fingerprint">اثرانگشت</string>
     <string name="aether_keys_invalid_enroll_address">نشانی API باید یک نشانی IP یا نام دامنه باشد، با پورت یا بدون آن، مثل 188.114.97.6:443 یا [2606:4700::1]:8443</string>
-    <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کند: --register و پس از آن all، wg، masque، gool یا mim</string>
+    <string name="aether_keys_invalid_command">فرمان باید کلید ثبت کند: --register و پس از آن all، wg، masque، mim، gool-classic (WARP-in-WARP) یا gool (WireGuard over MASQUE)</string>
     <string name="aether_keys_log_empty">خروجی هسته و کلیدهای WARP اینجا نمایش داده می‌شود</string>
     <string name="aether_scan_blocked">پیش از اسکن، اتصال Aether را قطع کنید؛ اسکن یک تونل دوم با کلید اتصال فعلی باز می‌کند</string>
     <string name="aether_keys_missing">کلید WARP لازم را ندارید؛ لطفاً اول آن را دریافت کنید</string>
