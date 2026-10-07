@@ -34,11 +34,17 @@ sealed interface AetherScanState {
 
 /** What a check of the WARP keys a profile needs ends with, for the screen to act on once. */
 sealed interface AetherKeysCheck {
-    /** Every key the profile needs is there: the save goes on. */
-    data object SaveReady : AetherKeysCheck
+    /**
+     * Every key [profile], the profile checked, needs is there: the save goes on, while the screen holds [profile] still;
+     * one edited while the check ran is checked in its turn.
+     */
+    data class SaveReady(val profile: ProfileItem) : AetherKeysCheck
 
-    /** A key the profile needs, or its scan when [scan], is missing: the screen asks whether to get it first. */
-    data class Missing(val scan: Boolean) : AetherKeysCheck
+    /**
+     * A key [profile] needs, or its scan when [scan], is missing: the screen asks whether to get it first. Going on
+     * without it holds for [profile] alone; one edited since is checked in its turn.
+     */
+    data class Missing(val scan: Boolean, val profile: ProfileItem) : AetherKeysCheck
 
     /** The profile cannot be saved, for [message], whose arguments are [args]: the screen tells it. */
     data class Refused(@StringRes val message: Int, val args: List<String>) : AetherKeysCheck
@@ -148,7 +154,7 @@ class ServerAetherViewModel(
                     val needed = AetherIdentityManager.filesNeededBy(AetherCoreManager.buildArguments(profile, 0, scan = true))
                     if (source.missingKeys(needed).isNotEmpty()) {
                         _scanState.value = AetherScanState.Idle
-                        _keysCheck.value = AetherKeysCheck.Missing(scan = true)
+                        _keysCheck.value = AetherKeysCheck.Missing(scan = true, profile = profile)
                         return@launch
                     }
                 }
@@ -195,7 +201,11 @@ class ServerAetherViewModel(
                 }
             }
             val needed = AetherIdentityManager.filesNeededBy(AetherCore.of(profile, _listenPort.value).arguments)
-            _keysCheck.value = if (source.missingKeys(needed).isEmpty()) AetherKeysCheck.SaveReady else AetherKeysCheck.Missing(scan = false)
+            _keysCheck.value = if (source.missingKeys(needed).isEmpty()) {
+                AetherKeysCheck.SaveReady(profile)
+            } else {
+                AetherKeysCheck.Missing(scan = false, profile = profile)
+            }
         }
     }
 

@@ -166,9 +166,9 @@ class ServerAetherActivity : BaseServerActivity() {
 
         LaunchedEffect(keysCheck) {
             when (val check = keysCheck) {
-                AetherKeysCheck.SaveReady -> {
+                is AetherKeysCheck.SaveReady -> {
                     viewModel.onKeysCheckHandled()
-                    saveChecked(uiState)
+                    saveChecked(uiState, check.profile, listenPort)
                 }
 
                 is AetherKeysCheck.Refused -> {
@@ -600,7 +600,7 @@ class ServerAetherActivity : BaseServerActivity() {
                 },
                 onAnyway = {
                     viewModel.onKeysCheckHandled()
-                    if (missing.scan) viewModel.scan(uiState.toProfileItem(initialConfig, listenPort), anyway = true) else saveChecked(uiState)
+                    if (missing.scan) scanChecked(uiState, missing.profile, listenPort) else saveChecked(uiState, missing.profile, listenPort)
                 },
                 onDismiss = viewModel::onKeysCheckHandled
             )
@@ -624,10 +624,21 @@ class ServerAetherActivity : BaseServerActivity() {
     /**
      * Saves the profile after the check of its keys, unless a save has closed the editor already: the check of a
      * second tap on Save, made while the first one was checked, can end after that save, and would save a new
-     * profile twice.
+     * profile twice. PattNG: the check was made on [checked], the profile the screen held at the tap; one edited
+     * while the check ran is checked in its turn, rather than saved without its own check.
      */
-    private fun saveChecked(state: ServerUiState) {
-        if (!isFinishing) saveServer(state)
+    private fun saveChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
+        if (isFinishing) return
+        if (state.toProfileItem(initialConfig, listenPort) == checked) saveServer(state) else requestSave(state, listenPort)
+    }
+
+    /**
+     * Scans although a key [checked] needs is missing, as asked, unless the screen holds another profile by now, edited
+     * while the check ran: that one is checked in its turn.
+     */
+    private fun scanChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
+        val current = state.toProfileItem(initialConfig, listenPort)
+        viewModel.scan(current, anyway = current == checked)
     }
 
     override fun validateBasicConfig(state: ServerUiState): Boolean {

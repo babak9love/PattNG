@@ -389,7 +389,7 @@ class ServerAetherViewModelTest {
         viewModel.scan(profile)
         assertEquals(0, scans)
         assertEquals(AetherScanState.Idle, viewModel.scanState.value)
-        assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = true, profile = profile), viewModel.keysCheck.value)
         assertTrue(viewModel.log.value.isEmpty())
 
         viewModel.onKeysCheckHandled()
@@ -444,7 +444,7 @@ class ServerAetherViewModelTest {
         viewModel.onScanHandled()
         viewModel.scan(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
         assertEquals(1, scans)
-        assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = true, profile = profile.copy(aetherProtocol = AetherProtocol.MIM.type)), viewModel.keysCheck.value)
     }
 
     @Test
@@ -459,11 +459,11 @@ class ServerAetherViewModelTest {
             source.missingFiles += missing
 
             viewModel.checkKeysBeforeSave(goolOverMasque)
-            assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value, missing)
+            assertEquals(AetherKeysCheck.Missing(scan = false, profile = goolOverMasque), viewModel.keysCheck.value, missing)
             viewModel.onKeysCheckHandled()
 
             viewModel.scan(goolOverMasque)
-            assertEquals(AetherKeysCheck.Missing(scan = true), viewModel.keysCheck.value, missing)
+            assertEquals(AetherKeysCheck.Missing(scan = true, profile = goolOverMasque), viewModel.keysCheck.value, missing)
             assertEquals(0, scans, missing)
             viewModel.onKeysCheckHandled()
         }
@@ -476,7 +476,7 @@ class ServerAetherViewModelTest {
             AetherIdentityManager.MASQUE_INNER_FILE,
         )
         viewModel.checkKeysBeforeSave(goolOverMasque)
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(goolOverMasque), viewModel.keysCheck.value)
         viewModel.onKeysCheckHandled()
         viewModel.scan(goolOverMasque)
         assertNull(viewModel.keysCheck.value)
@@ -499,13 +499,13 @@ class ServerAetherViewModelTest {
 
         source.found["germany"] = ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = "proxy", protocol = "vless"))
         viewModel.checkKeysBeforeSave(noded)
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(noded), viewModel.keysCheck.value)
         viewModel.onKeysCheckHandled()
 
         // Freedom is looked up nowhere.
         source.found.clear()
         viewModel.checkKeysBeforeSave(profile)
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(profile), viewModel.keysCheck.value)
     }
 
     @Test
@@ -513,32 +513,34 @@ class ServerAetherViewModelTest {
         val viewModel = viewModel()
 
         viewModel.checkKeysBeforeSave(profile)
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(profile), viewModel.keysCheck.value)
+        // The outcome carries the profile checked: the screen saves it only while it holds that one still.
+        assertSame(profile, (viewModel.keysCheck.value as AetherKeysCheck.SaveReady).profile)
         viewModel.onKeysCheckHandled()
         assertNull(viewModel.keysCheck.value)
 
         // A MASQUE profile needs no inner hop key; masque-in-masque does.
         source.missingFiles += AetherIdentityManager.MASQUE_INNER_FILE
         viewModel.checkKeysBeforeSave(profile)
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(profile), viewModel.keysCheck.value)
         viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.MIM.type))
-        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = false, profile = profile.copy(aetherProtocol = AetherProtocol.MIM.type)), viewModel.keysCheck.value)
 
         // WireGuard over MASQUE needs the WireGuard key it carries as well, which the WARP keys page gets.
         source.missingFiles += AetherIdentityManager.MASQUE_GOOL_FILE
         viewModel.checkKeysBeforeSave(profile.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type))
-        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = false, profile = profile.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type)), viewModel.keysCheck.value)
         viewModel.onKeysCheckHandled()
 
         // A command written by hand counts as it runs.
         source.missingFiles += AetherIdentityManager.WIREGUARD_FILE
         viewModel.checkKeysBeforeSave(profile.copy(aetherCommand = "aether --bind 127.0.0.1:10819 --protocol wg"))
-        assertEquals(AetherKeysCheck.Missing(scan = false), viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.Missing(scan = false, profile = profile.copy(aetherCommand = "aether --bind 127.0.0.1:10819 --protocol wg")), viewModel.keysCheck.value)
 
         // Psiphon alone needs no WARP key at all.
         source.missingFiles += AetherIdentityManager.KEY_FILES
         viewModel.checkKeysBeforeSave(profile.copy(aetherPsiphon = "only"))
-        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        assertEquals(AetherKeysCheck.SaveReady(profile.copy(aetherPsiphon = "only")), viewModel.keysCheck.value)
     }
 
     @Test
