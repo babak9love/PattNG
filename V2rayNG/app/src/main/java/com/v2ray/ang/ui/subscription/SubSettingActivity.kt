@@ -25,6 +25,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,10 +38,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.extension.toast
-import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.handler.MmkvManager.rememberMmkvBool
 import com.v2ray.ang.ui.base.BaseComponentActivity
 import com.v2ray.ang.ui.compose.AppTopBar
@@ -64,7 +67,12 @@ private enum class SubscriptionShareAction(@StringRes val labelRes: Int) {
 private data class SubscriptionDeleteTarget(val guid: String, val name: String)
 
 class SubSettingActivity : BaseComponentActivity() {
-    private val viewModel: SubscriptionsViewModel by viewModels()
+    /** PattNG: the list, read and changed off the main thread, see [SubscriptionsViewModel]. */
+    private val viewModel: SubscriptionsViewModel by viewModels {
+        viewModelFactory {
+            initializer { SubscriptionsViewModel(application, SubEditRepository()) }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +81,14 @@ class SubSettingActivity : BaseComponentActivity() {
     @Composable
     override fun ScreenContent() {
         val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+        // PattNG: a change the storage refused is told once; the list shows the subscriptions as stored.
+        val refused by viewModel.refused.collectAsStateWithLifecycle()
+        LaunchedEffect(refused) {
+            if (refused) {
+                toastError(R.string.toast_failure)
+                viewModel.onRefusalShown()
+            }
+        }
         SubSettingScreen(
             viewModel = viewModel,
             isLoading = isLoading,
@@ -93,7 +109,18 @@ class SubSettingActivity : BaseComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        viewModel.onScreenShown()
         viewModel.reload()
+    }
+
+    /**
+     * PattNG: what the list stores while out of sight is told to the main screen, see
+     * [SubscriptionsViewModel.onScreenHidden]: this runs before the main screen gets the list's result, whether the list
+     * finishes itself or the system closes it, as when the notification brings the main screen up.
+     */
+    override fun onPause() {
+        viewModel.onScreenHidden()
+        super.onPause()
     }
 
     private fun removeSub(subId: String) {
@@ -116,14 +143,16 @@ fun SubSettingScreen(
     val subscriptions by viewModel.subsFlow.collectAsStateWithLifecycle()
     var showUpdateDialog by remember { mutableStateOf(false) }
     var removeTarget by remember { mutableStateOf<SubscriptionDeleteTarget?>(null) }
-    val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
+    // PattNG: read off the main thread with the subscriptions, see SubscriptionsViewModel.reload.
+    val confirmRemove by viewModel.confirmRemove.collectAsStateWithLifecycle()
 
     var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     val qrCodeBitmap by viewModel.qrCode.collectAsStateWithLifecycle()
 
     val lazyListState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
-        viewModel.move(from.index, to.index)
+        // PattNG: by the keys of the subscriptions, which the rows are keyed by, not by their positions.
+        viewModel.move(from.key as? String ?: return@rememberReorderableLazyListState, to.key as? String ?: return@rememberReorderableLazyListState)
     }
 
     Scaffold(
@@ -226,11 +255,7 @@ fun SubSettingScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Switch(
                                     checked = subCache.subscription.enabled,
-                                    onCheckedChange = { checked ->
-                                        val updated = subCache.subscription.copy()
-                                        updated.enabled = checked
-                                        viewModel.update(subCache.guid, updated)
-                                    },
+                                    onCheckedChange = { checked -> viewModel.setEnabled(subCache.guid, checked) },
                                     modifier = Modifier.scale(0.7f),
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = MaterialTheme.colorScheme.onSecondary,

@@ -294,6 +294,94 @@ class SubscriptionIndexTest {
         assertEquals(listOf("SUB_IDS" to true), mainWrites)
     }
 
+    @Test
+    fun aSubscriptionIsMovedByTheKeysInTheListAsStoredUnderTheProfileIndexLock() {
+        // "d" was listed by another writer after the screen read the list.
+        mainValues["SUB_IDS"] = """["a","b","c","d"]"""
+
+        assertTrue(MmkvManager.tryMoveSubscription("c", "a"))
+
+        assertEquals(listOf("c", "a", "b", "d"), MmkvManager.decodeSubsList())
+        assertEquals(listOf("SUB_IDS" to true), mainWrites)
+    }
+
+    @Test
+    fun aMoveTheStorageRefusesIsToldAndLeavesTheListAsItWas() {
+        val ids = """["a","b","c"]"""
+        mainValues["SUB_IDS"] = ids
+        refusedMainKeys += "SUB_IDS"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryMoveSubscription("c", "a"))
+        }
+
+        assertEquals(ids, mainValues["SUB_IDS"])
+    }
+
+    @Test
+    fun aMoveOfASubscriptionNoLongerListedWritesNothing() {
+        mainValues["SUB_IDS"] = """["a","b"]"""
+
+        assertTrue(MmkvManager.tryMoveSubscription("gone", "a"))
+        assertTrue(MmkvManager.tryMoveSubscription("a", "gone"))
+
+        assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun aSwitchTurnsTheSubscriptionAsStoredOnOrOffWithoutTouchingTheList() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        // An update wrote its time after the list read the subscription.
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha", lastUpdated = 42L))
+
+        assertTrue(MmkvManager.trySetSubscriptionEnabled("a", false))
+
+        val stored = JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)
+        assertEquals(false, stored?.enabled)
+        assertEquals(42L, stored?.lastUpdated)
+        assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun aSwitchOfASubscriptionRemovedMeanwhileOrAlreadySoWritesNothing() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        val stored = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        subValues["a"] = stored
+
+        assertTrue(MmkvManager.trySetSubscriptionEnabled("gone", false))
+        assertTrue(MmkvManager.trySetSubscriptionEnabled("a", true))
+
+        verify(subs, never()).encode(any<String>(), any<String>())
+        assertFalse("gone" in subValues)
+        assertEquals(stored, subValues["a"])
+        assertEquals("""["a"]""", mainValues["SUB_IDS"])
+    }
+
+    @Test
+    fun aSwitchOfASubscriptionThatCannotBeReadWritesItAsTheListShowsIt() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        subValues["a"] = "{"
+
+        mockStatic(Log::class.java).use {
+            assertTrue(MmkvManager.trySetSubscriptionEnabled("a", false))
+        }
+
+        assertEquals(false, JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)?.enabled)
+    }
+
+    @Test
+    fun aSwitchTheStorageRefusesIsToldAndLeavesTheSubscriptionAsItWas() {
+        val stored = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        subValues["a"] = stored
+        refusedSubKeys += "a"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.trySetSubscriptionEnabled("a", false))
+        }
+
+        assertEquals(stored, subValues["a"])
+    }
+
     companion object {
         /**
          * A handle as a subclass mock: MMKV's lock, unlock and removeValuesForKeys, which the profile index lock and the

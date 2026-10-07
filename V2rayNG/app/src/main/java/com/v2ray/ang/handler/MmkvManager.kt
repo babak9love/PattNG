@@ -21,6 +21,7 @@ import com.v2ray.ang.dto.entities.AssetUrlCache
 import com.v2ray.ang.dto.entities.AssetUrlItem
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.extension.isGroupType
+import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionCache
@@ -811,6 +812,41 @@ object MmkvManager {
         }
         removeProfilePayloads(serverList)
         subStorage.remove(subid)
+        true
+    }
+
+    /**
+     * PattNG: turns the subscription [subId] names on or off, as it is stored then, under the profile index lock, and
+     * tells whether the storage took it, a refusal logged. One read as [decodeSubscriptions] reads it, as the list shows
+     * it, a payload that cannot be read as a new subscription; one gone, as removed meanwhile, or already so, is left as
+     * it is, which is no refusal. The list of the subscriptions is not written: a subscription removed is not listed again.
+     */
+    fun trySetSubscriptionEnabled(subId: String, enabled: Boolean): Boolean = withProfileIndexLock {
+        val json = subStorage.decodeString(subId)
+        if (json.isNullOrBlank()) return@withProfileIndexLock true
+        val item = JsonUtil.fromJsonSafe(json, SubscriptionItem::class.java) ?: SubscriptionItem()
+        if (item.enabled == enabled) return@withProfileIndexLock true
+        item.enabled = enabled
+        if (!subStorage.encode(subId, JsonUtil.toJson(item))) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused subscription $subId turned ${if (enabled) "on" else "off"}")
+            return@withProfileIndexLock false
+        }
+        true
+    }
+
+    /**
+     * PattNG: moves the subscription [fromId] names to where the one [toId] names stands in the list of the subscriptions,
+     * as it is stored then, under the profile index lock, so that a subscription listed before the move, if after the
+     * list was shown, is not written out of it, and tells whether the storage took it, a refusal logged. With either not
+     * listed there is nothing to move, which is no refusal.
+     */
+    fun tryMoveSubscription(fromId: String, toId: String): Boolean = withProfileIndexLock {
+        val subsList = decodeSubsList()
+        if (!subsList.moveItem(subsList.indexOf(fromId), subsList.indexOf(toId))) return@withProfileIndexLock true
+        if (!mainStorage.encode(KEY_SUB_IDS, JsonUtil.toJson(subsList))) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused the subscription list with $fromId moved")
+            return@withProfileIndexLock false
+        }
         true
     }
 

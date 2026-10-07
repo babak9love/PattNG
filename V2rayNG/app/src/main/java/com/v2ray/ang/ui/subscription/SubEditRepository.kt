@@ -1,14 +1,17 @@
 package com.v2ray.ang.ui.subscription
 
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.SubscriptionUpdater
+import com.v2ray.ang.helper.MessageHelper
 import com.v2ray.ang.ui.server.ProfileNameSource
 import com.v2ray.ang.ui.server.storedProfileNames
 import com.v2ray.ang.ui.server.withStoredProfileNames
@@ -42,10 +45,45 @@ interface SubEditSource : ProfileNameSource {
 }
 
 /**
- * PattNG: [SubEditSource] over [MmkvManager] and [SettingsManager], which own the subscriptions: it only moves their
- * reads and writes off the main thread, and lets the editor's view model be tested without them.
+ * PattNG: where the subscription list reads the subscriptions and stores what it changes of them, each off the main
+ * thread and by the key of the subscription: deletes one, turns one on or off, or moves one; a change the storage
+ * refused is told.
  */
-class SubEditRepository : SubEditSource {
+interface SubscriptionListSource {
+    /** The subscriptions, in their order. */
+    suspend fun loadSubscriptions(): List<SubscriptionCache>
+
+    /** Whether a delete is confirmed first, as the settings have it. */
+    suspend fun confirmsRemove(): Boolean
+
+    /** Deletes the subscription [subId] names, with its profiles. False, with nothing deleted, when the storage refused it. */
+    suspend fun deleteSubscription(subId: String): Boolean
+
+    /**
+     * Turns the subscription [subId] names on or off, as stored then, so that what an update wrote meanwhile stays;
+     * nothing when it is gone. False, with nothing written, when the storage refused it.
+     */
+    suspend fun setSubscriptionEnabled(subId: String, enabled: Boolean): Boolean
+
+    /**
+     * Moves the subscription [fromId] names to where the one [toId] names stands, in the list as stored then; nothing
+     * when either is gone. False, with nothing moved, when the storage refused it.
+     */
+    suspend fun moveSubscription(fromId: String, toId: String): Boolean
+
+    /**
+     * Tells the main screen the groups of the subscriptions changed, for it to set them up again at once: for a change
+     * stored after the list closed, which the list's return to it no longer reports.
+     */
+    fun announceGroupsChanged()
+}
+
+/**
+ * PattNG: [SubEditSource] and [SubscriptionListSource] over [MmkvManager] and [SettingsManager], which own the
+ * subscriptions: it only moves their reads and writes off the main thread, and lets the editor's and the list's view
+ * models be tested without them.
+ */
+class SubEditRepository : SubEditSource, SubscriptionListSource {
 
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         withStoredProfileNames(takes, check)
@@ -57,6 +95,9 @@ class SubEditRepository : SubEditSource {
 
     override suspend fun confirmsRemove(): Boolean =
         withContext(Dispatchers.IO) { MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false) }
+
+    override suspend fun loadSubscriptions(): List<SubscriptionCache> =
+        withContext(Dispatchers.IO) { MmkvManager.decodeSubscriptions() }
 
     // A refusal is logged by tryEncodeSubscription; its updates are scheduled only once it is stored.
     override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String? =
@@ -78,4 +119,21 @@ class SubEditRepository : SubEditSource {
                 if (removed) SettingsChangeManager.makeSetupGroupTab()
             }
         }
+
+    // A refusal is logged by MmkvManager.trySetSubscriptionEnabled.
+    override suspend fun setSubscriptionEnabled(subId: String, enabled: Boolean): Boolean =
+        withContext(Dispatchers.IO) { MmkvManager.trySetSubscriptionEnabled(subId, enabled) }
+
+    // A refusal is logged by MmkvManager.tryMoveSubscription.
+    override suspend fun moveSubscription(fromId: String, toId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            MmkvManager.tryMoveSubscription(fromId, toId).also { moved ->
+                if (moved) SettingsChangeManager.makeSetupGroupTab()
+            }
+        }
+
+    // The main screen sets its groups up again on this message, as after an update, see MainViewModel.
+    override fun announceGroupsChanged() {
+        MessageHelper.sendMsg2UI(AngApplication.application, AppConfig.MSG_SERVERS_CHANGED, "")
+    }
 }
