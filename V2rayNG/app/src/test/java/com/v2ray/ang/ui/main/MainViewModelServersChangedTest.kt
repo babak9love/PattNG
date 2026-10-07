@@ -389,16 +389,42 @@ class MainViewModelServersChangedTest {
 
     @Test
     fun aReadingIsShownHeldBackOrTakenAnewAsItsFateSays() {
-        fun fate(number: Int, lastShown: Int, settled: Int, shown: Int, unsettled: Int) =
-            MainViewModel.readingFate(number, lastShown, settled, shown, unsettled)
+        fun fate(number: Int, lastShown: Int, settled: Int, shown: Int, unsettled: Int, asSearched: Boolean = true) =
+            MainViewModel.readingFate(number, lastShown, settled, shown, unsettled, asSearched)
         assertEquals(MainViewModel.ReadingFate.SHOW, fate(number = 3, lastShown = 2, settled = 1, shown = 1, unsettled = 0))
         assertEquals(MainViewModel.ReadingFate.SHOW, fate(number = 2, lastShown = 2, settled = 0, shown = 0, unsettled = 0))
-        // Older than the one shown: not shown over it, whatever its moves.
+        // Older than the one shown: not shown over it, whatever its moves or search.
         assertEquals(MainViewModel.ReadingFate.OVERTAKEN, fate(number = 1, lastShown = 2, settled = 1, shown = 1, unsettled = 0))
         assertEquals(MainViewModel.ReadingFate.OVERTAKEN, fate(number = 1, lastShown = 2, settled = 0, shown = 1, unsettled = 1))
+        assertEquals(MainViewModel.ReadingFate.OVERTAKEN, fate(number = 1, lastShown = 2, settled = 1, shown = 1, unsettled = 0, asSearched = false))
         // A move shown since it was taken: held back while the moves are being stored, taken anew once they are.
         assertEquals(MainViewModel.ReadingFate.HOLD_UNTIL_SETTLED, fate(number = 3, lastShown = 2, settled = 1, shown = 2, unsettled = 1))
+        assertEquals(MainViewModel.ReadingFate.HOLD_UNTIL_SETTLED, fate(number = 3, lastShown = 2, settled = 1, shown = 2, unsettled = 1, asSearched = false))
         assertEquals(MainViewModel.ReadingFate.READ_AGAIN, fate(number = 3, lastShown = 2, settled = 1, shown = 2, unsettled = 0))
+        // Filtered for a search changed since: taken anew.
+        assertEquals(MainViewModel.ReadingFate.READ_AGAIN, fate(number = 3, lastShown = 2, settled = 1, shown = 1, unsettled = 0, asSearched = false))
+    }
+
+    @Test
+    fun aReadingFilteredBeforeTheSearchChangedIsTakenAnewForTheNewOne() = runBlocking {
+        val source = FakeSource()
+        source.showAllGroup = true
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", groupId = "")
+        source.holdNextAllRowsRead = CountDownLatch(1)
+        val gate = source.holdNextAllRowsRead!!
+
+        // A reading of the list of every group, filtered for no search, held before it is shown.
+        viewModel.subscriptionIdChanged("")
+        withTimeout(5_000) { source.readingHeld.await() }
+        // The search changes, and the filter shows the cached list for it.
+        viewModel.filterConfig("^a$")
+        viewModel.awaitServers("a", groupId = "")
+        gate.countDown()
+
+        // The reading let go, filtered for the old search, is not shown as it is: it is taken and filtered anew.
+        delay(500)
+        assertEquals(listOf("a"), viewModel.shownServers(groupId = ""))
     }
 
     @Test

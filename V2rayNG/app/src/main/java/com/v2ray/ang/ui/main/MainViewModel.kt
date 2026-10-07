@@ -439,8 +439,8 @@ class MainViewModel(
         }
     }
 
-    private fun applyKeywordFilter(servers: List<ServersCache>): List<ServersCache> {
-        val keyword = keywordFilter.trim()
+    private fun applyKeywordFilter(servers: List<ServersCache>, filter: String): List<ServersCache> {
+        val keyword = filter.trim()
         if (keyword.isEmpty()) return servers
         val regex = try {
             Regex(keyword, RegexOption.IGNORE_CASE)
@@ -460,10 +460,11 @@ class MainViewModel(
      * Shows [reading] of the group [groupId]. PattNG: as [readingFate] decides: not over a newer reading shown, and not
      * when a move of the group was shown that was not settled when the group was read, which the reading would undo on
      * the screen; the group is then shown anew once its moves are settled, see [moveServer], or at once when they are
-     * by now.
+     * by now. Nor when the search changed while it was filtered: the group is then read and filtered anew.
      */
     private fun updateGroupUi(groupId: String, reading: GroupReading) {
-        val filteredServers = applyKeywordFilter(reading.servers)
+        val filter = keywordFilter
+        val filteredServers = applyKeywordFilter(reading.servers, filter)
         val state = ServerGroupUiState(
             servers = filteredServers,
             rows = buildServerRows(groupId, filteredServers)
@@ -475,6 +476,7 @@ class MainViewModel(
                 settledWhenRead = reading.settledMoves,
                 shownMoves = shownMoves.getOrDefault(groupId, 0),
                 unsettledMoves = unstoredMoves.getOrDefault(groupId, 0),
+                filteredAsSearched = filter == keywordFilter,
             )
             when (fate) {
                 ReadingFate.SHOW -> {
@@ -1117,16 +1119,24 @@ class MainViewModel(
         /**
          * PattNG: what becomes of a reading of a group numbered [number] when the one shown last is [lastShown], taken
          * when [settledWhenRead] of the group's moves were settled, now that [shownMoves] were shown and [unsettledMoves]
-         * of them are not settled yet: one older than the one shown is not shown over it; one that a move shown since it
-         * was taken overtook waits until the group's moves are settled, or, when they are by now, is taken anew;
+         * of them are not settled yet, and filtered as the search stands now or not, [filteredAsSearched]: one older than
+         * the one shown is not shown over it; one that a move shown since it was taken overtook waits until the group's
+         * moves are settled, or, when they are by now, is taken anew, as one filtered for a search changed since is;
          * else it is shown.
          */
-        internal fun readingFate(number: Int, lastShown: Int, settledWhenRead: Int, shownMoves: Int, unsettledMoves: Int): ReadingFate =
+        internal fun readingFate(
+            number: Int,
+            lastShown: Int,
+            settledWhenRead: Int,
+            shownMoves: Int,
+            unsettledMoves: Int,
+            filteredAsSearched: Boolean,
+        ): ReadingFate =
             when {
                 number < lastShown -> ReadingFate.OVERTAKEN
-                settledWhenRead >= shownMoves -> ReadingFate.SHOW
-                unsettledMoves > 0 -> ReadingFate.HOLD_UNTIL_SETTLED
-                else -> ReadingFate.READ_AGAIN
+                settledWhenRead < shownMoves && unsettledMoves > 0 -> ReadingFate.HOLD_UNTIL_SETTLED
+                settledWhenRead < shownMoves || !filteredAsSearched -> ReadingFate.READ_AGAIN
+                else -> ReadingFate.SHOW
             }
 
         /**
