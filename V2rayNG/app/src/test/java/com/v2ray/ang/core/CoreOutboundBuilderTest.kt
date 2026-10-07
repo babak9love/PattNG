@@ -224,4 +224,26 @@ class CoreOutboundBuilderTest {
         // Without one, the lookup is not asked.
         assertEquals("freedom", CoreOutboundBuilder.toOutboundAetherExit(AetherExit.PLAIN) { error("no node to look up") }?.protocol)
     }
+
+    @Test
+    fun test_nodeOutboundOf_refusesANodeWhoseEchOutboundCannotGoBesideIt() {
+        fun withEch(echOutbound: String?, echConfigList: String? = "cloudflare-ech.com+https://1.1.1.1/dns-query") = OutboundBean(
+            tag = AppConfig.TAG_PROXY,
+            protocol = "vless",
+            streamSettings = OutboundBean.StreamSettingsBean(
+                security = AppConfig.TLS,
+                tlsSettings = OutboundBean.StreamSettingsBean.TlsSettingsBean(echConfigList = echConfigList, echOutbound = echOutbound),
+            ),
+        )
+        assertEquals(ExitNodeOutbound.NoOutbound, CoreOutboundBuilder.nodeOutboundOf(null))
+        val plain = OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "trojan")
+        assertEquals(ExitNodeOutbound.Built(plain), CoreOutboundBuilder.nodeOutboundOf(plain))
+        val echOk = withEch("""{"tag": "ech", "protocol": "freedom"}""")
+        assertEquals(ExitNodeOutbound.Built(echOk), CoreOutboundBuilder.nodeOutboundOf(echOk))
+        // The exit-node's own tag, which its configuration would refuse as a conflict, and an ECH outbound no
+        // configuration takes, which a profile imported unchecked can carry.
+        assertEquals(ExitNodeOutbound.EchUnusable, CoreOutboundBuilder.nodeOutboundOf(withEch("""{"tag": "exit-node", "protocol": "freedom"}""")))
+        assertEquals(ExitNodeOutbound.EchUnusable, CoreOutboundBuilder.nodeOutboundOf(withEch("freedom")))
+        assertEquals(ExitNodeOutbound.EchUnusable, CoreOutboundBuilder.nodeOutboundOf(withEch("""{"tag": "ech", "protocol": "freedom"}""", echConfigList = null)))
+    }
 }

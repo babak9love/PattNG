@@ -484,6 +484,31 @@ class ServerAetherViewModelTest {
     }
 
     @Test
+    fun aSaveLooksTheExitNodeUpAfreshAndIsRefusedForOneItCannotUse() {
+        val viewModel = viewModel()
+        val noded = profile.copy(aetherExitNode = " germany ")
+
+        // Renamed or deleted since the screen opened, the name of two profiles by now, one that gives no outbound, or
+        // one whose ECH outbound cannot go beside it: the list read when the screen opened cannot tell.
+        for (problem in listOf(ExitNodeOutbound.NotFound, ExitNodeOutbound.SameName, ExitNodeOutbound.NoOutbound, ExitNodeOutbound.EchUnusable)) {
+            source.found["germany"] = problem
+            viewModel.checkKeysBeforeSave(noded)
+            assertEquals(AetherKeysCheck.Refused(problem.message, listOf("germany")), viewModel.keysCheck.value, problem.toString())
+            viewModel.onKeysCheckHandled()
+        }
+
+        source.found["germany"] = ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = "proxy", protocol = "vless"))
+        viewModel.checkKeysBeforeSave(noded)
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+        viewModel.onKeysCheckHandled()
+
+        // Freedom is looked up nowhere.
+        source.found.clear()
+        viewModel.checkKeysBeforeSave(profile)
+        assertEquals(AetherKeysCheck.SaveReady, viewModel.keysCheck.value)
+    }
+
+    @Test
     fun aSaveGoesOnOnlyWhenTheKeysTheProfileNeedsAreThere() {
         val viewModel = viewModel()
 

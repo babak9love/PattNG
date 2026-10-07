@@ -699,11 +699,12 @@ object CoreOutboundBuilder {
     /**
      * PattNG: the outbound of the profile named [name], built as for a hop of a proxy chain, or why there is
      * none: no profile that can be an exit-node has the name any more, several have it, or the one that has
-     * it gives no outbound. See [AetherExit.node].
+     * it gives no outbound, or one whose ECH outbound cannot go beside it, see [nodeOutboundOf]. See
+     * [AetherExit.node].
      */
     fun toOutboundOfNode(name: String): ExitNodeOutbound = when (val found = AetherExit.nodeProfile(name)) {
         is ByName.One -> try {
-            convert(found.value)?.let { ExitNodeOutbound.Built(it) } ?: ExitNodeOutbound.NoOutbound
+            nodeOutboundOf(convert(found.value))
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to build the outbound of the Aether exit-node profile", e)
             ExitNodeOutbound.NoOutbound
@@ -711,5 +712,16 @@ object CoreOutboundBuilder {
 
         ByName.None -> ExitNodeOutbound.NotFound
         ByName.Several -> ExitNodeOutbound.SameName
+    }
+
+    /**
+     * PattNG: what the [outbound] a node's profile gives makes of it as the exit-node, see [toOutboundOfNode]: none, or
+     * one whose ECH outbound the configuration the exit of a core of its own opens with would refuse, where it goes
+     * beside the exit-node alone, see [AetherCoreManager.exitConfiguration], leaves it unusable.
+     */
+    internal fun nodeOutboundOf(outbound: OutboundBean?): ExitNodeOutbound = when {
+        outbound == null -> ExitNodeOutbound.NoOutbound
+        !EchOutbound.takes(outbound, setOf(AppConfig.TAG_EXIT_NODE)) -> ExitNodeOutbound.EchUnusable
+        else -> ExitNodeOutbound.Built(outbound)
     }
 }

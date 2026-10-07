@@ -183,7 +183,7 @@ class ServerUiState(
     var aetherDns by mutableStateOf(aetherDns)
     var aetherExitLoc by mutableStateOf(aetherExitLoc)
 
-    /** The guid of the profile the core dials out through, see ProfileItem.aetherExitNode; blank for freedom. */
+    /** The name of the profile the core dials out through, see ProfileItem.aetherExitNode; blank for freedom. */
     var aetherExitNode by mutableStateOf(aetherExitNode)
     var aetherPsiphon by mutableStateOf(aetherPsiphon)
     var aetherPsiphonMode by mutableStateOf(aetherPsiphonMode)

@@ -175,6 +175,27 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun theExitNodeIsLookedUpOnceForTheCheckAndTheOutboundAlike() {
+        // What a lookup finds can change between two, as when an update renames the profile; the first answer counts.
+        val answers = ArrayDeque(listOf<ExitNodeOutbound>(ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "trojan")), ExitNodeOutbound.NotFound))
+        var lookups = 0
+        val node = CoreConfigManager.lookedUpOnce { lookups++; answers.removeFirst() }
+        val core = AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --protocol masque")!!.copy(exit = AetherExit(node = "germany"))
+        val config = V2rayConfig(
+            log = V2rayConfig.LogBean(),
+            inbounds = arrayListOf(),
+            outbounds = arrayListOf(socks(AppConfig.LOOPBACK, 10819)),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+        )
+
+        assertNull(CoreConfigManager.exitNodeProblem(core, config.outbounds, node))
+        // Else the port of the secondary inbound would be blamed for the profile that went missing in between.
+        assertEquals("socks5://127.0.0.1:10822", CoreConfigManager.routeAetherThroughXray(config, core, 10822, node)!!.arguments.last())
+        assertEquals("trojan", config.outbounds.last().protocol)
+        assertEquals(1, lookups)
+    }
+
+    @Test
     fun aCoreWithAnUpstreamOfItsOwnLeavesTheConfigurationAlone() {
         val config = V2rayConfig(
             log = V2rayConfig.LogBean(),

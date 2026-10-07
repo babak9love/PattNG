@@ -89,6 +89,17 @@ object EchOutbound {
         return Result.Done(JsonUtil.toJsonPretty(json).orEmpty())
     }
 
+    /**
+     * PattNG: whether [outbound] can go into a configuration whose outbounds are tagged [tags], as far as its ECH
+     * outbound tells: none, or one [serialize] takes there, valid and with a tag none of them has.
+     */
+    fun takes(outbound: OutboundBean, tags: Set<String>): Boolean {
+        val tlsSettings = outbound.streamSettings?.tlsSettings ?: return true
+        val text = tlsSettings.echOutbound ?: return true
+        if (validate(text, tlsSettings.echConfigList) != null) return false
+        return parse(text)?.let(::tagOf) !in tags
+    }
+
     private fun validate(echOutbound: String?, echConfigList: String?): Error? {
         if (echOutbound.isNullOrBlank()) return null
         val outbound = parse(echOutbound) ?: return Error.INVALID_JSON

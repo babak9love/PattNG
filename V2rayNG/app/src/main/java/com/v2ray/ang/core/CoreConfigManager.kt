@@ -53,8 +53,13 @@ object CoreConfigManager {
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
                 if (lacksChainHop(it, v2rayConfig.outbounds)) return chainHopFailure(context, guid)
-                exitNodeProblem(it, v2rayConfig.outbounds)?.let { problem -> return exitNodeFailure(context, guid, it, problem) }
-                routeAetherThroughXray(v2rayConfig, it, secondaryPort) ?: return secondaryPortFailure(context, guid, secondaryPort)
+                // The profile named as the exit-node is looked up once, so that the check and the outbound go by one answer.
+                val node = lookedUpOnce(CoreOutboundBuilder::toOutboundOfNode)
+                exitNodeProblem(it, v2rayConfig.outbounds, node)?.let { problem -> return exitNodeFailure(context, guid, it, problem) }
+                val routed = routeAetherThroughXray(v2rayConfig, it, secondaryPort, node) ?: return secondaryPortFailure(context, guid, secondaryPort)
+                // That outbound joins after the domains of the others were resolved; its own is resolved as theirs are.
+                resolveOutboundDomainsToHosts(v2rayConfig, v2rayConfig.getAllProxyOutbound().filter { outbound -> outbound.tag == AppConfig.TAG_EXIT_NODE })
+                routed
             }
             return toConfigResult(context, configContext, v2rayConfig, core)
         } catch (e: Exception) {
@@ -666,6 +671,12 @@ object CoreConfigManager {
         val name = core.exit.node ?: return null
         if (core.hasUpstream || outbounds.any { it.tag == AppConfig.TAG_EXIT_NODE }) return null
         return nodeOutbound(name) as? ExitNodeOutbound.Problem
+    }
+
+    /** PattNG: [lookup], asked once for each name however often a name is asked for, see [getV2rayConfig]. */
+    internal fun lookedUpOnce(lookup: (String) -> ExitNodeOutbound): (String) -> ExitNodeOutbound {
+        val found = HashMap<String, ExitNodeOutbound>()
+        return { name -> found.getOrPut(name) { lookup(name) } }
     }
 
     /** PattNG: see [exitNodeProblem], as a failure whose message, which names the exit-node of [core], is meant for the screen. */
@@ -1338,14 +1349,14 @@ object CoreConfigManager {
 
 
     /**
-     * Resolve outbound domains to IPs and write resolved hosts to DNS map.
+     * Resolve outbound domains to IPs and write resolved hosts to DNS map. PattNG: of [outbounds] alone when given.
      */
-    private fun resolveOutboundDomainsToHosts(v2rayConfig: V2rayConfig) {
+    private fun resolveOutboundDomainsToHosts(v2rayConfig: V2rayConfig, outbounds: List<V2rayConfig.OutboundBean>? = null) {
         if (MmkvManager.decodeSettingsString(AppConfig.PREF_OUTBOUND_DOMAIN_RESOLVE_METHOD, AppConfig.DEFAULT_OUTBOUND_DOMAIN_RESOLVE_METHOD) != "1") {
             return
         }
 
-        val proxyOutboundList = v2rayConfig.getAllProxyOutbound()
+        val proxyOutboundList = outbounds ?: v2rayConfig.getAllProxyOutbound()
         val dns = v2rayConfig.dns ?: return
         val newHosts = dns.hosts?.toMutableMap() ?: mutableMapOf()
         val preferIpv6 = MmkvManager.decodeSettingsBool(AppConfig.PREF_PREFER_IPV6) == true

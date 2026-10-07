@@ -10,6 +10,7 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -212,6 +213,31 @@ class EchOutboundTest {
             EchOutbound.Result.Invalid(EchOutbound.Error.NEEDS_ECH_CONFIG_LIST),
             EchOutbound.serialize(config(tlsOutbound("proxy", """{"tag": "ech", "protocol": "freedom"}""", echConfigList = null))),
         )
+    }
+
+    @Test
+    fun takes_answersAsSerializeDoesForTheOutboundBesideThoseTags() {
+        val tags = setOf(AppConfig.TAG_EXIT_NODE)
+        assertTrue(EchOutbound.takes(OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "freedom"), tags))
+        // The ECH outbound, and whether a configuration of the outbound alone takes it.
+        val echs = listOf(
+            null to true,
+            """{"tag": "ech", "protocol": "freedom"}""" to true,
+            """{"tag": "exit-node", "protocol": "freedom"}""" to false,
+            """{"tag": "proxy-ech", "protocol": "freedom"}""" to false,
+            "freedom" to false,
+        )
+        for ((ech, taken) in echs) {
+            val alone = V2rayConfig(
+                log = V2rayConfig.LogBean(),
+                inbounds = arrayListOf(),
+                outbounds = arrayListOf(tlsOutbound(AppConfig.TAG_EXIT_NODE, ech)),
+                routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = arrayListOf()),
+            )
+            assertEquals(taken, EchOutbound.serialize(alone) is EchOutbound.Result.Done, ech)
+            assertEquals(taken, EchOutbound.takes(tlsOutbound(AppConfig.TAG_EXIT_NODE, ech), tags), ech)
+        }
+        assertFalse(EchOutbound.takes(tlsOutbound(AppConfig.TAG_EXIT_NODE, """{"tag": "ech", "protocol": "freedom"}""", echConfigList = null), tags))
     }
 
     private companion object {

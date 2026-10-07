@@ -39,6 +39,9 @@ sealed interface AetherKeysCheck {
 
     /** A key the profile needs, or its scan when [scan], is missing: the screen asks whether to get it first. */
     data class Missing(val scan: Boolean) : AetherKeysCheck
+
+    /** The profile cannot be saved, for [message], whose arguments are [args]: the screen tells it. */
+    data class Refused(@StringRes val message: Int, val args: List<String>) : AetherKeysCheck
 }
 
 sealed interface AetherLogText {
@@ -178,10 +181,19 @@ class ServerAetherViewModel(
     /**
      * Looks whether the WARP keys [profile] needs are there before it is saved: [keysCheck] then says
      * [AetherKeysCheck.SaveReady], or [AetherKeysCheck.Missing] for the screen to ask first. A profile that
-     * runs Psiphon or Tor alone needs none.
+     * runs Psiphon or Tor alone needs none. The profile it names as its exit-node is looked up first, as the
+     * session will: one no profile, or several, have the name of by now, or one that gives no outbound, is
+     * [AetherKeysCheck.Refused].
      */
     fun checkKeysBeforeSave(profile: ProfileItem) {
         viewModelScope.launch {
+            val node = profile.aetherExitNode?.trim().orEmpty()
+            if (node.isNotEmpty()) {
+                (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
+                    _keysCheck.value = AetherKeysCheck.Refused(problem.message, listOf(node))
+                    return@launch
+                }
+            }
             val needed = AetherIdentityManager.filesNeededBy(AetherCore.of(profile, _listenPort.value).arguments)
             _keysCheck.value = if (source.missingKeys(needed).isEmpty()) AetherKeysCheck.SaveReady else AetherKeysCheck.Missing(scan = false)
         }

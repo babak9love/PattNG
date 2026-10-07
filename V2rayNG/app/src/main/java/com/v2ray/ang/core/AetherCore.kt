@@ -266,4 +266,12 @@ sealed interface ExitNodeOutbound {
     data object NoOutbound : Problem {
         override val message: Int get() = R.string.aether_exit_node_unusable
     }
+
+    /**
+     * The one that has it has an ECH outbound that cannot go beside it: one no configuration takes, see
+     * [EchOutbound.validate], or one tagged exit-node, as the profile's own outbound is here.
+     */
+    data object EchUnusable : Problem {
+        override val message: Int get() = R.string.aether_exit_node_ech_unusable
+    }
 }

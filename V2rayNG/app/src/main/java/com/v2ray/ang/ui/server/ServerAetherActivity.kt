@@ -165,9 +165,18 @@ class ServerAetherActivity : BaseServerActivity() {
         }
 
         LaunchedEffect(keysCheck) {
-            if (keysCheck == AetherKeysCheck.SaveReady) {
-                viewModel.onKeysCheckHandled()
-                saveChecked(uiState)
+            when (val check = keysCheck) {
+                AetherKeysCheck.SaveReady -> {
+                    viewModel.onKeysCheckHandled()
+                    saveChecked(uiState)
+                }
+
+                is AetherKeysCheck.Refused -> {
+                    viewModel.onKeysCheckHandled()
+                    toast(getString(check.message, *check.args.toTypedArray()))
+                }
+
+                is AetherKeysCheck.Missing, null -> Unit
             }
         }
 
@@ -641,14 +650,8 @@ class ServerAetherActivity : BaseServerActivity() {
         return super.validateCommonConfig(state, if (freedom) config else config.copy(finalMask = null))
     }
 
+    // The profile chosen as the exit-node is looked up when the keys are checked, see ServerAetherViewModel.checkKeysBeforeSave.
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
-        // A profile chosen as the exit-node that no profile is named after any more, or several are: the core would
-        // reach WARP without it. Until the profiles are read, nothing is told.
-        val node = config.aetherExitNode.orEmpty().trim()
-        problemOfExitNode(node, viewModel.exitNodes.value)?.let { problem ->
-            toast(getString(problem.message, node))
-            return false
-        }
         // The core cannot listen where the local proxy of the app does, nor where the inbound it dials out
         // through does; Xray would get the port first.
         val takenPorts = SettingsManager.getLocalProxyPorts() + AetherCoreManager.secondarySocksPort

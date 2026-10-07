@@ -21,13 +21,15 @@ internal fun ExitNodeField(
     enabled: Boolean = true,
 ) {
     val freedom = stringResource(R.string.aether_exit_node_freedom)
+    val numbered = stringResource(R.string.aether_exit_node_numbered)
     val names = nodes.orEmpty().map { it.name }
-    val labels = remember(names, freedom) { exitNodeLabels(names, setOf(freedom)) }
+    val labels = remember(names, freedom, numbered) { exitNodeLabels(names, setOf(freedom)) { name, number -> numbered.format(name, number) } }
     val name = value.trim()
     val problem = problemOfExitNode(name, nodes)
     FormDropdownField(
         label = stringResource(R.string.aether_lab_exit_node),
-        value = name.ifEmpty { freedom },
+        // The label the list gives the name, which tells it from freedom and from another name's label.
+        value = if (name.isEmpty()) freedom else labels.getOrNull(names.indexOf(name)) ?: name,
         options = listOf(freedom) + labels,
         onValueChange = { picked ->
             if (picked == freedom) {
