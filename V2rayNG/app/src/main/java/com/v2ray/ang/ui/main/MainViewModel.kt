@@ -111,6 +111,17 @@ class MainViewModel(
 
     private val initialPageReady = CompletableDeferred<Unit>()
 
+    /**
+     * PattNG: the names the Aether editor gives the WARP protocols, which the rows of Aether profiles show. Declared
+     * before init, whose work off the main thread reads it: a delegate declared after it may not be there yet.
+     */
+    private val aetherProtocolLabel by lazy {
+        aetherProtocolLabels(
+            dataSource.getStringArray(R.array.aether_protocol_entries),
+            dataSource.getStringArray(R.array.aether_protocol_values),
+        )
+    }
+
     // ---------- Service events ----------
     init {
         collectServiceEvents()
@@ -426,14 +437,6 @@ class MainViewModel(
                 aetherProtocolLabel = aetherProtocolLabel,
             )
         }
-    }
-
-    /** PattNG: the names the Aether editor gives the WARP protocols, which the rows of Aether profiles show. */
-    private val aetherProtocolLabel by lazy {
-        aetherProtocolLabels(
-            dataSource.getStringArray(R.array.aether_protocol_entries),
-            dataSource.getStringArray(R.array.aether_protocol_values),
-        )
     }
 
     fun getSubscriptions(): List<SubscriptionCache> = dataSource.getSubscriptions()
