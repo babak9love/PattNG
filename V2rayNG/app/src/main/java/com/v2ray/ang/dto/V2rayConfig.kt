@@ -106,7 +106,6 @@ data class V2rayConfig(
             var reserved: List<Int>? = null,
             var mtu: Int? = null,
             var remoteDNS: List<String>? = null,
-            var domainStrategy: String? = null,
         ) {
             data class WireGuardBean(
                 var publicKey: String = "",
