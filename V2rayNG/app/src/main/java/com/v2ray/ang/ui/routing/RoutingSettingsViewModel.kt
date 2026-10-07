@@ -9,7 +9,6 @@ import com.v2ray.ang.ui.base.BaseViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.UUID
 
 class RoutingSettingsViewModel(application: Application) : BaseViewModel(application) {
     private val rulesets: MutableList<RulesetItem> = mutableListOf()
@@ -20,15 +19,11 @@ class RoutingSettingsViewModel(application: Application) : BaseViewModel(applica
     fun getAll(): List<RulesetItem> = rulesets.toList()
 
     fun reload() {
-        val loaded = MmkvManager.decodeRoutingRulesets()?.toMutableList() ?: mutableListOf()
-        var needsSave = false
-        loaded.forEachIndexed { index, item ->
-            if (item.id.isEmpty()) {
-                item.id = UUID.randomUUID().toString()
-                SettingsManager.saveRoutingRuleset(index, item)
-                needsSave = true
-            }
-        }
+        val stored = MmkvManager.decodeRoutingRulesets().orEmpty()
+        // PattNG: the list tells its rules apart by their ids: one without an id, or repeating another's, as the copy of a
+        // locked rule an import stored before it was left out, is put right and the rules stored once, see
+        // SettingsManager.rulesetsWithOwnIds.
+        val loaded = SettingsManager.rulesetsWithOwnIds(stored)?.also { MmkvManager.encodeRoutingRulesets(it) } ?: stored
         rulesets.clear()
         rulesets.addAll(loaded)
         _rulesetsFlow.value = rulesets.toList()

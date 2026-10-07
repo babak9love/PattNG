@@ -2,9 +2,10 @@ package com.v2ray.ang.handler
 
 import com.v2ray.ang.dto.entities.RulesetItem
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
-/** Unit tests for SettingsManager.rulesetsAfterImport, what an import of routing rulesets leaves. */
+/** Unit tests for SettingsManager.rulesetsAfterImport and rulesetsWithOwnIds: what an import of routing rulesets leaves, and their ids. */
 class RoutingRulesetImportTest {
 
     private val locked = RulesetItem(id = "locked", remarks = "kept", outboundTag = "direct", locked = true)
@@ -30,12 +31,16 @@ class RoutingRulesetImportTest {
     }
 
     @Test
-    fun rulesetsWithoutAnIdAreAllImportedThoughALockedOneHasNone() {
-        // An id is given to each once the list is shown.
+    fun rulesetsWithoutAnIdAreAllImportedThoughALockedOneHasNoneAndEachGetsOne() {
         val lockedWithoutId = locked.copy(id = "")
-        val imported = listOf(RulesetItem(remarks = "a"), RulesetItem(remarks = "b"))
+        val a = RulesetItem(remarks = "a")
+        val b = RulesetItem(remarks = "b")
+        val ids = generateSequence(1) { it + 1 }.map { "new-$it" }.iterator()
 
-        assertEquals(listOf(lockedWithoutId) + imported, SettingsManager.rulesetsAfterImport(listOf(lockedWithoutId), imported))
+        assertEquals(
+            listOf(lockedWithoutId.copy(id = "new-1"), a.copy(id = "new-2"), b.copy(id = "new-3")),
+            SettingsManager.rulesetsAfterImport(listOf(lockedWithoutId), listOf(a, b)) { ids.next() }
+        )
     }
 
     @Test
@@ -59,5 +64,36 @@ class RoutingRulesetImportTest {
         val copy = unlocked.copy(remarks = "as exported")
 
         assertEquals(listOf(locked, copy), SettingsManager.rulesetsAfterImport(listOf(locked, unlocked), listOf(copy)))
+    }
+
+    @Test
+    fun anImportRepeatingAnIdWithinItselfKeepsOneOfAWholeRepeatAndGivesOtherContentAnIdOfItsOwn() {
+        val a = RulesetItem(id = "a", remarks = "a")
+        val other = RulesetItem(id = "a", remarks = "other")
+
+        assertEquals(listOf(a, other.copy(id = "new")), SettingsManager.rulesetsAfterImport(null, listOf(a, a, other)) { "new" })
+    }
+
+    @Test
+    fun eachRulesetGetsAnIdOfItsOwn() {
+        val a = RulesetItem(id = "a", remarks = "a")
+        val edited = a.copy(remarks = "a, edited")
+        val noId = RulesetItem(remarks = "no id")
+        val ids = generateSequence(1) { it + 1 }.map { "new-$it" }.iterator()
+
+        // One repeating a ruleset before it whole goes; one with its id and other content, or with none, gets a new one.
+        assertEquals(
+            listOf(a, edited.copy(id = "new-1"), noId.copy(id = "new-2")),
+            SettingsManager.rulesetsWithOwnIds(listOf(a, a, edited, noId)) { ids.next() }
+        )
+        // Null when each has its own already, so that nothing is stored again.
+        assertNull(SettingsManager.rulesetsWithOwnIds(listOf(a, RulesetItem(id = "b"))))
+        assertNull(SettingsManager.rulesetsWithOwnIds(emptyList()))
+    }
+
+    @Test
+    fun aListStoredWithTheCopyOfALockedRulesetIsPutRight() {
+        // As an import stored it before it left the copy out: the copy, locked as well, goes.
+        assertEquals(listOf(locked, unlocked), SettingsManager.rulesetsWithOwnIds(listOf(locked, unlocked, locked)))
     }
 }

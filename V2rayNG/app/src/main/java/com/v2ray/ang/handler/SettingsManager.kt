@@ -32,6 +32,7 @@ import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import java.io.File
 import java.io.FileOutputStream
+import java.util.UUID
 import kotlin.random.Random
 
 object SettingsManager {
@@ -119,13 +120,54 @@ object SettingsManager {
     /**
      * The rulesets an import of [imported] leaves: the locked ones of [stored] first, kept as they are, then [imported].
      * PattNG: but for the copy of a locked one, which an export of it brings back with its id: the routing list tells its
-     * rules apart by their ids, and two with one id would make it fail to show.
+     * rules apart by their ids, and two with one id would make it fail to show. Each gets an id of its own besides, as
+     * one the import repeats, see [rulesetsWithOwnIds].
      */
-    internal fun rulesetsAfterImport(stored: List<RulesetItem>?, imported: List<RulesetItem>): MutableList<RulesetItem> {
+    internal fun rulesetsAfterImport(
+        stored: List<RulesetItem>?,
+        imported: List<RulesetItem>,
+        newId: () -> String = ::newRulesetId,
+    ): MutableList<RulesetItem> {
         val locked = stored.orEmpty().filter { it.locked == true }
         val lockedIds = locked.map { it.id }.filterTo(HashSet()) { it.isNotEmpty() }
-        return (locked + imported.filter { it.id !in lockedIds }).toMutableList()
+        val rulesets = locked + imported.filter { it.id !in lockedIds }
+        return rulesetsWithOwnIds(rulesets, newId) ?: rulesets.toMutableList()
     }
+
+    /**
+     * PattNG: [rulesets] with an id of their own each, which the routing list tells them apart by: one without an id gets
+     * a new one from [newId], as does one with the id of a ruleset before it and other content; one that repeats a
+     * ruleset before it whole goes, as the copy of a locked one an import stored before it was left out. Null when each
+     * has its own already.
+     */
+    internal fun rulesetsWithOwnIds(
+        rulesets: List<RulesetItem>,
+        newId: () -> String = ::newRulesetId,
+    ): MutableList<RulesetItem>? {
+        val firstWithId = HashMap<String, RulesetItem>()
+        val result = ArrayList<RulesetItem>(rulesets.size)
+        var changed = false
+        for (ruleset in rulesets) {
+            val first = firstWithId[ruleset.id]
+            when {
+                ruleset.id.isEmpty() || first != null && first != ruleset -> {
+                    result += ruleset.copy(id = newId())
+                    changed = true
+                }
+
+                first != null -> changed = true
+
+                else -> {
+                    firstWithId[ruleset.id] = ruleset
+                    result += ruleset
+                }
+            }
+        }
+        return result.takeIf { changed }
+    }
+
+    /** PattNG: a new id for a routing ruleset, as the routing editor gives one. */
+    private fun newRulesetId(): String = UUID.randomUUID().toString()
 
     /**
      * Get a routing ruleset by index.
