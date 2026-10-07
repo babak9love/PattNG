@@ -112,6 +112,17 @@ class MainViewModel(
     /** PattNG: the number the last refusal of a move to be told got, see [MainUiState.moveRefusal]. */
     private val moveRefusals = AtomicInteger()
 
+    /**
+     * PattNG: per group, the moves shown, and those settled, stored or refused, see [storeMove]. A reading of a group
+     * taken before every move shown was settled is held back, see [updateGroupUi], and the group is shown anew once its
+     * moves are, see [moveServer]; [groupsReadEarly] names the groups waiting for that. A move is shown, and a reading
+     * shown or held back, under [groupShowLock], one at a time.
+     */
+    private val shownMoves = ConcurrentHashMap<String, Int>()
+    private val settledMoves = ConcurrentHashMap<String, Int>()
+    private val groupsReadEarly: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val groupShowLock = Any()
+
     private var setupGroupJob: Job? = null
     private var preloadJob: Job? = null
     private var selectedGroupLoadJob: Job? = null
@@ -394,10 +405,13 @@ class MainViewModel(
             )
         }
 
+    /** PattNG: the servers of a group as read, with how many of its moves were settled then, see [updateGroupUi]. */
+    private class GroupReading(val servers: List<ServersCache>, val settledMoves: Int)
+
     private suspend fun loadGroup(
         groupId: String,
         forceRefresh: Boolean = false
-    ): List<ServersCache> {
+    ): GroupReading {
         val loadMutex = groupLoadMutexes.computeIfAbsent(groupId) { Mutex() }
         return loadMutex.withLock {
             if (!forceRefresh) {
@@ -405,8 +419,12 @@ class MainViewModel(
             }
             val servers = buildServersCache(dataSource.getServerGuidList(groupId))
             currentCoroutineContext().ensureActive()
-            cacheMutex.withLock { groupDataCache[groupId] = servers }
-            servers
+            // PattNG: under the group's load lock, which a move is stored under too, see [storeMove].
+            val settled = cacheMutex.withLock {
+                groupDataCache[groupId] = servers
+                settledMoves.getOrDefault(groupId, 0)
+            }
+            GroupReading(servers, settled)
         }
     }
 
@@ -427,12 +445,36 @@ class MainViewModel(
         }
     }
 
-    private fun updateGroupUi(groupId: String, servers: List<ServersCache>) {
-        val filteredServers = applyKeywordFilter(servers)
-        mutableServerGroupState(groupId).value = ServerGroupUiState(
+    /**
+     * Shows [reading] of the group [groupId]. PattNG: not when a move of the group was shown that was not settled when the
+     * group was read, which the reading would undo on the screen: the group is shown anew once its moves are settled,
+     * see [moveServer], or at once when they are by now.
+     */
+    private fun updateGroupUi(groupId: String, reading: GroupReading) {
+        val filteredServers = applyKeywordFilter(reading.servers)
+        val state = ServerGroupUiState(
             servers = filteredServers,
             rows = buildServerRows(groupId, filteredServers)
         )
+        val readAgain = synchronized(groupShowLock) {
+            if (reading.settledMoves >= shownMoves.getOrDefault(groupId, 0)) {
+                mutableServerGroupState(groupId).value = state
+                return
+            }
+            if (unstoredMoves.getOrDefault(groupId, 0) > 0) {
+                groupsReadEarly += groupId
+                false
+            } else {
+                true
+            }
+        }
+        if (readAgain) viewModelScope.launch { showGroupAnew(groupId) }
+    }
+
+    /** PattNG: reads the group [groupId] anew and shows it, see [updateGroupUi]. */
+    private suspend fun showGroupAnew(groupId: String) {
+        val reading = withContext(ioDispatcher) { loadGroup(groupId) }
+        withContext(defaultDispatcher) { updateGroupUi(groupId, reading) }
     }
 
     private fun buildServerRows(groupId: String, servers: List<ServersCache>): List<ServerRowUiModel> {
@@ -800,11 +842,14 @@ class MainViewModel(
         filterJob?.cancel()
         filterJob = viewModelScope.launch(defaultDispatcher) {
             delay(300)
-            val snapshot = cacheMutex.withLock { groupDataCache.toMap() }
+            // PattNG: with how many of each group's moves were settled when it was cached, see [updateGroupUi].
+            val snapshot = cacheMutex.withLock {
+                groupDataCache.mapValues { (groupId, servers) -> GroupReading(servers, settledMoves.getOrDefault(groupId, 0)) }
+            }
             ensureActive()
-            snapshot.forEach { (groupId, servers) ->
+            snapshot.forEach { (groupId, reading) ->
                 ensureActive()
-                updateGroupUi(groupId, servers)
+                updateGroupUi(groupId, reading)
             }
         }
     }
@@ -840,17 +885,20 @@ class MainViewModel(
      */
     fun moveServer(groupId: String, fromGuid: String, toGuid: String): Job? {
         if (groupId.isEmpty()) return null
-        val groupState = mutableServerGroupState(groupId).value
-        val servers = groupState.servers.toMutableList()
-        val fromPosition = servers.indexOfFirst { it.guid == fromGuid }
-        val toPosition = servers.indexOfFirst { it.guid == toGuid }
-        if (!servers.moveItem(fromPosition, toPosition)) return null
-        val rows = groupState.rows.toMutableList()
-        rows.moveItem(fromPosition, toPosition)
-        mutableServerGroupState(groupId).value = ServerGroupUiState(servers, rows)
+        synchronized(groupShowLock) {
+            val groupState = mutableServerGroupState(groupId).value
+            val servers = groupState.servers.toMutableList()
+            val fromPosition = servers.indexOfFirst { it.guid == fromGuid }
+            val toPosition = servers.indexOfFirst { it.guid == toGuid }
+            if (!servers.moveItem(fromPosition, toPosition)) return null
+            val rows = groupState.rows.toMutableList()
+            rows.moveItem(fromPosition, toPosition)
+            mutableServerGroupState(groupId).value = ServerGroupUiState(servers, rows)
+            shownMoves.merge(groupId, 1, Int::plus)
+            unstoredMoves.merge(groupId, 1, Int::plus)
+        }
         // A drag emits several moves; each is stored once the one before it is, in the order they were made.
         val previousPersistenceJob = serverOrderPersistenceJobs[groupId]
-        unstoredMoves.merge(groupId, 1, Int::plus)
         // PattNG: begun at once, on the main thread the move comes on, and the store kept from cancellation, so that a
         // screen closing right after neither stops it nor keeps it from starting.
         return viewModelScope.launch {
@@ -859,10 +907,21 @@ class MainViewModel(
                 storeMove(groupId, fromGuid, toGuid)
             }
             if (!moved) refusedMoveGroups += groupId
-            if (unstoredMoves.merge(groupId, -1, Int::plus) == 0 && refusedMoveGroups.remove(groupId)) {
+            // PattNG: once the group's last move asked for is settled: a refusal among them told, and the groups read anew;
+            // or else a reading held back for them taken anew, see [updateGroupUi].
+            val (refused, readEarly) = synchronized(groupShowLock) {
+                if (unstoredMoves.merge(groupId, -1, Int::plus) != 0) {
+                    false to false
+                } else {
+                    refusedMoveGroups.remove(groupId) to groupsReadEarly.remove(groupId)
+                }
+            }
+            if (refused) {
                 val refusal = moveRefusals.incrementAndGet()
                 _uiState.update { it.copy(moveRefusal = refusal) }
                 setupGroupTab(forceRefresh = true)
+            } else if (readEarly) {
+                showGroupAnew(groupId)
             }
         }.also { serverOrderPersistenceJobs[groupId] = it }
     }
@@ -872,19 +931,23 @@ class MainViewModel(
      * [groupId] as stored then, see [MainDataSource.moveServer], so that a profile an update stored, or a removal took
      * away, meanwhile is not undone, and makes it in the group's cached list too, under the group's load lock, see
      * [loadGroup]: a reading of the group comes before the move is stored or after it is cached, so the cached list stays
-     * the stored one. Whether the storage took it.
+     * the stored one; and counts it settled, see [settledMoves]. Whether the storage took it.
      */
     private suspend fun storeMove(groupId: String, fromGuid: String, toGuid: String): Boolean =
         groupLoadMutexes.computeIfAbsent(groupId) { Mutex() }.withLock {
-            if (!dataSource.moveServer(groupId, fromGuid, toGuid)) return@withLock false
+            val moved = dataSource.moveServer(groupId, fromGuid, toGuid)
             cacheMutex.withLock {
-                groupDataCache[groupId]?.toMutableList()?.let { cached ->
-                    if (cached.moveItem(cached.indexOfFirst { it.guid == fromGuid }, cached.indexOfFirst { it.guid == toGuid })) {
-                        groupDataCache[groupId] = cached
+                if (moved) {
+                    groupDataCache[groupId]?.toMutableList()?.let { cached ->
+                        if (cached.moveItem(cached.indexOfFirst { it.guid == fromGuid }, cached.indexOfFirst { it.guid == toGuid })) {
+                            groupDataCache[groupId] = cached
+                        }
                     }
                 }
+                // PattNG: settled, stored or refused: a reading from now on has it as stored, see [updateGroupUi].
+                settledMoves.merge(groupId, 1, Int::plus)
             }
-            true
+            moved
         }
 
     // ---------- Testing ----------

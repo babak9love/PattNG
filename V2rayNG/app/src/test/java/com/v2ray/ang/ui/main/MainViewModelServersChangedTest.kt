@@ -334,6 +334,37 @@ class MainViewModelServersChangedTest {
         assertNull(viewModel.uiState.value.moveRefusal)
     }
 
+    @Test
+    fun aReadingTakenBeforeAMoveShownWasStoredIsHeldBackAndTheGroupShownAnewOnceItIs() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.hold(0)
+        source.hold(1)
+
+        viewModel.moveServer(SUB, "c", "a")
+        withTimeout(5_000) { source.entered(0).await() }
+        val last = viewModel.moveServer(SUB, "b", "c")!!
+        assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
+        // An update stores another profile meanwhile, and the groups are read anew: after the first move, before the second.
+        source.serverGuids = source.serverGuids + "d"
+        val reload = viewModel.setupGroupTab(forceRefresh = true)
+        source.release(0)
+        withTimeout(5_000) {
+            source.entered(1).await()
+            reload.join()
+        }
+
+        // That reading, which would undo the second move on the screen, is not shown.
+        assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
+        source.release(1)
+        withTimeout(5_000) { last.join() }
+        // Shown anew once both moves are stored: with the profile the update stored.
+        viewModel.awaitServers("b", "c", "a", "d")
+        assertEquals(listOf("b", "c", "a", "d"), source.serverGuids)
+    }
+
     private fun MainViewModel.shownServers(groupId: String = SUB) = serverGroupState(groupId).value.servers.map(ServersCache::guid)
 
     private suspend fun MainViewModel.awaitServers(vararg guids: String, groupId: String = SUB) {
