@@ -382,6 +382,88 @@ class SubscriptionIndexTest {
         assertEquals(stored, subValues["a"])
     }
 
+    @Test
+    fun anUpdateTimeIsSetOnTheSubscriptionAsStoredWithoutTouchingTheList() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Edited meanwhile", enabled = false))
+
+        assertTrue(MmkvManager.trySetSubscriptionUpdated("a", 42L))
+
+        val stored = JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)
+        assertEquals(42L, stored?.lastUpdated)
+        assertEquals("Edited meanwhile", stored?.remarks)
+        assertEquals(false, stored?.enabled)
+        assertTrue(mainWrites.isEmpty())
+        // Removed meanwhile: not stored again, nor listed.
+        assertFalse(MmkvManager.trySetSubscriptionUpdated("gone", 42L))
+        assertFalse("gone" in subValues)
+        assertEquals("""["a"]""", mainValues["SUB_IDS"])
+    }
+
+    @Test
+    fun anUpdateOfASubscriptionRemovedMeanwhileTakesTheProfilesItStoredAway() {
+        // Removed during the download; the update then stored profiles p1 and p2 for it.
+        mainValues["SUB_IDS"] = """["b"]"""
+        mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
+        mainValues["SELECTED_SERVER"] = "p1"
+
+        assertFalse(MmkvManager.finishSubscriptionUpdate("a", 42L))
+
+        assertFalse("a" in subValues)
+        assertEquals("""["b"]""", mainValues["SUB_IDS"])
+        assertEquals("[]", mainValues["SUB_SERVERS_a"])
+        assertFalse("SELECTED_SERVER" in mainValues)
+        verify(profiles).removeValuesForKeys(arrayOf("p1", "p2"))
+        verify(raws).removeValuesForKeys(arrayOf("p1", "p2"))
+        verify(affiliations).removeValuesForKeys(arrayOf("p1", "p2"))
+        assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+    }
+
+    @Test
+    fun anUpdateOfASubscriptionStillStoredEndsWithItsTimeAndItsProfilesKept() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        mainValues["SUB_SERVERS_a"] = """["p1"]"""
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+
+        assertTrue(MmkvManager.finishSubscriptionUpdate("a", 42L))
+
+        assertEquals(42L, JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)?.lastUpdated)
+        assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
+        verifyNoInteractions(profiles, raws, affiliations)
+        assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun theDefaultSubscriptionCanBeListedFirst() {
+        mainValues["SUB_IDS"] = """["a","b"]"""
+
+        assertEquals("d", MmkvManager.tryEncodeSubscription("d", SubscriptionItem(remarks = "Default"), listFirst = true))
+
+        assertEquals(listOf("d", "a", "b"), MmkvManager.decodeSubsList())
+    }
+
+    @Test
+    fun aNewSubscriptionWrittenWhileTheListIsEmptyKeepsTheStoredOnesListed() {
+        // A list left empty, as by a version before it existed: it stands for every subscription stored.
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+
+        assertEquals("d", MmkvManager.tryEncodeSubscription("d", SubscriptionItem(remarks = "Default"), listFirst = true))
+
+        assertEquals(listOf("d", "a"), MmkvManager.decodeSubsList())
+    }
+
+    @Test
+    fun anUpdateTimeLeavesAPayloadThatCannotBeReadAsItIs() {
+        subValues["a"] = "{"
+
+        mockStatic(Log::class.java).use {
+            assertTrue(MmkvManager.trySetSubscriptionUpdated("a", 42L))
+        }
+
+        assertEquals("{", subValues["a"])
+        verify(subs, never()).encode(any<String>(), any<String>())
+    }
+
     companion object {
         /**
          * A handle as a subclass mock: MMKV's lock, unlock and removeValuesForKeys, which the profile index lock and the

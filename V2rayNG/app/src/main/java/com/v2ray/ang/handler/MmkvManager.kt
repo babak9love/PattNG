@@ -446,28 +446,6 @@ object MmkvManager {
     }
 
     /**
-     * Removes the server configurations via subscription ID.
-     *
-     * @param subscriptionId The subscription ID.
-     */
-    fun removeServerViaSubid(subscriptionId: String?) {
-        val subId = getSubscriptionId(subscriptionId)
-        val serverList = decodeServerList(subId)
-
-        // Remove all servers in the list
-        serverList.forEach { guid ->
-            if (getSelectServer() == guid) {
-                mainStorage.remove(KEY_SELECTED_SERVER)
-            }
-            profileFullStorage.remove(guid)
-            serverAffStorage.remove(guid)
-        }
-
-        serverList.clear()
-        encodeServerList(serverList, subId)
-    }
-
-    /**
      * Removes multiple server configurations from a subscription.
      *
      * @param guids The list of server GUIDs.
@@ -722,43 +700,14 @@ object MmkvManager {
     }
 
     /**
-     * Removes the subscription.
-     *
-     * @param subid The subscription ID.
-     */
-    fun removeSubscription(subid: String) {
-        subStorage.remove(subid)
-        val subsList = decodeSubsList()
-        subsList.remove(subid)
-        encodeSubsList(subsList)
-
-        removeServerViaSubid(subid)
-    }
-
-    /**
-     * Encodes the subscription.
-     *
-     * @param guid The subscription GUID.
-     * @param subItem The subscription item.
-     */
-    fun encodeSubscription(guid: String, subItem: SubscriptionItem) {
-        val key = guid.ifBlank { Utils.getUuid() }
-        subStorage.encode(key, JsonUtil.toJson(subItem))
-
-        val subsList = decodeSubsList()
-        if (!subsList.contains(key)) {
-            subsList.add(key)
-            encodeSubsList(subsList)
-        }
-    }
-
-    /**
-     * PattNG: stores [subItem] as [encodeSubscription] does, under the profile index lock, and tells whether the storage
-     * took it: the key it is stored as, or null when the storage refused the subscription, or the list naming it, which
-     * is logged. Refused, the subscription is as it was: a new one leaves nothing behind, and one stored before is put
+     * PattNG: stores [subItem] as the subscription [guid] names, a new one under a new key when it is blank, under the
+     * profile index lock: a subscription not listed yet is listed last, or first when [listFirst]; an empty list stands
+     * for every subscription stored, as [initSubsList] reads it, and those stay listed. Tells whether the storage took
+     * it: the key it is stored as, or null when the storage refused the subscription, or the list naming it, which is
+     * logged. Refused, the subscription is as it was: a new one leaves nothing behind, and one stored before is put
      * back as it was stored, which, refused too, is logged.
      */
-    fun tryEncodeSubscription(guid: String, subItem: SubscriptionItem): String? {
+    fun tryEncodeSubscription(guid: String, subItem: SubscriptionItem, listFirst: Boolean = false): String? {
         val key = guid.ifBlank { Utils.getUuid() }
         return withProfileIndexLock {
             val previous = subStorage.decodeString(key)
@@ -766,8 +715,8 @@ object MmkvManager {
                 LogUtil.e(TAG, "MmkvManager: the storage refused subscription $key")
                 return@withProfileIndexLock null
             }
-            val subsList = decodeSubsList()
-            if (key !in subsList && !mainStorage.encode(KEY_SUB_IDS, JsonUtil.toJson(subsList + key))) {
+            val subsList = decodeSubsList().ifEmpty { subStorage.allKeys()?.filter { it != key }?.toMutableList() ?: mutableListOf() }
+            if (key !in subsList && !mainStorage.encode(KEY_SUB_IDS, JsonUtil.toJson(if (listFirst) listOf(key) + subsList else subsList + key))) {
                 LogUtil.e(TAG, "MmkvManager: the storage refused the subscription list with $key")
                 if (previous == null) {
                     subStorage.removeValueForKey(key)
@@ -781,13 +730,12 @@ object MmkvManager {
     }
 
     /**
-     * PattNG: removes the subscription [subid] names with its profiles, as [removeSubscription] does, under the profile
-     * index lock, and tells whether the storage took it. First the lists, each write checked: the list of the
-     * subscriptions without it, then the list of its profiles emptied; then the payloads, the raw configurations of its
-     * profiles among them, which [removeServerViaSubid] leaves behind, and its own. False, with nothing removed, when
-     * the storage refused a list, which is logged: a refused list of profiles puts the list of the subscriptions back as
-     * it was stored, and should the storage refuse that too, the subscription stays out of it, its profiles and
-     * payloads kept, which is logged as well.
+     * PattNG: removes the subscription [subid] names with its profiles, under the profile index lock, and tells whether
+     * the storage took it. First the lists, each write checked: the list of the subscriptions without it, then the list
+     * of its profiles emptied; then the payloads, the raw configurations of its profiles among them, and its own. False,
+     * with nothing removed, when the storage refused a list, which is logged: a refused list of profiles puts the list
+     * of the subscriptions back as it was stored, and should the storage refuse that too, the subscription stays out of
+     * it, its profiles and payloads kept, which is logged as well.
      */
     fun tryRemoveSubscription(subid: String): Boolean = withProfileIndexLock {
         val storedSubs = mainStorage.decodeString(KEY_SUB_IDS)
@@ -816,22 +764,79 @@ object MmkvManager {
     }
 
     /**
-     * PattNG: turns the subscription [subId] names on or off, as it is stored then, under the profile index lock, and
-     * tells whether the storage took it, a refusal logged. One read as [decodeSubscriptions] reads it, as the list shows
-     * it, a payload that cannot be read as a new subscription; one gone, as removed meanwhile, or already so, is left as
-     * it is, which is no refusal. The list of the subscriptions is not written: a subscription removed is not listed again.
+     * PattNG: changes the subscription [subId] names as it is stored then, with [change], which tells whether it changed
+     * anything. A payload that cannot be read is read as a new subscription, as [decodeSubscriptions] reads it for the
+     * list to show, when [newIfUnreadable]; else it is left as it is. The list of the subscriptions is not written, so
+     * that one removed meanwhile is not listed again. Null when it is gone; else whether the storage took the change,
+     * none to make included, a refusal logged as of [what]. Called under the profile index lock.
+     */
+    private fun changeStoredSubscription(
+        subId: String,
+        what: String,
+        newIfUnreadable: Boolean,
+        change: (SubscriptionItem) -> Boolean,
+    ): Boolean? {
+        val json = subStorage.decodeString(subId)
+        if (json.isNullOrBlank()) return null
+        val item = JsonUtil.fromJsonSafe(json, SubscriptionItem::class.java)
+            ?: if (newIfUnreadable) SubscriptionItem() else return true
+        if (!change(item)) return true
+        if (!subStorage.encode(subId, JsonUtil.toJson(item))) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused subscription $subId $what")
+            return false
+        }
+        return true
+    }
+
+    /**
+     * PattNG: turns the subscription [subId] names on or off, as it is stored then, under the profile index lock, see
+     * [changeStoredSubscription], and tells whether the storage took it. One gone, as removed meanwhile, or already so,
+     * is left as it is, which is no refusal.
      */
     fun trySetSubscriptionEnabled(subId: String, enabled: Boolean): Boolean = withProfileIndexLock {
-        val json = subStorage.decodeString(subId)
-        if (json.isNullOrBlank()) return@withProfileIndexLock true
-        val item = JsonUtil.fromJsonSafe(json, SubscriptionItem::class.java) ?: SubscriptionItem()
-        if (item.enabled == enabled) return@withProfileIndexLock true
-        item.enabled = enabled
-        if (!subStorage.encode(subId, JsonUtil.toJson(item))) {
-            LogUtil.e(TAG, "MmkvManager: the storage refused subscription $subId turned ${if (enabled) "on" else "off"}")
+        changeStoredSubscription(subId, "turned ${if (enabled) "on" else "off"}", newIfUnreadable = true) { item ->
+            (item.enabled != enabled).also { changed -> if (changed) item.enabled = enabled }
+        } ?: true
+    }
+
+    /**
+     * PattNG: sets [time] as when the subscription [subId] names was updated, on it as stored then, under the profile
+     * index lock, see [changeStoredSubscription]: one removed meanwhile is not listed again, and a payload that cannot
+     * be read is left as it is. Whether it is still stored; a refused write is logged.
+     */
+    fun trySetSubscriptionUpdated(subId: String, time: Long): Boolean = withProfileIndexLock {
+        changeStoredSubscription(subId, "with its update time", newIfUnreadable = false) { item ->
+            item.lastUpdated = time
+            true
+        } != null
+    }
+
+    /**
+     * PattNG: ends an update of the subscription [subId] names, once its profiles are stored: [time] is set as when it
+     * was updated, on it as stored then, under the profile index lock, see [changeStoredSubscription], which keeps what
+     * an edit wrote meanwhile; a payload that cannot be read is left as it is. Removed meanwhile, it is not listed
+     * again, and the profiles the update stored for it go too: none stays selected, their list is emptied, then their
+     * payloads go. Whether it is still stored; a refused write is logged.
+     */
+    fun finishSubscriptionUpdate(subId: String, time: Long): Boolean = withProfileIndexLock {
+        val stored = changeStoredSubscription(subId, "with its update time", newIfUnreadable = false) { item ->
+            item.lastUpdated = time
+            true
+        }
+        if (stored != null) return@withProfileIndexLock true
+        val serverList = decodeServerList(subId)
+        if (serverList.isEmpty()) return@withProfileIndexLock false
+        // Before the list: no profile of a subscription gone stays selected, even when the storage keeps them listed.
+        val selected = getSelectServer()
+        if (selected != null && selected in serverList) {
+            mainStorage.remove(KEY_SELECTED_SERVER)
+        }
+        if (!persistServerList(emptyList(), subId)) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused the profiles of removed subscription $subId out of their list")
             return@withProfileIndexLock false
         }
-        true
+        removeProfilePayloads(serverList)
+        false
     }
 
     /**

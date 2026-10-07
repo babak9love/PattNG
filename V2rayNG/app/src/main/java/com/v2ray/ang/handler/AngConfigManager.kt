@@ -547,7 +547,12 @@ object AngConfigManager {
             val count = parseConfigViaSub(configText, it.guid, false)
             if (count > 0) {
                 it.subscription.lastUpdated = System.currentTimeMillis()
-                MmkvManager.encodeSubscription(it.guid, it.subscription)
+                // PattNG: the time goes onto the subscription as stored now, which keeps what an edit wrote during the
+                // download; one removed meanwhile is not listed again, and the profiles just stored for it go with it.
+                if (!MmkvManager.finishSubscriptionUpdate(it.guid, it.subscription.lastUpdated)) {
+                    LogUtil.i(AppConfig.TAG, "Subscription removed during its update: ${it.guid}")
+                    return SubscriptionUpdateResult(skipCount = 1)
+                }
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
                 return SubscriptionUpdateResult(
                     configCount = count,
@@ -634,8 +639,8 @@ object AngConfigManager {
         val subItem = SubscriptionItem()
         subItem.remarks = uri.fragment ?: "import sub"
         subItem.url = url
-        MmkvManager.encodeSubscription("", subItem)
-        return 1
+        // PattNG: stored and listed in one hold of the profile index lock, checked; a refusal is logged there.
+        return if (MmkvManager.tryEncodeSubscription("", subItem) != null) 1 else 0
     }
 
     /** Generates a description for the profile.

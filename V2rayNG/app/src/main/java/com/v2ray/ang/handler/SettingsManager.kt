@@ -20,13 +20,10 @@ import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.RoutingType
 import com.v2ray.ang.enums.VpnInterfaceAddressConfig
-import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.handler.MmkvManager.decodeAllServerList
 import com.v2ray.ang.handler.MmkvManager.decodeServerConfig
 import com.v2ray.ang.handler.MmkvManager.decodeSubsList
 import com.v2ray.ang.handler.MmkvManager.decodeSubscription
-import com.v2ray.ang.handler.MmkvManager.encodeSubscription
-import com.v2ray.ang.handler.MmkvManager.removeSubscription
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
@@ -304,31 +301,10 @@ object SettingsManager {
     }
 
     /**
-     * Removes the subscription.
-     * If there are no remaining subscriptions,
-     * it creates a new default subscription to ensure that ungroup
-     **/
-    fun removeSubscriptionWithDefault(subid: String) {
-        SubscriptionUpdater.cancelOne(subId = subid)
-        // Remove the subscription
-        removeSubscription(subid)
-
-        // After removal, check if there are any subscriptions left. If not, create a default subscription.
-        val subsList2 = decodeSubsList()
-        if (subsList2.isNotEmpty()) {
-            return
-        }
-
-        val defaultSub = SubscriptionItem(
-            remarks = "Default",
-        )
-        encodeSubscription(DEFAULT_SUBSCRIPTION_ID, defaultSub)
-    }
-
-    /**
-     * PattNG: removes the subscription [subid] names, as [removeSubscriptionWithDefault] does, and tells whether the
-     * storage took it, see [MmkvManager.tryRemoveSubscription]: refused, the subscription stays as it was, its updates
-     * scheduled again. A default subscription the storage refused, when none is left, is logged.
+     * PattNG: removes the subscription [subid] names with its profiles, its updates stopped first, and, when none is
+     * left, creates the default subscription, which keeps the profiles of no subscription. Tells whether the storage took
+     * it, see [MmkvManager.tryRemoveSubscription]: refused, the subscription stays as it was, its updates scheduled again.
+     * A default subscription the storage refused is logged.
      */
     fun tryRemoveSubscriptionWithDefault(subid: String): Boolean {
         SubscriptionUpdater.cancelOne(subId = subid)
@@ -337,7 +313,7 @@ object SettingsManager {
             return false
         }
         if (decodeSubsList().isEmpty()) {
-            MmkvManager.tryEncodeSubscription(DEFAULT_SUBSCRIPTION_ID, SubscriptionItem(remarks = "Default"))
+            MmkvManager.tryEncodeSubscription(DEFAULT_SUBSCRIPTION_ID, SubscriptionItem(remarks = "Default"), listFirst = true)
         }
         return true
     }
@@ -682,13 +658,8 @@ object SettingsManager {
             val defaultSub = SubscriptionItem(
                 remarks = "Default",
             )
-            encodeSubscription(DEFAULT_SUBSCRIPTION_ID, defaultSub)
-
-            // Move to the top
-            val subsList = decodeSubsList()
-            if (subsList.moveItem(subsList.lastIndex, 0)) {
-                MmkvManager.encodeSubsList(subsList)
-            }
+            // PattNG: stored and listed first in one hold of the profile index lock, checked; a refusal is logged there.
+            MmkvManager.tryEncodeSubscription(DEFAULT_SUBSCRIPTION_ID, defaultSub, listFirst = true)
         }
     }
 
