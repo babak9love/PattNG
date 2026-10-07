@@ -94,7 +94,20 @@ class MainViewModelServersChangedTest {
             if (showAllGroup) add(SubscriptionCache("", SubscriptionItem(remarks = "All")))
             add(SubscriptionCache(SUB, SubscriptionItem(remarks = "Sub")))
         }
-        override fun getSubscriptionItem(id: String): SubscriptionItem? = null
+        /** Shut by a test, the next reading of the list of every group waits on it after it read the group, see [readingHeld]. */
+        @Volatile
+        var holdNextAllRowsRead: CountDownLatch? = null
+        val readingHeld = CompletableDeferred<Unit>()
+
+        // The rows of the list of every group name the subscriptions, read here: after the group was read, before shown.
+        override fun getSubscriptionItem(id: String): SubscriptionItem? {
+            holdNextAllRowsRead?.let { gate ->
+                holdNextAllRowsRead = null
+                readingHeld.complete(Unit)
+                gate.await(5, TimeUnit.SECONDS)
+            }
+            return null
+        }
         override fun getServerGuidList(groupId: String) = serverGuids
         override fun decodeServerConfig(guid: String): ProfileItem? =
             ProfileItem.create(EConfigType.VLESS).apply {
@@ -350,6 +363,8 @@ class MainViewModelServersChangedTest {
         // An update stores another profile meanwhile, and the groups are read anew: after the first move, before the second.
         source.serverGuids = source.serverGuids + "d"
         val reload = viewModel.setupGroupTab(forceRefresh = true)
+        // The reload waits for the group's load lock, which the first move's store holds, before that store ends.
+        delay(200)
         source.release(0)
         withTimeout(5_000) {
             source.entered(1).await()
@@ -363,6 +378,96 @@ class MainViewModelServersChangedTest {
         // Shown anew once both moves are stored: with the profile the update stored.
         viewModel.awaitServers("b", "c", "a", "d")
         assertEquals(listOf("b", "c", "a", "d"), source.serverGuids)
+    }
+
+    @Test
+    fun aReadingIsShownHeldBackOrTakenAnewAsItsFateSays() {
+        fun fate(number: Int, lastShown: Int, settled: Int, shown: Int, unsettled: Int) =
+            MainViewModel.readingFate(number, lastShown, settled, shown, unsettled)
+        assertEquals(MainViewModel.ReadingFate.SHOW, fate(number = 3, lastShown = 2, settled = 1, shown = 1, unsettled = 0))
+        assertEquals(MainViewModel.ReadingFate.SHOW, fate(number = 2, lastShown = 2, settled = 0, shown = 0, unsettled = 0))
+        // Older than the one shown: not shown over it, whatever its moves.
+        assertEquals(MainViewModel.ReadingFate.OVERTAKEN, fate(number = 1, lastShown = 2, settled = 1, shown = 1, unsettled = 0))
+        assertEquals(MainViewModel.ReadingFate.OVERTAKEN, fate(number = 1, lastShown = 2, settled = 0, shown = 1, unsettled = 1))
+        // A move shown since it was taken: held back while the moves are being stored, taken anew once they are.
+        assertEquals(MainViewModel.ReadingFate.HOLD_UNTIL_SETTLED, fate(number = 3, lastShown = 2, settled = 1, shown = 2, unsettled = 1))
+        assertEquals(MainViewModel.ReadingFate.READ_AGAIN, fate(number = 3, lastShown = 2, settled = 1, shown = 2, unsettled = 0))
+    }
+
+    @Test
+    fun aReadingOlderThanTheOneShownIsNotShownOverIt() = runBlocking {
+        val source = FakeSource()
+        source.showAllGroup = true
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", groupId = "")
+        source.holdNextAllRowsRead = CountDownLatch(1)
+        val gate = source.holdNextAllRowsRead!!
+
+        // A reading of the list of every group, held after it read [a, b], before it is shown.
+        viewModel.subscriptionIdChanged("")
+        withTimeout(5_000) { source.readingHeld.await() }
+        // A newer one, after an update stored c, is shown first.
+        source.serverGuids = listOf("a", "b", "c")
+        viewModel.reloadAllGroups(listOf(""))
+        viewModel.awaitServers("a", "b", "c", groupId = "")
+        gate.countDown()
+
+        // The older reading, let go, is not shown over the newer one.
+        delay(300)
+        assertEquals(listOf("a", "b", "c"), viewModel.shownServers(groupId = ""))
+    }
+
+    @Test
+    fun aRefusalWithAReadingHeldBackIsToldAndTheGroupsShownAsStored() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.refusals.set(1)
+        source.hold(0)
+        source.hold(1)
+
+        viewModel.moveServer(SUB, "c", "a")
+        withTimeout(5_000) { source.entered(0).await() }
+        val last = viewModel.moveServer(SUB, "b", "c")!!
+        source.serverGuids = source.serverGuids + "d"
+        val reload = viewModel.setupGroupTab(forceRefresh = true)
+        delay(200)
+        // The first move is refused; the reading taken after it, before the second, is held back.
+        source.release(0)
+        withTimeout(5_000) {
+            source.entered(1).await()
+            reload.join()
+        }
+        assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
+        source.release(1)
+        withTimeout(5_000) { last.join() }
+
+        // Told once both are settled, and the groups shown as stored: the second move made, the first one not.
+        assertNotEquals(null, viewModel.uiState.value.moveRefusal)
+        viewModel.awaitServers("a", "c", "b", "d")
+        assertEquals(listOf("a", "c", "b", "d"), source.serverGuids)
+    }
+
+    @Test
+    fun theFilterShowingTheCachedListWhileAMoveIsBeingStoredIsHeldBackUntilItIs() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.hold(0)
+
+        val move = viewModel.moveServer(SUB, "c", "a")!!
+        withTimeout(5_000) { source.entered(0).await() }
+        // The filter shows the cached lists after a pause; the cached list of the group is from before the move.
+        viewModel.filterConfig("^(a|b|c)$")
+        delay(1_000)
+        assertEquals(listOf("c", "a", "b"), viewModel.shownServers())
+
+        source.release(0)
+        withTimeout(5_000) { move.join() }
+        viewModel.awaitServers("c", "a", "b")
+        assertEquals(listOf("c", "a", "b"), source.serverGuids)
     }
 
     private fun MainViewModel.shownServers(groupId: String = SUB) = serverGroupState(groupId).value.servers.map(ServersCache::guid)

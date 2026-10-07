@@ -123,6 +123,15 @@ class MainViewModel(
     private val groupsReadEarly: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val groupShowLock = Any()
 
+    /**
+     * PattNG: per group, the number the last reading got, in the order the readings were taken, the number of the reading
+     * the cached list is, and that of the reading shown last: a reading older than the one shown is not shown over it,
+     * see [updateGroupUi].
+     */
+    private val readingNumbers = ConcurrentHashMap<String, Int>()
+    private val cachedReadings = ConcurrentHashMap<String, Int>()
+    private val shownReadings = ConcurrentHashMap<String, Int>()
+
     private var setupGroupJob: Job? = null
     private var preloadJob: Job? = null
     private var selectedGroupLoadJob: Job? = null
@@ -405,8 +414,11 @@ class MainViewModel(
             )
         }
 
-    /** PattNG: the servers of a group as read, with how many of its moves were settled then, see [updateGroupUi]. */
-    private class GroupReading(val servers: List<ServersCache>, val settledMoves: Int)
+    /**
+     * PattNG: the servers of a group as read, with how many of its moves were settled then, and the number of the reading,
+     * see [updateGroupUi].
+     */
+    private class GroupReading(val servers: List<ServersCache>, val settledMoves: Int, val number: Int)
 
     private suspend fun loadGroup(
         groupId: String,
@@ -419,12 +431,13 @@ class MainViewModel(
             }
             val servers = buildServersCache(dataSource.getServerGuidList(groupId))
             currentCoroutineContext().ensureActive()
-            // PattNG: under the group's load lock, which a move is stored under too, see [storeMove].
-            val settled = cacheMutex.withLock {
+            // PattNG: under the group's load lock, which a move is stored under too, see [storeMove], and numbered in turn.
+            cacheMutex.withLock {
                 groupDataCache[groupId] = servers
-                settledMoves.getOrDefault(groupId, 0)
+                val number = readingNumbers.merge(groupId, 1, Int::plus)!!
+                cachedReadings[groupId] = number
+                GroupReading(servers, settledMoves.getOrDefault(groupId, 0), number)
             }
-            GroupReading(servers, settled)
         }
     }
 
@@ -446,9 +459,10 @@ class MainViewModel(
     }
 
     /**
-     * Shows [reading] of the group [groupId]. PattNG: not when a move of the group was shown that was not settled when the
-     * group was read, which the reading would undo on the screen: the group is shown anew once its moves are settled,
-     * see [moveServer], or at once when they are by now.
+     * Shows [reading] of the group [groupId]. PattNG: as [readingFate] decides: not over a newer reading shown, and not
+     * when a move of the group was shown that was not settled when the group was read, which the reading would undo on
+     * the screen; the group is then shown anew once its moves are settled, see [moveServer], or at once when they are
+     * by now.
      */
     private fun updateGroupUi(groupId: String, reading: GroupReading) {
         val filteredServers = applyKeywordFilter(reading.servers)
@@ -457,16 +471,22 @@ class MainViewModel(
             rows = buildServerRows(groupId, filteredServers)
         )
         val readAgain = synchronized(groupShowLock) {
-            if (reading.settledMoves >= shownMoves.getOrDefault(groupId, 0)) {
-                mutableServerGroupState(groupId).value = state
-                return
+            val fate = readingFate(
+                number = reading.number,
+                lastShown = shownReadings.getOrDefault(groupId, 0),
+                settledWhenRead = reading.settledMoves,
+                shownMoves = shownMoves.getOrDefault(groupId, 0),
+                unsettledMoves = unstoredMoves.getOrDefault(groupId, 0),
+            )
+            when (fate) {
+                ReadingFate.SHOW -> {
+                    shownReadings[groupId] = reading.number
+                    mutableServerGroupState(groupId).value = state
+                }
+                ReadingFate.HOLD_UNTIL_SETTLED -> groupsReadEarly += groupId
+                ReadingFate.OVERTAKEN, ReadingFate.READ_AGAIN -> Unit
             }
-            if (unstoredMoves.getOrDefault(groupId, 0) > 0) {
-                groupsReadEarly += groupId
-                false
-            } else {
-                true
-            }
+            fate == ReadingFate.READ_AGAIN
         }
         if (readAgain) viewModelScope.launch { showGroupAnew(groupId) }
     }
@@ -842,9 +862,12 @@ class MainViewModel(
         filterJob?.cancel()
         filterJob = viewModelScope.launch(defaultDispatcher) {
             delay(300)
-            // PattNG: with how many of each group's moves were settled when it was cached, see [updateGroupUi].
+            // PattNG: with how many of each group's moves were settled when it was cached, and the number of the reading it
+            // is, see [updateGroupUi].
             val snapshot = cacheMutex.withLock {
-                groupDataCache.mapValues { (groupId, servers) -> GroupReading(servers, settledMoves.getOrDefault(groupId, 0)) }
+                groupDataCache.mapValues { (groupId, servers) ->
+                    GroupReading(servers, settledMoves.getOrDefault(groupId, 0), cachedReadings.getOrDefault(groupId, 0))
+                }
             }
             ensureActive()
             snapshot.forEach { (groupId, reading) ->
@@ -1087,8 +1110,26 @@ class MainViewModel(
         super.onCleared()
     }
 
+    /** PattNG: what becomes of a reading of a group, see [readingFate]. */
+    internal enum class ReadingFate { SHOW, OVERTAKEN, HOLD_UNTIL_SETTLED, READ_AGAIN }
+
     companion object {
         private const val TEST_RESULT_FLUSH_INTERVAL_MS = 500L
+
+        /**
+         * PattNG: what becomes of a reading of a group numbered [number] when the one shown last is [lastShown], taken
+         * when [settledWhenRead] of the group's moves were settled, now that [shownMoves] were shown and [unsettledMoves]
+         * of them are not settled yet: one older than the one shown is not shown over it; one that a move shown since it
+         * was taken overtook waits until the group's moves are settled, or, when they are by now, is taken anew;
+         * else it is shown.
+         */
+        internal fun readingFate(number: Int, lastShown: Int, settledWhenRead: Int, shownMoves: Int, unsettledMoves: Int): ReadingFate =
+            when {
+                number < lastShown -> ReadingFate.OVERTAKEN
+                settledWhenRead >= shownMoves -> ReadingFate.SHOW
+                unsettledMoves > 0 -> ReadingFate.HOLD_UNTIL_SETTLED
+                else -> ReadingFate.READ_AGAIN
+            }
 
         /**
          * The status after a running or stopped signal. A test text survives a repeated signal
