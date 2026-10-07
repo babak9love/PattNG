@@ -2,8 +2,10 @@ package com.v2ray.ang.handler
 
 import android.util.Log
 import com.tencent.mmkv.MMKV
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -12,11 +14,16 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers
 import org.mockito.MockMakers
 import org.mockito.Mockito
 import org.mockito.Mockito.mockStatic
 import org.mockito.kotlin.any
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.never
 import org.mockito.kotlin.reset
 import org.mockito.kotlin.verify
@@ -27,8 +34,14 @@ class SubscriptionIndexTest {
     private val mainValues = mutableMapOf<String, String>()
     private val subValues = mutableMapOf<String, String>()
 
-    /** The test results stored, by profile. */
+    /** The test results stored, by profile, and whether the lock of the test results was held for each write and read of one. */
     private val affiliationValues = mutableMapOf<String, String>()
+    private val affiliationWritesLocked = mutableListOf<Boolean>()
+    private val affiliationReadsLocked = mutableListOf<Boolean>()
+
+    /** The profiles stored, by guid, and whether the lock of the test results was held as their payloads went. */
+    private val profileValues = mutableMapOf<String, String>()
+    private val payloadRemovalsUnderResultLock = mutableListOf<Boolean>()
 
     /** The keys whose writes the storage refuses, as a full device does. */
     private val refusedMainKeys = mutableSetOf<String>()
@@ -66,7 +79,25 @@ class SubscriptionIndexTest {
             }.whenever(storage).removeValueForKey(any())
         }
         reset(profiles, raws, affiliations)
-        whenever(affiliations.decodeString(any())).thenAnswer { affiliationValues[it.getArgument<String>(0)] }
+        whenever(affiliations.decodeString(any())).thenAnswer {
+            affiliationReadsLocked += Thread.holdsLock(affiliations)
+            affiliationValues[it.getArgument<String>(0)]
+        }
+        whenever(affiliations.allKeys()).thenAnswer { affiliationValues.keys.toTypedArray() }
+        whenever(affiliations.encode(any<String>(), any<String>())).thenAnswer {
+            affiliationWritesLocked += Thread.holdsLock(affiliations)
+            affiliationValues[it.getArgument(0)] = it.getArgument(1)
+            true
+        }
+        whenever(profiles.decodeString(any())).thenAnswer { profileValues[it.getArgument<String>(0)] }
+        doAnswer {
+            payloadRemovalsUnderResultLock += Thread.holdsLock(affiliations)
+            null
+        }.whenever(profiles).removeValuesForKeys(any())
+    }
+
+    private fun stored(guid: String, subscriptionId: String) {
+        profileValues[guid] = JsonUtil.toJson(ProfileItem.create(EConfigType.VLESS).apply { this.subscriptionId = subscriptionId })
     }
 
     private fun tested(guid: String, delayMillis: Long) {
@@ -554,6 +585,129 @@ class SubscriptionIndexTest {
         }
 
         assertEquals(stored, mainValues["SUB_SERVERS_a"])
+    }
+
+    @Test
+    fun aProfileIsMovedByTheTwoGuidsInTheListAsStoredUnderTheProfileIndexLock() {
+        // p4 was stored by an update after the screen read the list.
+        mainValues["SUB_SERVERS_a"] = """["p1","p2","p3","p4"]"""
+
+        assertTrue(MmkvManager.tryMoveServer("a", "p3", "p1"))
+
+        assertEquals("""["p3","p1","p2","p4"]""", mainValues["SUB_SERVERS_a"])
+        assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+        // Either gone: nothing to move.
+        assertTrue(MmkvManager.tryMoveServer("a", "gone", "p1"))
+        assertEquals(1, mainWrites.size)
+    }
+
+    @Test
+    fun aMoveOfAProfileTheStorageRefusesIsToldAndLeavesTheListAsItWas() {
+        val stored = """["p1","p2"]"""
+        mainValues["SUB_SERVERS_a"] = stored
+        refusedMainKeys += "SUB_SERVERS_a"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryMoveServer("a", "p2", "p1"))
+        }
+
+        assertEquals(stored, mainValues["SUB_SERVERS_a"])
+    }
+
+    @Test
+    fun theMainScreensRemovalTakesAProfileWhoseTestFailedUnderBothLocksAndKeepsOneThatPassed() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
+        stored("p1", "a")
+        stored("p2", "a")
+        tested("p1", 100)
+        tested("p2", -1)
+
+        assertEquals(0, MmkvManager.removeInvalidServer("p1"))
+        clearInvocations(main, affiliations, profiles)
+        affiliationReadsLocked.clear()
+        assertEquals(1, MmkvManager.removeInvalidServer("p2"))
+
+        assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
+        verify(profiles).removeValuesForKeys(arrayOf("p2"))
+        // Its result read, and its payloads gone, in one hold of both locks, the profile index lock taken first.
+        assertEquals(listOf(true), affiliationReadsLocked)
+        assertEquals(listOf(true), payloadRemovalsUnderResultLock)
+        val order = inOrder(main, affiliations, profiles)
+        order.verify(main).lock()
+        order.verify(affiliations).lock()
+        order.verify(profiles).removeValuesForKeys(arrayOf("p2"))
+        order.verify(affiliations).unlock()
+        order.verify(main).unlock()
+        assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+    }
+
+    @Test
+    fun theMainScreensRemovalOfEveryFailedProfileReadsEachStoredResultUnderTheLock() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2","p3"]"""
+        stored("p1", "a")
+        stored("p2", "a")
+        stored("p3", "a")
+        tested("p1", 100)
+        tested("p2", -1)
+        tested("p3", 0)
+
+        assertEquals(1, MmkvManager.removeInvalidServer(""))
+
+        assertEquals("""["p1","p3"]""", mainValues["SUB_SERVERS_a"])
+        verify(profiles).removeValuesForKeys(arrayOf("p2"))
+        assertEquals(listOf(true, true, true), affiliationReadsLocked)
+    }
+
+    @Test
+    fun theMainScreensRemovalKeepsAProfileWithoutAResultAndOneWhoseListTheStorageRefuses() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
+        stored("p1", "a")
+        stored("p2", "a")
+        tested("p2", -1)
+        refusedMainKeys += "SUB_SERVERS_a"
+
+        assertEquals(0, MmkvManager.removeInvalidServer("p1"))
+        mockStatic(Log::class.java).use {
+            assertEquals(0, MmkvManager.removeInvalidServer("p2"))
+        }
+
+        assertEquals("""["p1","p2"]""", mainValues["SUB_SERVERS_a"])
+        verify(profiles, never()).removeValuesForKeys(any())
+    }
+
+    @Test
+    fun aTestResultIsWrittenAndClearedUnderTheLockOfTheTestResults() {
+        MmkvManager.encodeServerTestDelayMillis("p1", 120)
+        assertEquals(120L, JsonUtil.fromJson(affiliationValues.getValue("p1"), ServerAffiliationInfo::class.java)?.testDelayMillis)
+
+        MmkvManager.clearAllTestDelayResults(listOf("p1"))
+        assertEquals(0L, JsonUtil.fromJson(affiliationValues.getValue("p1"), ServerAffiliationInfo::class.java)?.testDelayMillis)
+
+        assertEquals(listOf(true, true), affiliationWritesLocked)
+        assertEquals(listOf(true, true), affiliationReadsLocked)
+        val order = inOrder(affiliations)
+        repeat(2) {
+            order.verify(affiliations).lock()
+            order.verify(affiliations).encode(eq("p1"), any<String>())
+            order.verify(affiliations).unlock()
+        }
+        // Without the profile index lock, which a result does not need.
+        verify(main, never()).lock()
+    }
+
+    @Test
+    fun aTestResultTheStorageRefusesIsLoggedWrittenOrCleared() {
+        tested("p1", 100)
+        doReturn(false).whenever(affiliations).encode(any<String>(), any<String>())
+
+        mockStatic(Log::class.java).use { log ->
+            MmkvManager.encodeServerTestDelayMillis("p2", 120)
+            MmkvManager.clearAllTestDelayResults(listOf("p1"))
+
+            log.verify { Log.println(eq(Log.ERROR), any(), ArgumentMatchers.contains("refused the test result of profile p2")) }
+            log.verify { Log.println(eq(Log.ERROR), any(), ArgumentMatchers.contains("refused the cleared test result of profile p1")) }
+        }
+        assertEquals(100L, JsonUtil.fromJson(affiliationValues.getValue("p1"), ServerAffiliationInfo::class.java)?.testDelayMillis)
     }
 
     companion object {

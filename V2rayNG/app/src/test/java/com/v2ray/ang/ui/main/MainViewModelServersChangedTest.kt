@@ -2,6 +2,8 @@ package com.v2ray.ang.ui.main
 
 import android.app.Application
 import android.graphics.Bitmap
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.v2ray.ang.dto.SubscriptionUpdateResult
 import com.v2ray.ang.dto.TestServiceMessage
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -10,9 +12,12 @@ import com.v2ray.ang.dto.entities.ServersCache
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.extension.moveItem
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -22,19 +27,54 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class MainViewModelServersChangedTest {
 
-    /** One subscription, whose server list [serverGuids] a change away from the screen replaces. */
+    /**
+     * One subscription, whose server list [serverGuids] a change away from the screen replaces, and in which a move is
+     * stored, recorded in [moves], at once or, held by [hold], once [release] lets it, or refused, see [refusals].
+     */
     private class FakeSource : MainDataSource {
         val events = Channel<MainServiceEvent>(Channel.UNLIMITED)
 
         @Volatile
         var serverGuids = listOf("a", "b")
+
+        /** Whether the list of every group, its id empty, is shown too, as the setting has it. */
+        @Volatile
+        var showAllGroup = false
         private var selectedSubscriptionId = ""
+
+        /** The moves stored, as the group and the two guids. */
+        val moves: MutableList<Triple<String, String, String>> = Collections.synchronizedList(mutableListOf())
+
+        /** How many of the next moves the storage refuses. */
+        val refusals = AtomicInteger(0)
+
+        private val asked = AtomicInteger(0)
+        private val held = ConcurrentHashMap<Int, CountDownLatch>()
+        private val entered = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
+
+        /** The move numbered [move], from 0, waits, as on a slow storage, until [release]. */
+        fun hold(move: Int) {
+            held[move] = CountDownLatch(1)
+        }
+
+        fun release(move: Int) = held.getValue(move).countDown()
+
+        /** Told when the storage is asked for the move numbered [move]. */
+        fun entered(move: Int): CompletableDeferred<Unit> = entered.computeIfAbsent(move) { CompletableDeferred() }
 
         override val mainServiceEvent: Flow<MainServiceEvent> = events.receiveAsFlow()
         override fun getSelectedSubscriptionId() = selectedSubscriptionId
@@ -46,11 +86,14 @@ class MainViewModelServersChangedTest {
         override fun setSelectServer(guid: String) = Unit
         override fun getConfirmRemove() = false
         override fun getDoubleColumnDisplay() = false
-        override fun isGroupAllDisplayEnabled() = false
+        override fun isGroupAllDisplayEnabled() = showAllGroup
         override fun getString(resId: Int) = ""
         override fun getString(resId: Int, vararg formatArgs: Any) = ""
         override fun getStringArray(resId: Int) = emptyList<String>()
-        override fun getSubscriptions() = listOf(SubscriptionCache(SUB, SubscriptionItem(remarks = "Sub")))
+        override fun getSubscriptions() = buildList {
+            if (showAllGroup) add(SubscriptionCache("", SubscriptionItem(remarks = "All")))
+            add(SubscriptionCache(SUB, SubscriptionItem(remarks = "Sub")))
+        }
         override fun getSubscriptionItem(id: String): SubscriptionItem? = null
         override fun getServerGuidList(groupId: String) = serverGuids
         override fun decodeServerConfig(guid: String): ProfileItem? =
@@ -61,7 +104,19 @@ class MainViewModelServersChangedTest {
             }
 
         override fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo? = null
-        override fun encodeServerList(guids: List<String>, groupId: String) = Unit
+
+        override fun moveServer(groupId: String, fromGuid: String, toGuid: String): Boolean {
+            val move = asked.getAndIncrement()
+            entered(move).complete(Unit)
+            held[move]?.await(5, TimeUnit.SECONDS)
+            if (refusals.getAndUpdate { maxOf(0, it - 1) } > 0) return false
+            val stored = serverGuids.toMutableList()
+            stored.moveItem(stored.indexOf(fromGuid), stored.indexOf(toGuid))
+            serverGuids = stored
+            moves += Triple(groupId, fromGuid, toGuid)
+            return true
+        }
+
         override fun removeServer(guid: String) = true
         override fun removeAllServer() = 0
         override fun removeInvalidServerByGuid(guid: String) = 0
@@ -110,9 +165,180 @@ class MainViewModelServersChangedTest {
         viewModel.awaitServers("a", "c", "d")
     }
 
-    private suspend fun MainViewModel.awaitServers(vararg guids: String) {
+    @Test
+    fun aMoveIsShownAtOnceAndStoredByTheTwoGuids() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+
+        viewModel.onAction(MainAction.MoveServer(SUB, "c", "a"))
+        assertEquals(listOf("c", "a", "b"), viewModel.shownServers())
+        // A second move, stored after the first.
+        withTimeout(5_000) { viewModel.moveServer(SUB, "a", "b")!!.join() }
+
+        assertEquals(listOf("c", "b", "a"), viewModel.shownServers())
+        assertEquals(listOf(Triple(SUB, "c", "a"), Triple(SUB, "a", "b")), source.moves.toList())
+        assertEquals(listOf("c", "b", "a"), source.serverGuids)
+    }
+
+    @Test
+    fun aMoveOfAProfileNotShownOrInTheListOfEveryGroupShowsAndStoresNothing() = runBlocking {
+        val source = FakeSource()
+        source.showAllGroup = true
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b")
+        viewModel.awaitServers("a", "b", groupId = "")
+
+        assertNull(viewModel.moveServer(SUB, "gone", "a"))
+        assertNull(viewModel.moveServer(SUB, "", "a"))
+        assertNull(viewModel.moveServer(SUB, "a", "a"))
+        // The list of every group, shown as the others are, is no stored list to move in.
+        assertNull(viewModel.moveServer("", "b", "a"))
+
+        assertEquals(listOf("a", "b"), viewModel.shownServers())
+        assertEquals(listOf("a", "b"), viewModel.shownServers(groupId = ""))
+        assertEquals(emptyList<Triple<String, String, String>>(), source.moves.toList())
+    }
+
+    @Test
+    fun aMoveWhileTheListIsFilteredKeepsTheProfilesFilteredOutInTheGroup() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        // As while a search ends: the list shown is still the filtered one.
+        viewModel.filterConfig("^(a|c)$")
+        viewModel.awaitServers("a", "c")
+
+        withTimeout(5_000) { viewModel.moveServer(SUB, "c", "a")!!.join() }
+        viewModel.filterConfig("")
+
+        // The group shows its whole list again, in the order stored, which the move did not cut down to the shown one.
+        viewModel.awaitServers("c", "a", "b")
+        assertEquals(listOf("c", "a", "b"), source.serverGuids)
+    }
+
+    @Test
+    fun theMovesOfADragAreStoredInTurnEvenWhenTheScreenClosesBeforeTheyAre() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val owner = ViewModelStore()
+        val viewModel = ViewModelProvider(owner, MainViewModel.Factory(mock<Application>(), source))[MainViewModel::class.java]
+        viewModel.awaitServers("a", "b", "c")
+        source.hold(0)
+
+        viewModel.moveServer(SUB, "c", "a")
+        withTimeout(5_000) { source.entered(0).await() }
+        val last = viewModel.moveServer(SUB, "b", "c")!!
+        // The screen closes while the first move is being stored and the second waits for it.
+        owner.clear()
+        source.release(0)
+        withTimeout(5_000) { last.join() }
+
+        assertEquals(listOf(Triple(SUB, "c", "a"), Triple(SUB, "b", "c")), source.moves.toList())
+        assertEquals(listOf("b", "c", "a"), source.serverGuids)
+    }
+
+    @Test
+    fun aReloadWhileAMoveIsBeingStoredReadsTheGroupOnceTheMoveIsStored() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.hold(0)
+
+        val move = viewModel.moveServer(SUB, "c", "a")!!
+        withTimeout(5_000) { source.entered(0).await() }
+        // As on a change away from the screen: the groups read anew, their cached lists dropped first.
+        val reload = viewModel.setupGroupTab(forceRefresh = true)
+        delay(200)
+        source.release(0)
         withTimeout(5_000) {
-            serverGroupState(SUB).first { state -> state.servers.map(ServersCache::guid) == guids.toList() }
+            move.join()
+            reload.join()
+        }
+
+        // Read once the move was stored, not before it: the screen does not undo the move.
+        assertEquals(listOf("c", "a", "b"), viewModel.shownServers())
+    }
+
+    @Test
+    fun aMoveTheStorageRefusesIsToldAndTheGroupsShownAsStored() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        assertNull(viewModel.uiState.value.moveRefusal)
+        source.refusals.set(1)
+
+        withTimeout(5_000) { viewModel.moveServer(SUB, "c", "a")!!.join() }
+
+        // Shown at once, then, refused, to be told, and the order as stored shown again.
+        val refusal = checkNotNull(viewModel.uiState.value.moveRefusal)
+        viewModel.awaitServers("a", "b", "c")
+        viewModel.onAction(MainAction.MoveRefusalShown(refusal))
+        assertNull(viewModel.uiState.value.moveRefusal)
+    }
+
+    @Test
+    fun aRefusalSetAgainRightAfterTheLastWasToldIsToldToo() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.refusals.set(2)
+
+        withTimeout(5_000) { viewModel.moveServer(SUB, "c", "a")!!.join() }
+        val first = checkNotNull(viewModel.uiState.value.moveRefusal)
+        viewModel.awaitServers("a", "b", "c")
+        withTimeout(5_000) { viewModel.moveServer(SUB, "c", "a")!!.join() }
+        val second = checkNotNull(viewModel.uiState.value.moveRefusal)
+
+        // A number of its own, so the screen tells it, and the first one's late acknowledgement does not clear it.
+        assertNotEquals(first, second)
+        viewModel.onAction(MainAction.MoveRefusalShown(first))
+        assertEquals(second, viewModel.uiState.value.moveRefusal)
+        viewModel.onAction(MainAction.MoveRefusalShown(second))
+        assertNull(viewModel.uiState.value.moveRefusal)
+    }
+
+    @Test
+    fun aRefusedMoveIsToldOnceTheMovesQueuedBehindItAreStoredAndNotAgain() = runBlocking {
+        val source = FakeSource()
+        source.serverGuids = listOf("a", "b", "c")
+        val viewModel = MainViewModel(mock<Application>(), source)
+        viewModel.awaitServers("a", "b", "c")
+        source.refusals.set(1)
+        source.hold(0)
+        source.hold(1)
+
+        val refused = viewModel.moveServer(SUB, "c", "a")!!
+        withTimeout(5_000) { source.entered(0).await() }
+        val queued = viewModel.moveServer(SUB, "b", "c")!!
+        source.release(0)
+        withTimeout(5_000) { refused.join() }
+        // Not yet: a move queued behind the refused one is still to be stored.
+        assertNull(viewModel.uiState.value.moveRefusal)
+
+        source.release(1)
+        withTimeout(5_000) { queued.join() }
+        val refusal = checkNotNull(viewModel.uiState.value.moveRefusal)
+        // Shown anew once both were stored: the stored order, with the queued move in it.
+        viewModel.awaitServers("a", "c", "b")
+        assertEquals(listOf(Triple(SUB, "b", "c")), source.moves.toList())
+
+        viewModel.onAction(MainAction.MoveRefusalShown(refusal))
+        withTimeout(5_000) { viewModel.moveServer(SUB, "c", "a")!!.join() }
+        // A later move the storage takes tells nothing.
+        assertNull(viewModel.uiState.value.moveRefusal)
+    }
+
+    private fun MainViewModel.shownServers(groupId: String = SUB) = serverGroupState(groupId).value.servers.map(ServersCache::guid)
+
+    private suspend fun MainViewModel.awaitServers(vararg guids: String, groupId: String = SUB) {
+        withTimeout(5_000) {
+            serverGroupState(groupId).first { state -> state.servers.map(ServersCache::guid) == guids.toList() }
         }
     }
 

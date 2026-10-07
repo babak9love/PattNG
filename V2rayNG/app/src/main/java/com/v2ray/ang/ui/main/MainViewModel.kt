@@ -25,6 +25,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -40,6 +41,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.PatternSyntaxException
 
 private fun applyTestDelayResults(
@@ -98,6 +100,17 @@ class MainViewModel(
     private val groupServerFlows = ConcurrentHashMap<String, StateFlow<List<ServersCache>>>()
     private val groupLoadMutexes = ConcurrentHashMap<String, Mutex>()
     private val serverOrderPersistenceJobs = mutableMapOf<String, Job>()
+
+    /**
+     * PattNG: per group, the moves asked for and not stored yet, and the groups one of whose moves the storage refused,
+     * see [moveServer]. Concurrent, as a move's job may end on the thread its store ended on, as under an unconfined
+     * dispatcher.
+     */
+    private val unstoredMoves = ConcurrentHashMap<String, Int>()
+    private val refusedMoveGroups: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** PattNG: the number the last refusal of a move to be told got, see [MainUiState.moveRefusal]. */
+    private val moveRefusals = AtomicInteger()
 
     private var setupGroupJob: Job? = null
     private var preloadJob: Job? = null
@@ -311,9 +324,13 @@ class MainViewModel(
             is MainAction.SelectGroup -> subscriptionIdChanged(action.groupId)
             is MainAction.SelectServer -> updateSelectedGuid(action.guid)
             is MainAction.RemoveServer -> removeServerAndRefresh(action.guid)
+            is MainAction.MoveServer -> moveServer(action.groupId, action.fromGuid, action.toGuid)
             is MainAction.Search -> filterConfig(action.query)
             is MainAction.ImportBatchConfig -> importBatchConfig(action.configText)
             MainAction.LocateHandled -> consumeLocateTarget()
+            is MainAction.MoveRefusalShown -> _uiState.update {
+                if (it.moveRefusal == action.refusal) it.copy(moveRefusal = null) else it
+            }
             is MainAction.ShareQRCode -> {
                 val bitmap = dataSource.share2QRCode(action.guid)
                 _uiState.update { it.copy(shareQRCodeBitmap = bitmap) }
@@ -814,22 +831,61 @@ class MainViewModel(
         }
     }
 
-    fun moveServer(groupId: String, fromPosition: Int, toPosition: Int) {
+    /**
+     * Shows the profile [fromGuid] names where the one [toGuid] names stands, and stores it there; the job storing it,
+     * null when nothing moved. PattNG: by the two guids, see [storeMove], even when the screen closes right after. A
+     * move the storage refused is told, see [MainUiState.moveRefusal], once, when the group's last move asked for is
+     * stored, and the groups are shown anew, as stored, so that the reading comes after every move queued behind the
+     * refused one. Not in the list of every group, [groupId] empty, which is no stored list.
+     */
+    fun moveServer(groupId: String, fromGuid: String, toGuid: String): Job? {
+        if (groupId.isEmpty()) return null
         val groupState = mutableServerGroupState(groupId).value
         val servers = groupState.servers.toMutableList()
-        if (!servers.moveItem(fromPosition, toPosition)) return
+        val fromPosition = servers.indexOfFirst { it.guid == fromGuid }
+        val toPosition = servers.indexOfFirst { it.guid == toGuid }
+        if (!servers.moveItem(fromPosition, toPosition)) return null
         val rows = groupState.rows.toMutableList()
         rows.moveItem(fromPosition, toPosition)
-        val guids = servers.map { it.guid }
         mutableServerGroupState(groupId).value = ServerGroupUiState(servers, rows)
-        // A drag emits several moves; serialize writes so an older order cannot overwrite a newer one.
+        // A drag emits several moves; each is stored once the one before it is, in the order they were made.
         val previousPersistenceJob = serverOrderPersistenceJobs[groupId]
-        serverOrderPersistenceJobs[groupId] = viewModelScope.launch(ioDispatcher) {
-            previousPersistenceJob?.join()
-            dataSource.encodeServerList(guids, groupId)
-            cacheMutex.withLock { groupDataCache[groupId] = servers }
-        }
+        unstoredMoves.merge(groupId, 1, Int::plus)
+        // PattNG: begun at once, on the main thread the move comes on, and the store kept from cancellation, so that a
+        // screen closing right after neither stops it nor keeps it from starting.
+        return viewModelScope.launch {
+            val moved = withContext(NonCancellable + ioDispatcher) {
+                previousPersistenceJob?.join()
+                storeMove(groupId, fromGuid, toGuid)
+            }
+            if (!moved) refusedMoveGroups += groupId
+            if (unstoredMoves.merge(groupId, -1, Int::plus) == 0 && refusedMoveGroups.remove(groupId)) {
+                val refusal = moveRefusals.incrementAndGet()
+                _uiState.update { it.copy(moveRefusal = refusal) }
+                setupGroupTab(forceRefresh = true)
+            }
+        }.also { serverOrderPersistenceJobs[groupId] = it }
     }
+
+    /**
+     * PattNG: stores the move of the profile [fromGuid] names to where the one [toGuid] names stands, in the list of
+     * [groupId] as stored then, see [MainDataSource.moveServer], so that a profile an update stored, or a removal took
+     * away, meanwhile is not undone, and makes it in the group's cached list too, under the group's load lock, see
+     * [loadGroup]: a reading of the group comes before the move is stored or after it is cached, so the cached list stays
+     * the stored one. Whether the storage took it.
+     */
+    private suspend fun storeMove(groupId: String, fromGuid: String, toGuid: String): Boolean =
+        groupLoadMutexes.computeIfAbsent(groupId) { Mutex() }.withLock {
+            if (!dataSource.moveServer(groupId, fromGuid, toGuid)) return@withLock false
+            cacheMutex.withLock {
+                groupDataCache[groupId]?.toMutableList()?.let { cached ->
+                    if (cached.moveItem(cached.indexOfFirst { it.guid == fromGuid }, cached.indexOfFirst { it.guid == toGuid })) {
+                        groupDataCache[groupId] = cached
+                    }
+                }
+            }
+            true
+        }
 
     // ---------- Testing ----------
     fun cancelAllPing() {

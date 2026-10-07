@@ -90,6 +90,23 @@ object MmkvManager {
         }
     }
 
+    /**
+     * PattNG: runs [block] holding the lock of the test results, across the app's processes, so that a result written
+     * or cleared and the main screen's removal of a profile whose test failed, see [tryRemoveFailedServer], which looks
+     * at its result under it, come one after the other. Taken after the profile index lock when both are held, never
+     * before it.
+     */
+    private inline fun <T> withTestResultLock(block: () -> T): T {
+        return synchronized(serverAffStorage) {
+            serverAffStorage.lock()
+            try {
+                block()
+            } finally {
+                serverAffStorage.unlock()
+            }
+        }
+    }
+
     private fun removeProfilePayloads(guids: Collection<String>) {
         if (guids.isEmpty()) return
         val keys = guids.toTypedArray()
@@ -470,6 +487,23 @@ object MmkvManager {
     }
 
     /**
+     * PattNG: moves the profile [fromGuid] names to where the one [toGuid] names stands in the list of [subscriptionId],
+     * as it is stored then, under the profile index lock, so that a profile an update stored, or a removal took away,
+     * meanwhile is not undone. With either not listed there is nothing to move, which is no refusal. Whether the
+     * storage took it, a refusal logged.
+     */
+    fun tryMoveServer(subscriptionId: String, fromGuid: String, toGuid: String): Boolean = withProfileIndexLock {
+        val subId = getSubscriptionId(subscriptionId)
+        val serverList = decodeServerList(subId)
+        if (!serverList.moveItem(serverList.indexOf(fromGuid), serverList.indexOf(toGuid))) return@withProfileIndexLock true
+        if (!persistServerList(serverList, subId)) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused the list of group $subId with $fromGuid moved")
+            return@withProfileIndexLock false
+        }
+        true
+    }
+
+    /**
      * PattNG: orders the profiles of [subscriptionId] by [rank], the least first, those of an equal rank as they stood,
      * the list as stored when the profile index lock is held, so that a profile listed or removed meanwhile, as by an
      * update or a delete of the subscription, is not undone. [rank] is read once for each profile, so that the sort
@@ -516,9 +550,14 @@ object MmkvManager {
         if (guid.isBlank()) {
             return
         }
-        val aff = decodeServerAffiliationInfo(guid) ?: ServerAffiliationInfo()
-        aff.testDelayMillis = testResult
-        serverAffStorage.encode(guid, JsonUtil.toJson(aff))
+        // PattNG: under the lock of the test results, see withTestResultLock; a write the storage refused is logged.
+        withTestResultLock {
+            val aff = decodeServerAffiliationInfo(guid) ?: ServerAffiliationInfo()
+            aff.testDelayMillis = testResult
+            if (!serverAffStorage.encode(guid, JsonUtil.toJson(aff))) {
+                LogUtil.e(TAG, "MmkvManager: the storage refused the test result of profile $guid")
+            }
+        }
     }
 
     /**
@@ -527,10 +566,15 @@ object MmkvManager {
      * @param keys The list of server GUIDs.
      */
     fun clearAllTestDelayResults(keys: List<String>?) {
-        keys?.forEach { key ->
-            decodeServerAffiliationInfo(key)?.let { aff ->
-                aff.testDelayMillis = 0
-                serverAffStorage.encode(key, JsonUtil.toJson(aff))
+        // PattNG: under the lock of the test results, see withTestResultLock; a write the storage refused is logged.
+        withTestResultLock {
+            keys?.forEach { key ->
+                decodeServerAffiliationInfo(key)?.let { aff ->
+                    aff.testDelayMillis = 0
+                    if (!serverAffStorage.encode(key, JsonUtil.toJson(aff))) {
+                        LogUtil.e(TAG, "MmkvManager: the storage refused the cleared test result of profile $key")
+                    }
+                }
             }
         }
     }
@@ -561,21 +605,30 @@ object MmkvManager {
     fun removeInvalidServer(guid: String): Int {
         var count = 0
         if (guid.isNotEmpty()) {
-            decodeServerAffiliationInfo(guid)?.let { aff ->
-                if (aff.testDelayMillis < 0L && tryRemoveServer(guid)) {
-                    count++
-                }
+            if (tryRemoveFailedServer(guid)) {
+                count++
             }
         } else {
             serverAffStorage.allKeys()?.forEach { key ->
-                decodeServerAffiliationInfo(key)?.let { aff ->
-                    if (aff.testDelayMillis < 0L && tryRemoveServer(key)) {
-                        count++
-                    }
+                if (tryRemoveFailedServer(key)) {
+                    count++
                 }
             }
         }
         return count
+    }
+
+    /**
+     * PattNG: removes the profile [guid] names, see [tryRemoveServer], when its test failed, as its result says under
+     * the profile index lock and the lock of the test results, so that a test that passes it meanwhile, or a clearing
+     * of its result, keeps it. Whether it was removed: false when its test did not fail, or when the storage refused its
+     * list, which is logged.
+     */
+    private fun tryRemoveFailedServer(guid: String): Boolean = withProfileIndexLock {
+        withTestResultLock {
+            val aff = decodeServerAffiliationInfo(guid)
+            aff != null && aff.testDelayMillis < 0L && tryRemoveServer(guid)
+        }
     }
 
     /**

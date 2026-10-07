@@ -109,8 +109,8 @@ fun GroupPagerPage(
         lazyGridStates = lazyGridStates,
         actions = actions,
         onLocateHandled = { mainViewModel.onAction(MainAction.LocateHandled) },
-        onMoveServer = { fromIndex, toIndex ->
-            mainViewModel.moveServer(groupId, fromIndex, toIndex)
+        onMoveServer = { fromGuid, toGuid ->
+            mainViewModel.onAction(MainAction.MoveServer(groupId, fromGuid, toGuid))
         },
         contentPadding = contentPadding
     )
@@ -136,7 +136,7 @@ private fun ServerListPage(
     lazyGridStates: MutableMap<String, LazyGridState>,
     actions: ServerRowActions,
     onLocateHandled: () -> Unit,
-    onMoveServer: (Int, Int) -> Unit,
+    onMoveServer: (fromGuid: String, toGuid: String) -> Unit,
     contentPadding: PaddingValues
 ) {
     if (doubleColumnDisplay) {
@@ -145,7 +145,8 @@ private fun ServerListPage(
         }
         val reorderableGridState = if (canReorder) {
             rememberReorderableLazyGridState(gridState) { from, to ->
-                onMoveServer(from.index, to.index)
+                // PattNG: by the keys of the rows, their guids, not by their positions.
+                onMoveServer(from.key as? String ?: return@rememberReorderableLazyGridState, to.key as? String ?: return@rememberReorderableLazyGridState)
             }
         } else null
 
@@ -189,7 +190,8 @@ private fun ServerListPage(
         }
         val reorderableState = if (canReorder) {
             rememberReorderableLazyListState(listState) { from, to ->
-                onMoveServer(from.index, to.index)
+                // PattNG: by the keys of the rows, their guids, not by their positions.
+                onMoveServer(from.key as? String ?: return@rememberReorderableLazyListState, to.key as? String ?: return@rememberReorderableLazyListState)
             }
         } else null
 
