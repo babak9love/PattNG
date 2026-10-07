@@ -61,6 +61,9 @@ class SubEditActivity : BaseComponentActivity() {
     /** PattNG: the save under way; the subscription is read and written off the main thread, one save at a time. */
     private var saveJob: Job? = null
 
+    /** PattNG: the delete under way, which a save must not follow, nor run beside. */
+    private var deleteJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -87,37 +90,36 @@ class SubEditActivity : BaseComponentActivity() {
     }
 
     /**
-     * Saves the subscription as stored at this moment with the edits [applyEdits] sets on it, which reads the screen's
-     * state, so it runs on the main thread; it tells why, and gives false, when an edit cannot be saved. PattNG: the
+     * Saves the subscription with [applyEdits], the edits of the screen read at the tap, made on the subscription as
+     * stored when it is written: what a background update wrote meanwhile, as its update time, stays. PattNG: the
      * previous and the next profile are found by their names, as the chain finds them when it runs: a name no profile
-     * has, as after a rename or a delete, or several have, is told rather than saved.
+     * has, as after a rename or a delete, or several have, is told rather than saved. A save does not start once a
+     * delete has, nor while one runs.
      */
-    private fun saveServer(applyEdits: (SubscriptionItem) -> Boolean) {
-        if (saveJob?.isActive == true) {
+    private fun saveServer(applyEdits: (SubscriptionItem) -> Unit) {
+        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
             return
         }
+        val edited = SubscriptionItem().also(applyEdits)
+        if (TextUtils.isEmpty(edited.remarks)) {
+            return
+        }
+        if (edited.url.isNotEmpty()) {
+            if (!Utils.isValidUrl(edited.url)) {
+                return
+            }
+            if (!Utils.isValidSubUrl(edited.url) && !edited.allowInsecureUrl) {
+                return
+            }
+        }
+
+        if (edited.autoUpdate && edited.updateInterval < AppConfig.SUBSCRIPTION_MIN_INTERVAL_MINUTES) {
+            return
+        }
+
+        // The next profile first, then the previous one, as the chain finds them.
+        val neighbors = listOfNotNull(edited.nextProfile, edited.prevProfile).map { it.trim() }.filter { it.isNotEmpty() }
         saveJob = lifecycleScope.launch {
-            val subItem = withContext(Dispatchers.IO) { MmkvManager.decodeSubscription(editSubId) } ?: SubscriptionItem()
-            if (!applyEdits(subItem)) {
-                return@launch
-            }
-            if (TextUtils.isEmpty(subItem.remarks)) {
-                return@launch
-            }
-            if (subItem.url.isNotEmpty()) {
-                if (!Utils.isValidUrl(subItem.url)) {
-                    return@launch
-                }
-                if (!Utils.isValidSubUrl(subItem.url) && !subItem.allowInsecureUrl) {
-                    return@launch
-                }
-            }
-
-            if (subItem.autoUpdate && subItem.updateInterval < AppConfig.SUBSCRIPTION_MIN_INTERVAL_MINUTES) {
-                return@launch
-            }
-
-            val neighbors = listOfNotNull(subItem.prevProfile, subItem.nextProfile).map { it.trim() }.filter { it.isNotEmpty() }
             val problem = withContext(Dispatchers.IO) {
                 proxyChainProblem(neighbors) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
             }
@@ -143,6 +145,8 @@ class SubEditActivity : BaseComponentActivity() {
             }
 
             withContext(Dispatchers.IO) {
+                val subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()
+                applyEdits(subItem)
                 MmkvManager.encodeSubscription(editSubId, subItem)
                 SubscriptionUpdater.syncOne(subId = editSubId)
             }
@@ -152,9 +156,13 @@ class SubEditActivity : BaseComponentActivity() {
         }
     }
 
+    /** Deletes the subscription, unless a save runs, which would write it back, or a delete has started already. */
     private fun deleteServer(): Boolean {
+        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
+            return false
+        }
         if (editSubId.isNotEmpty()) {
-            lifecycleScope.launch(Dispatchers.IO) {
+            deleteJob = lifecycleScope.launch(Dispatchers.IO) {
                 SettingsManager.removeSubscriptionWithDefault(editSubId)
                 SettingsChangeManager.makeSetupGroupTab()
                 launch(Dispatchers.Main) { finish() }
@@ -170,7 +178,7 @@ fun SubEditScreen(
     initial: SubscriptionItem,
     profileSuggestions: List<String>,
     onBackClick: () -> Unit,
-    onSave: ((SubscriptionItem) -> Boolean) -> Unit,
+    onSave: ((SubscriptionItem) -> Unit) -> Unit,
     onDelete: () -> Unit
 ) {
     val context = LocalContext.current
@@ -195,29 +203,43 @@ fun SubEditScreen(
     val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
     val scrollState = rememberScrollState()
 
-    // Sets what this screen edits on [subItem], the subscription as stored when it is saved; false, with the reason
-    // told, when a field cannot be saved. The profiles are read, and the subscription written, by the save.
-    fun applyEdits(subItem: SubscriptionItem): Boolean {
+    // What this screen edits, read at the tap, as a change to make on a subscription; null, with the reason told, when
+    // a field cannot be saved. The save makes the change on the subscription as stored when it writes it, off the main
+    // thread, so the values are taken here rather than read from the screen's state then.
+    fun edits(): ((SubscriptionItem) -> Unit)? {
         val overridePortText = overridePort.trim()
         val overridePortValue = overridePortText.toIntOrNull()?.takeIf { it in 1..65535 }
         if (overridePortText.isNotEmpty() && overridePortValue == null) {
             context.toast(R.string.toast_invalid_override_port)
-            return false
+            return null
         }
-        subItem.remarks = remarks
-        subItem.url = url
-        subItem.userAgent = userAgent
-        subItem.requestHeaders = requestHeaders
-        subItem.filter = filter
-        subItem.enabled = enabled
-        subItem.autoUpdate = autoUpdate
-        subItem.updateInterval = updateInterval.toLongEx()
-        subItem.prevProfile = prevProfile
-        subItem.nextProfile = nextProfile
-        subItem.allowInsecureUrl = allowInsecureUrl
-        subItem.overrideAddress = overrideAddress.trim().ifEmpty { null }
-        subItem.overridePort = overridePortValue
-        return true
+        val newRemarks = remarks
+        val newUrl = url
+        val newUserAgent = userAgent
+        val newRequestHeaders = requestHeaders
+        val newFilter = filter
+        val newEnabled = enabled
+        val newAutoUpdate = autoUpdate
+        val newUpdateInterval = updateInterval.toLongEx()
+        val newPrevProfile = prevProfile
+        val newNextProfile = nextProfile
+        val newAllowInsecureUrl = allowInsecureUrl
+        val newOverrideAddress = overrideAddress.trim().ifEmpty { null }
+        return { subItem ->
+            subItem.remarks = newRemarks
+            subItem.url = newUrl
+            subItem.userAgent = newUserAgent
+            subItem.requestHeaders = newRequestHeaders
+            subItem.filter = newFilter
+            subItem.enabled = newEnabled
+            subItem.autoUpdate = newAutoUpdate
+            subItem.updateInterval = newUpdateInterval
+            subItem.prevProfile = newPrevProfile
+            subItem.nextProfile = newNextProfile
+            subItem.allowInsecureUrl = newAllowInsecureUrl
+            subItem.overrideAddress = newOverrideAddress
+            subItem.overridePort = overridePortValue
+        }
     }
 
     Scaffold(
@@ -247,7 +269,7 @@ fun SubEditScreen(
 
                         val hasError = remarksErr || urlErr || intervalErr
                         if (!hasError) {
-                            onSave(::applyEdits)
+                            edits()?.let(onSave)
                         }
                     }) {
                         Icon(painterResource(R.drawable.ic_fab_check), contentDescription = stringResource(R.string.acc_save))

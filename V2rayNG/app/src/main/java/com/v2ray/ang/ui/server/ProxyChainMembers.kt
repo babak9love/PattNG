@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
@@ -38,14 +39,12 @@ internal sealed interface ProxyChainProblem {
 
 /**
  * PattNG: why a chain of [members], the names of its profiles in its order, cannot be saved, as the chain finds its
- * hops when it runs: the first name [find] finds no profile for, then the first several have, see [ByName], or a
- * second Aether member. Null when it can. The previous and the next profile of a subscription, which chain each of its
- * profiles, are checked alike.
+ * hops when it runs, see [CoreConfigContextBuilder.proxyChainHops]: the first of the names that [find] finds no profile
+ * for, or several, see [ByName], or a second Aether member. Null when it can. The previous and the next profile of a
+ * subscription, which chain each of its profiles, are checked alike, in the order the chain finds them.
  */
 internal fun proxyChainProblem(members: List<String>, find: (String) -> ByName<ProfileItem>): ProxyChainProblem? {
-    val found = members.map { it to find(it) }
-    found.firstOrNull { it.second is ByName.None }?.let { return ProxyChainProblem.NotFound(it.first) }
-    found.firstOrNull { it.second is ByName.Several }?.let { return ProxyChainProblem.SameName(it.first) }
-    val types = found.map { (it.second as? ByName.One)?.value?.configType }
-    return ProxyChainProblem.SecondAether.takeIf { hasSecondAetherMember(types) }
+    val (hops, unresolved) = CoreConfigContextBuilder.proxyChainHops(members, find)
+    unresolved?.let { return if (it.several) ProxyChainProblem.SameName(it.name) else ProxyChainProblem.NotFound(it.name) }
+    return ProxyChainProblem.SecondAether.takeIf { hasSecondAetherMember(hops.map { it.configType }) }
 }

@@ -125,7 +125,7 @@ class ServerProxyChainActivity : BaseComponentActivity() {
             return
         }
 
-        if (saveJob?.isActive == true) {
+        if (isFinishing || saveJob?.isActive == true) {
             return
         }
         saveJob = lifecycleScope.launch {
@@ -190,8 +190,9 @@ class ServerProxyChainActivity : BaseComponentActivity() {
         }
     }
 
+    /** Deletes the profile, unless a save runs, which would write it back. */
     private fun deleteServer(): Boolean {
-        if (editGuid.isEmpty()) {
+        if (editGuid.isEmpty() || saveJob?.isActive == true) {
             return false
         }
 

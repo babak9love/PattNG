@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
@@ -28,9 +29,16 @@ class ProxyChainMembersTest {
             "twice" to ByName.Several,
         )
         fun problem(vararg members: String) = proxyChainProblem(members.toList()) { found[it] ?: ByName.None }
-        // A name no profile has, as after a rename or a delete, is told first.
-        assertEquals(ProxyChainProblem.NotFound("gone"), problem("entry", "twice", "gone"))
+        // The first of the members that cannot be told is named, as the chain names it when it runs.
+        assertEquals(ProxyChainProblem.SameName("twice"), problem("entry", "twice", "gone"))
+        assertEquals(ProxyChainProblem.NotFound("gone"), problem("entry", "gone", "twice"))
         assertEquals(ProxyChainProblem.SameName("twice"), problem("entry", "twice"))
+        // The same name the start names for the chain.
+        for (members in listOf(listOf("entry", "twice", "gone"), listOf("gone", "entry", "twice"))) {
+            val atStart = CoreConfigContextBuilder.proxyChainHops(members) { found[it] ?: ByName.None }.second!!
+            val expected = if (atStart.several) ProxyChainProblem.SameName(atStart.name) else ProxyChainProblem.NotFound(atStart.name)
+            assertEquals(expected, problem(*members.toTypedArray()), members.toString())
+        }
     }
 
     @Test

@@ -69,6 +69,9 @@ class RoutingEditActivity : BaseComponentActivity() {
     /** PattNG: the save under way; the profile a rule sends to is looked up, and the rule written, off the main thread. */
     private var saveJob: Job? = null
 
+    /** PattNG: the delete under way; both find the rule by its position, so neither starts beside the other. */
+    private var deleteJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initial = SettingsManager.getRoutingRuleset(position)
@@ -94,14 +97,15 @@ class RoutingEditActivity : BaseComponentActivity() {
         if (rulesetItem.remarks.isNullOrEmpty()) {
             return
         }
-        if (saveJob?.isActive == true) {
+        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
             return
         }
         saveJob = lifecycleScope.launch {
             // PattNG: a rule that sends to a profile names it, and the name has to find that one profile, as at the
             // start: a name no profile has, as after a rename or a delete, or several have, is told rather than saved.
+            // The start looks at enabled rules alone, and so does this.
             val tag = rulesetItem.outboundTag
-            if (tag !in BUILTIN_OUTBOUND_TAGS) {
+            if (rulesetItem.enabled && tag !in BUILTIN_OUTBOUND_TAGS) {
                 val found = withContext(Dispatchers.IO) {
                     SettingsManager.findServerViaRemarks(tag, CoreConfigContextBuilder::takesAsRoutingTarget)
                 }
@@ -129,8 +133,11 @@ class RoutingEditActivity : BaseComponentActivity() {
     }
 
     private fun deleteServer(): Boolean {
+        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
+            return false
+        }
         if (position >= 0) {
-            lifecycleScope.launch(Dispatchers.IO) {
+            deleteJob = lifecycleScope.launch(Dispatchers.IO) {
                 SettingsManager.removeRoutingRuleset(position)
                 withContext(Dispatchers.Main) { finish() }
             }
