@@ -270,12 +270,17 @@ data class AetherExit(
          * The exit-node of an Aether hop of a proxy chain that dials out through [hops]: the hops on its
          * entry side, in the order a chain lists its profiles, from the one it dials out through, which
          * is the exit-node, to the entry hop. They are told apart by a digest of their profiles, which
-         * hold secrets.
+         * hold secrets, see [contentOf].
          */
-        fun through(hops: List<ProfileItem>): AetherExit = AetherExit(hops = digest(JsonUtil.toJson(hops)))
+        fun through(hops: List<ProfileItem>): AetherExit = AetherExit(hops = digest(JsonUtil.toJson(hops.map { it.duplicateIdentity() })))
 
-        /** The digest [nodeContent] holds of [profile], the exit-node a [node] names; it holds secrets as well. */
-        fun contentOf(profile: ProfileItem): String = digest(JsonUtil.toJson(profile))
+        /**
+         * The digest [nodeContent] holds of [profile], the exit-node a [node] names; it holds secrets as well. PattNG:
+         * like the digest of hops, see [through], it covers what the profile connects with, not its name, its
+         * subscription or when it was added, which every update of its subscription renews, see
+         * [ProfileItem.duplicateIdentity]: a node an update leaves as it was is the same node.
+         */
+        fun contentOf(profile: ProfileItem): String = digest(JsonUtil.toJson(profile.duplicateIdentity()))
 
         private fun digest(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }

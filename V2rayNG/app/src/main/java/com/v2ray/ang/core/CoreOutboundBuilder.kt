@@ -744,8 +744,11 @@ object CoreOutboundBuilder {
      */
     fun toOutboundOfNode(name: String): ExitNodeOutbound = when (val found = AetherExit.nodeProfile(name)) {
         is ByName.One -> try {
+            // PattNG: the digest of the profile as stored, as a test takes it: building the outbound writes into the
+            // profile, as a Hysteria2 one's does.
+            val content = AetherExit.contentOf(found.value)
             when (val built = nodeOutboundOf(convert(found.value))) {
-                is ExitNodeOutbound.Built -> built.copy(content = AetherExit.contentOf(found.value))
+                is ExitNodeOutbound.Built -> built.copy(content = content)
                 else -> built
             }
         } catch (e: Exception) {

@@ -346,6 +346,19 @@ class AetherCoreTest {
     }
 
     @Test
+    fun anUpdateThatLeavesAProfileAsItWasLeavesItsDigestAsItWas() {
+        // A subscription's update builds every profile again, added anew, and may move it to another subscription or
+        // describe it anew; what it connects with is what tells an exit-node, or the hops of a chain, apart.
+        val germany = ProfileItem.create(EConfigType.VLESS).apply { remarks = "germany"; server = "203.0.113.7"; serverPort = "443"; password = "uuid" }
+        val renewed = germany.copy(addedTime = germany.addedTime + 60_000, subscriptionId = "sub", description = "renewed", configVersion = 5)
+
+        assertEquals(AetherExit.contentOf(germany), AetherExit.contentOf(renewed))
+        assertEquals(AetherExit.through(listOf(germany)), AetherExit.through(listOf(renewed)))
+        assertNotEquals(AetherExit.contentOf(germany), AetherExit.contentOf(germany.copy(serverPort = "8443")))
+        assertNotEquals(AetherExit.through(listOf(germany)), AetherExit.through(listOf(germany.copy(password = "another"))))
+    }
+
+    @Test
     fun theHopsOfAChainAreAnExitNodeOfTheirOwn() {
         val vless = ProfileItem.create(EConfigType.VLESS).apply { remarks = "v"; server = "1.2.3.4"; serverPort = "443"; password = "secret-uuid" }
         val trojan = ProfileItem.create(EConfigType.TROJAN).apply { remarks = "t"; server = "5.6.7.8"; serverPort = "443"; password = "secret-password" }
