@@ -1162,9 +1162,9 @@ object AetherCoreManager {
      */
     internal fun protocolOf(argv: List<String>): AetherProtocol {
         var chosen: AetherProtocol? = null
-        var wiwHopNamed = false
-        var mimHopNamed = false
-        var classicGool = false
+        var classicMode = false
+        // Each hop setting is a variable of the core's environment, so the last value given counts, a blank one included.
+        val hops = HashMap<HopSetting, String>()
         for ((index, word) in argv.withIndex()) {
             val value = argv.getOrNull(index + 1)
             when (word) {
@@ -1174,34 +1174,38 @@ object AetherCoreManager {
                 "--gool", "--wiw", "--gool-peer" -> chosen = AetherProtocol.WG_OVER_MASQUE
                 "--gool-classic" -> {
                     chosen = AetherProtocol.WG_OVER_MASQUE
-                    classicGool = true
+                    classicMode = true
                 }
                 "--mim", "--masque-in-masque" -> chosen = AetherProtocol.MIM
-                // A blank value sets nothing for the core.
-                "--wiw-outer", "--gool-outer", "--outer-peer", "--wiw-inner", "--gool-inner", "--inner-peer" -> if (!value.isNullOrBlank()) {
-                    wiwHopNamed = true
-                    classicGool = true
-                }
-                "--wiw-peers", "--gool-peers" -> if (!value.isNullOrBlank()) {
-                    if (namesHops(value)) wiwHopNamed = true
-                    classicGool = true
-                }
-                "--wiw-scan", "--gool-scan" -> classicGool = true
-                "--mim-outer", "--mim-inner" -> mimHopNamed = true
-                "--mim-peers" -> if (namesHops(value)) mimHopNamed = true
+                "--wiw-outer", "--gool-outer", "--outer-peer" -> value?.let { hops[HopSetting.WIW_OUTER] = it }
+                "--wiw-inner", "--gool-inner", "--inner-peer" -> value?.let { hops[HopSetting.WIW_INNER] = it }
+                "--wiw-peers", "--gool-peers" -> value?.let { hops[HopSetting.WIW_PEERS] = it }
+                "--wiw-scan", "--gool-scan" -> hops[HopSetting.WIW_PEERS] = "auto"
+                "--mim-outer" -> value?.let { hops[HopSetting.MIM_OUTER] = it }
+                "--mim-inner" -> value?.let { hops[HopSetting.MIM_INNER] = it }
+                "--mim-peers" -> value?.let { hops[HopSetting.MIM_PEERS] = it }
+                "--mim-scan" -> hops[HopSetting.MIM_PEERS] = "auto"
             }
         }
+        // A blank value sets nothing for the core; a list of peers names hops unless it asks for a scan.
+        fun given(setting: HopSetting) = hops[setting]?.trim()?.takeIf { it.isNotEmpty() }
+        fun pinned(outer: HopSetting, inner: HopSetting, peers: HopSetting) =
+            given(outer) != null || given(inner) != null || namesHops(given(peers))
+        val classicGool = classicMode || given(HopSetting.WIW_OUTER) != null || given(HopSetting.WIW_INNER) != null || given(HopSetting.WIW_PEERS) != null
         return when (chosen) {
             AetherProtocol.WG_OVER_MASQUE -> if (classicGool) AetherProtocol.GOOL else AetherProtocol.WG_OVER_MASQUE
             null -> when {
-                wiwHopNamed -> AetherProtocol.GOOL
-                mimHopNamed -> AetherProtocol.MIM
+                pinned(HopSetting.WIW_OUTER, HopSetting.WIW_INNER, HopSetting.WIW_PEERS) -> AetherProtocol.GOOL
+                pinned(HopSetting.MIM_OUTER, HopSetting.MIM_INNER, HopSetting.MIM_PEERS) -> AetherProtocol.MIM
                 else -> AetherProtocol.MASQUE
             }
 
             else -> chosen
         }
     }
+
+    /** The hop settings [protocolOf] reads, each the variable of the core's environment its flags set. */
+    private enum class HopSetting { WIW_OUTER, WIW_INNER, WIW_PEERS, MIM_OUTER, MIM_INNER, MIM_PEERS }
 
     /**
      * The protocol the core selects for [name] after --protocol, under any of the names it accepts; gool is WireGuard
@@ -1233,12 +1237,19 @@ object AetherCoreManager {
         environ.firstOrNull { it.startsWith("$EXIT_ENV=") }?.substringAfter('=')?.takeIf { it.isNotEmpty() }
 
     private fun readNulSeparated(file: File): List<String>? = try {
-        file.readBytes().toString(Charsets.UTF_8).split('\u0000').filter { it.isNotEmpty() }
+        nulSeparated(file.readBytes().toString(Charsets.UTF_8))
     } catch (_: IOException) {
         null
     } catch (_: SecurityException) {
         null
     }
+
+    /**
+     * The words of [text], a command line or an environment as /proc gives them, each ended by a NUL: an empty word
+     * stays, as an empty argument does in the command, which the word after a flag may be.
+     */
+    internal fun nulSeparated(text: String): List<String> =
+        text.split('\u0000').let { words -> if (words.last().isEmpty()) words.dropLast(1) else words }
 
     private fun binary(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, BINARY_NAME)

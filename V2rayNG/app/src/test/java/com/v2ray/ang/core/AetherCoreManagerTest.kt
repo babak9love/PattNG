@@ -551,6 +551,25 @@ class AetherCoreManagerTest {
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-scan")))
         assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "162.159.192.1:443", "--wiw-inner", "188.114.96.1:894")))
         assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--masque", "--mim-outer", "162.159.192.1:443")))
+        // A blank masque-in-masque hop sets nothing either, and the core runs MASQUE.
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-outer", "")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", " ")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", " auto ")))
+        // Each hop setting is the last value given for it, as the variable the core reads: a blank one clears it.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-outer", "162.159.192.1:2408", "--wiw-outer", "")))
+        assertEquals(AetherProtocol.GOOL, AetherCoreManager.protocolOf(listOf(bin, "--gool", "--wiw-outer", "", "--gool-outer", "162.159.192.1:2408")))
+        assertEquals(AetherProtocol.MASQUE, AetherCoreManager.protocolOf(listOf(bin, "--mim-peers", "162.159.192.1:443,188.114.96.1:443", "--mim-scan")))
+    }
+
+    @Test
+    fun theWordsOfACommandLineFromProcKeepItsEmptyArguments() {
+        assertEquals(listOf("/data/app/lib/libaether.so", "--gool", "--wiw-outer", "", "--bind", "127.0.0.1:10819"), AetherCoreManager.nulSeparated("/data/app/lib/libaether.so\u0000--gool\u0000--wiw-outer\u0000\u0000--bind\u0000127.0.0.1:10819\u0000"))
+        // Read as the core runs: WireGuard over MASQUE, the blank hop setting nothing.
+        assertEquals(AetherProtocol.WG_OVER_MASQUE, AetherCoreManager.protocolOf(AetherCoreManager.nulSeparated("aether\u0000--gool\u0000--wiw-outer\u0000\u0000--bind\u0000127.0.0.1:10819\u0000")))
+        assertEquals(listOf("HOME=/x", "PATTNG_AETHER_SESSION=1"), AetherCoreManager.nulSeparated("HOME=/x\u0000PATTNG_AETHER_SESSION=1\u0000"))
+        assertEquals(emptyList<String>(), AetherCoreManager.nulSeparated(""))
+        // A last word without its NUL stays.
+        assertEquals(listOf("aether", "--wg"), AetherCoreManager.nulSeparated("aether\u0000--wg"))
     }
 
     @Test
