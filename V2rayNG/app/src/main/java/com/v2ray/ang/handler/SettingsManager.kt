@@ -113,15 +113,18 @@ object SettingsManager {
      * @param rulesetList The list of rulesets.
      */
     private fun resetRoutingRulesetsCommon(rulesetList: MutableList<RulesetItem>) {
-        val rulesetNew: MutableList<RulesetItem> = mutableListOf()
-        MmkvManager.decodeRoutingRulesets()?.forEach { key ->
-            if (key.locked == true) {
-                rulesetNew.add(key)
-            }
-        }
+        MmkvManager.encodeRoutingRulesets(rulesetsAfterImport(MmkvManager.decodeRoutingRulesets(), rulesetList))
+    }
 
-        rulesetNew.addAll(rulesetList)
-        MmkvManager.encodeRoutingRulesets(rulesetNew)
+    /**
+     * The rulesets an import of [imported] leaves: the locked ones of [stored] first, kept as they are, then [imported].
+     * PattNG: but for the copy of a locked one, which an export of it brings back with its id: the routing list tells its
+     * rules apart by their ids, and two with one id would make it fail to show.
+     */
+    internal fun rulesetsAfterImport(stored: List<RulesetItem>?, imported: List<RulesetItem>): MutableList<RulesetItem> {
+        val locked = stored.orEmpty().filter { it.locked == true }
+        val lockedIds = locked.map { it.id }.filterTo(HashSet()) { it.isNotEmpty() }
+        return (locked + imported.filter { it.id !in lockedIds }).toMutableList()
     }
 
     /**
