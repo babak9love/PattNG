@@ -214,6 +214,14 @@ class ServerAetherActivity : BaseServerActivity() {
                         values = R.array.aether_transport_values,
                         onValueChange = { uiState.aetherTransport = it }
                     )
+                    // The server name the MASQUE handshakes put in their ClientHello, on either carrier and both hops;
+                    // the HTTP host of the CONNECT request stays the core's.
+                    FormTextField(
+                        stringResource(R.string.aether_lab_masque_sni),
+                        uiState.aetherMasqueSni,
+                        { uiState.aetherMasqueSni = it },
+                        keyboardType = KeyboardType.Uri
+                    )
                 }
                 if (usesHttp2) {
                     SettingsSwitchItem(
@@ -673,6 +681,7 @@ class ServerAetherActivity : BaseServerActivity() {
         val problem = AetherFmt.normalize(config, viewModel.takenPorts.value, viewModel.listenPort.value) ?: return true
         toast(
             when (problem) {
+                AetherFmt.Problem.INVALID_MASQUE_SNI -> R.string.aether_invalid_masque_sni
                 AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint
                 AetherFmt.Problem.INVALID_HOP -> R.string.aether_invalid_hop
                 AetherFmt.Problem.SHARED_HOP -> R.string.aether_same_hop

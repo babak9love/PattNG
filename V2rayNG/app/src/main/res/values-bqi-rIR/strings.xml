@@ -575,6 +575,7 @@
     <string name="value_unknown">نا موشخس</string>
     <string name="aether_lab_protocol">پروتکل</string>
     <string name="aether_lab_transport">حامل</string>
+    <string name="aether_lab_masque_sni">نوم سرور MASQUE (SNI)</string>
     <string name="aether_lab_scan_mode">حالت اسکن</string>
     <string name="aether_lab_obfuscation">مبهم‌سازی</string>
     <string name="aether_lab_ip_version">نسخه IP</string>
@@ -636,6 +637,7 @@
     <string name="aether_lab_ech_domain">دامنه ECH</string>
     <string name="aether_invalid_ech_dns">DNS سی ECH باید udp://IP، tcp://IP یا نشونی https:// یه سرور DNS-over-HTTPS بۊ</string>
     <string name="aether_invalid_ech_domain">دامنه ECH باید یه نوم دامنه بۊ، چی cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">نوم سرور MASQUE (SNI) باید یه نوم دامنه بۊ، چی www.cloudflare.com</string>
     <string name="aether_lab_dns">DNS من تونل</string>
     <string name="aether_hint_dns">وا کاما سوا کنین؛ خالی بیلین تا 1.1.1.1 و 1.0.0.1 استفاده بۊ</string>
     <string name="aether_invalid_dns">نشونی‌یای DNS مثل 1.1.1.1 یا 10.0.0.1:5353 نه وا کاما سوا بنویسین</string>

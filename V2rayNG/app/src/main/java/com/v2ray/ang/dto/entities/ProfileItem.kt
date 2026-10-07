@@ -87,6 +87,12 @@ data class ProfileItem(
 
     var aetherProtocol: String? = null,
     var aetherTransport: String? = null,
+
+    /**
+     * The server name the MASQUE handshakes put in their ClientHello, the core's --masque-sni; null means
+     * AppConfig.AETHER_MASQUE_SNI. Only a MASQUE tunnel takes it.
+     */
+    var aetherMasqueSni: String? = null,
     var aetherScanMode: String? = null,
     var aetherObfuscation: String? = null,
 

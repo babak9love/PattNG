@@ -575,6 +575,7 @@
     <string name="value_unknown">অজানা</string>
     <string name="aether_lab_protocol">প্রোটোকল</string>
     <string name="aether_lab_transport">ট্রান্সপোর্ট</string>
+    <string name="aether_lab_masque_sni">MASQUE সার্ভার নাম (SNI)</string>
     <string name="aether_lab_scan_mode">স্ক্যান মোড</string>
     <string name="aether_lab_obfuscation">অবফাসকেশন</string>
     <string name="aether_lab_ip_version">IP সংস্করণ</string>
@@ -636,6 +637,7 @@
     <string name="aether_lab_ech_domain">ECH ডোমেইন</string>
     <string name="aether_invalid_ech_dns">ECH DNS হতে হবে udp://IP, tcp://IP অথবা কোনো DNS-over-HTTPS সার্ভারের https:// ঠিকানা</string>
     <string name="aether_invalid_ech_domain">ECH ডোমেইন একটি ডোমেইন নাম হতে হবে, যেমন cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">MASQUE সার্ভার নাম (SNI) একটি ডোমেইন নাম হতে হবে, যেমন www.cloudflare.com</string>
     <string name="aether_lab_dns">টানেলের ভিতরের DNS</string>
     <string name="aether_hint_dns">কমা দিয়ে আলাদা করুন; খালি রাখলে 1.1.1.1 ও 1.0.0.1</string>
     <string name="aether_invalid_dns">1.1.1.1 বা 10.0.0.1:5353-এর মতো রিজলভার ঠিকানা কমা দিয়ে আলাদা করে লিখুন</string>

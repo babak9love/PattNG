@@ -579,6 +579,7 @@
     <string name="value_unknown">неизвестно</string>
     <string name="aether_lab_protocol">Протокол</string>
     <string name="aether_lab_transport">Транспорт</string>
+    <string name="aether_lab_masque_sni">Имя сервера MASQUE (SNI)</string>
     <string name="aether_lab_scan_mode">Режим сканирования</string>
     <string name="aether_lab_obfuscation">Обфускация</string>
     <string name="aether_lab_ip_version">Версия IP</string>
@@ -640,6 +641,7 @@
     <string name="aether_lab_ech_domain">Домен ECH</string>
     <string name="aether_invalid_ech_dns">DNS для ECH должен быть udp://IP, tcp://IP или адресом https:// сервера DNS-over-HTTPS</string>
     <string name="aether_invalid_ech_domain">Домен ECH должен быть доменным именем, например cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">Имя сервера MASQUE (SNI) должно быть доменным именем, например www.cloudflare.com</string>
     <string name="aether_lab_dns">DNS внутри туннеля</string>
     <string name="aether_hint_dns">Через запятую; оставьте пустым для 1.1.1.1 и 1.0.0.1</string>
     <string name="aether_invalid_dns">Укажите адреса резолверов, например 1.1.1.1 или 10.0.0.1:5353, через запятую</string>

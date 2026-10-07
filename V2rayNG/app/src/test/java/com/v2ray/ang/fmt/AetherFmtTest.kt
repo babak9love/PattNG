@@ -490,6 +490,109 @@ class AetherFmtTest {
         assertEquals("ip.gs", off.aetherEchDomain)
     }
 
+    /** The query of [link], each name with its value as the link writes it. */
+    private fun query(link: String): Map<String, String> =
+        link.substringAfter('?').substringBefore('#').split('&').associate { it.substringBefore('=') to it.substringAfter('=') }
+
+    @Test
+    fun theMasqueServerNameIsOneTheCoreTakes() {
+        // As the core takes it: a domain name, with a trailing dot or without.
+        for (name in listOf("www.cloudflare.com", "consumer-masque.cloudflareclient.com", "www.cloudflare.com.", "localhost", "_sni.example.com")) {
+            assertTrue(AetherFmt.isMasqueSni(name), name)
+        }
+        // No IPv4 address as the core's parser reads one; what it reads as none is a name like any other.
+        for (name in listOf("1.1.1.1", "1.1.1.1.", "255.255.255.255", "0.0.0.0")) {
+            assertFalse(AetherFmt.isMasqueSni(name), name)
+        }
+        for (name in listOf("1.1.1", "256.1.1.1", "01.1.1.1")) {
+            assertTrue(AetherFmt.isMasqueSni(name), name)
+        }
+        val bad = listOf(
+            "",
+            ".",
+            "www..cloudflare.com",
+            "www.cloudflare.com..",
+            "www cloudflare com",
+            "www.cloudflare.com:443",
+            "https://www.cloudflare.com",
+            "2606:4700:4700::1111",
+            "[2606:4700:4700::1111]",
+            "${"a".repeat(64)}.com",
+            "--upstream",
+            "-www.cloudflare.com",
+        )
+        for (name in bad) {
+            assertFalse(AetherFmt.isMasqueSni(name), name)
+        }
+    }
+
+    @Test
+    fun aMasqueServerNameTheCoreWouldRefuseIsRefusedOnlyWhileAMasqueTunnelTakesIt() {
+        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
+            for (name in listOf("1.1.1.1", "www..cloudflare.com", "--upstream")) {
+                val config = profile { aetherProtocol = protocol.type; aetherMasqueSni = name }
+                assertEquals(AetherFmt.Problem.INVALID_MASQUE_SNI, AetherFmt.normalize(config), "${protocol.type} $name")
+            }
+        }
+
+        val shapes = listOf<ProfileItem.() -> Unit>(
+            { aetherProtocol = AetherProtocol.WIREGUARD.type },
+            { aetherProtocol = AetherProtocol.GOOL.type },
+            { aetherPsiphon = "only" },
+            { aetherTor = "only" },
+        )
+        for (shape in shapes) {
+            // Kept as written, trimmed, to be put right when a MASQUE tunnel next takes it.
+            val waiting = profile { aetherMasqueSni = " 1.1.1.1 "; shape() }
+            assertNull(AetherFmt.normalize(waiting))
+            assertEquals("1.1.1.1", waiting.aetherMasqueSni)
+            // Out of use, it reaches neither the core nor a link.
+            val arguments = AetherCoreManager.buildArguments(waiting, 10819)
+            assertFalse("--masque-sni" in arguments, arguments.toString())
+            assertNull(query(link(waiting))["sni"])
+        }
+    }
+
+    @Test
+    fun theDefaultMasqueServerNameIsLeftToTheDefault() {
+        for (default in listOf(" ${AppConfig.AETHER_MASQUE_SNI} ", "www.cloudflare.com", " ")) {
+            val config = profile { aetherMasqueSni = default }
+            assertNull(AetherFmt.normalize(config), default)
+            assertNull(config.aetherMasqueSni, default)
+        }
+        // Another is kept as written, trimmed; the core leaves out a trailing dot itself.
+        val own = profile { aetherMasqueSni = " consumer-masque.cloudflareclient.com. " }
+        assertNull(AetherFmt.normalize(own))
+        assertEquals("consumer-masque.cloudflareclient.com.", own.aetherMasqueSni)
+    }
+
+    @Test
+    fun aLinkCarriesAMasqueServerNameOfItsOwnOverMasque() {
+        for (protocol in listOf(AetherProtocol.MASQUE, AetherProtocol.MIM, AetherProtocol.WG_OVER_MASQUE)) {
+            val own = link(profile { aetherProtocol = protocol.type; aetherMasqueSni = "consumer-masque.cloudflareclient.com" })
+            assertEquals("consumer-masque.cloudflareclient.com", query(own)["sni"], own)
+            assertEquals("consumer-masque.cloudflareclient.com", AetherFmt.parse(own)?.aetherMasqueSni, own)
+        }
+        // The default needs no word, and a link without one leaves the profile to the default.
+        for (default in listOf(null, AppConfig.AETHER_MASQUE_SNI)) {
+            val plain = link(profile { aetherMasqueSni = default })
+            assertNull(query(plain)["sni"], plain)
+            assertNull(AetherFmt.parse(plain)?.aetherMasqueSni, plain)
+        }
+        // A name the core would refuse goes into no link and is taken from none, and WireGuard takes none at all.
+        assertNull(query(link(profile { aetherMasqueSni = "1.1.1.1" }))["sni"])
+        val crafted = listOf(
+            link(profile {}) to "1.1.1.1",
+            link(profile {}) to "--upstream",
+            link(profile { aetherProtocol = AetherProtocol.WIREGUARD.type }) to "consumer-masque.cloudflareclient.com",
+        )
+        for ((plain, name) in crafted) {
+            val stray = plain.substringBefore('#') + "&sni=$name#" + plain.substringAfter('#')
+            assertEquals(name, query(stray)["sni"], stray)
+            assertNull(AetherFmt.parse(stray)?.aetherMasqueSni, stray)
+        }
+    }
+
     @Test
     fun encryptedClientHelloTheResolversAndTheExitRuleSurviveTheRoundTrip() {
         val tuned = profile {

@@ -573,6 +573,7 @@
     <string name="value_unknown">未知</string>
     <string name="aether_lab_protocol">协议</string>
     <string name="aether_lab_transport">传输</string>
+    <string name="aether_lab_masque_sni">MASQUE 服务器名 (SNI)</string>
     <string name="aether_lab_scan_mode">扫描模式</string>
     <string name="aether_lab_obfuscation">混淆</string>
     <string name="aether_lab_ip_version">IP 版本</string>
@@ -634,6 +635,7 @@
     <string name="aether_lab_ech_domain">ECH 域名</string>
     <string name="aether_invalid_ech_dns">ECH DNS 必须是 udp://IP、tcp://IP 或 DNS-over-HTTPS 服务器的 https:// 地址</string>
     <string name="aether_invalid_ech_domain">ECH 域名必须是域名，例如 cloudflare-ech.com</string>
+    <string name="aether_invalid_masque_sni">MASQUE 服务器名 (SNI) 必须是域名，例如 www.cloudflare.com</string>
     <string name="aether_lab_dns">隧道内 DNS</string>
     <string name="aether_hint_dns">以逗号分隔；留空则使用 1.1.1.1 和 1.0.0.1</string>
     <string name="aether_invalid_dns">请填写解析器地址，例如 1.1.1.1 或 10.0.0.1:5353，以逗号分隔</string>

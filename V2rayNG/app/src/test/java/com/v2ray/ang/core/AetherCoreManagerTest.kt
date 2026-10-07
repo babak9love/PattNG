@@ -862,6 +862,7 @@ class AetherCoreManagerTest {
             aetherEch = true,
             aetherEchDns = "--upstream",
             aetherEchDomain = "--bind",
+            aetherMasqueSni = "--upstream",
         )
         val arguments = AetherCoreManager.buildArguments(crafted, 10819)
         assertFalse("--upstream" in arguments, arguments.toString())
@@ -869,6 +870,7 @@ class AetherCoreManagerTest {
         assertNull(valueAfter(arguments, "--exit-loc"))
         assertEquals("udp://1.1.1.1", valueAfter(arguments, "--ech-dns"))
         assertEquals("cloudflare-ech.com", valueAfter(arguments, "--ech-domain"))
+        assertEquals("www.cloudflare.com", valueAfter(arguments, "--masque-sni"))
         assertEquals("127.0.0.1:10819", valueAfter(arguments, "--bind"))
         // The core of the session is still told to dial out through Xray.
         val session = AetherCore.of(crafted, 10819).through(10822)
@@ -895,6 +897,44 @@ class AetherCoreManagerTest {
         val bridged = AetherCoreManager.buildArguments(tor, 10819)
         assertFalse("--upstream" in bridged, bridged.toString())
         assertEquals(listOf("obfs4 192.0.2.1:443 FP cert=x iat-mode=0"), valuesAfter(bridged, "--tor-bridge"))
+    }
+
+    @Test
+    fun theServerNameOfTheMasqueHandshakesReachesTheCoreOverMasqueAlone() {
+        // The default is named as well, so that the command shows what is sent.
+        assertEquals("www.cloudflare.com", valueAfter(AetherCoreManager.buildArguments(profile(), 10819), "--masque-sni"))
+        val blank = profile().copy(aetherMasqueSni = " ")
+        assertEquals("www.cloudflare.com", valueAfter(AetherCoreManager.buildArguments(blank, 10819), "--masque-sni"))
+
+        // A name of the profile's own, trimmed, on either carrier, on every protocol over MASQUE, and in a scan.
+        val named = profile().copy(aetherMasqueSni = " consumer-masque.cloudflareclient.com ")
+        val cases = listOf(
+            named,
+            named.copy(aetherTransport = AetherTransport.HTTP2.type),
+            named.copy(aetherProtocol = AetherProtocol.MIM.type),
+            named.copy(aetherProtocol = AetherProtocol.WG_OVER_MASQUE.type),
+            named.copy(aetherTor = AetherTor.REVERSE.type),
+            named.copy(aetherPsiphon = AetherPsiphon.CHAIN.type),
+        )
+        for (case in cases) {
+            for (scan in listOf(false, true)) {
+                val arguments = AetherCoreManager.buildArguments(case, 10819, scan = scan)
+                assertEquals("consumer-masque.cloudflareclient.com", valueAfter(arguments, "--masque-sni"), arguments.toString())
+                assertEquals(1, arguments.count { it == "--masque-sni" }, arguments.toString())
+            }
+        }
+
+        // WireGuard takes none, nor does a core without a WARP tunnel.
+        val without = listOf(
+            named.copy(aetherProtocol = AetherProtocol.WIREGUARD.type),
+            named.copy(aetherProtocol = AetherProtocol.GOOL.type),
+            named.copy(aetherPsiphon = AetherPsiphon.ONLY.type),
+            named.copy(aetherTor = AetherTor.ONLY.type),
+        )
+        for (case in without) {
+            val arguments = AetherCoreManager.buildArguments(case, 10819)
+            assertFalse("--masque-sni" in arguments, arguments.toString())
+        }
     }
 
     @Test

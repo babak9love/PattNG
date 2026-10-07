@@ -6,6 +6,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import com.v2ray.ang.AppConfig.AETHER_ECH_DNS
 import com.v2ray.ang.AppConfig.AETHER_ECH_DOMAIN
+import com.v2ray.ang.AppConfig.AETHER_MASQUE_SNI
 import com.v2ray.ang.AppConfig.DEFAULT_PORT
 import com.v2ray.ang.AppConfig.REALITY
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
@@ -87,6 +88,7 @@ class ServerUiState(
     isFetchingCert: Boolean = false,
     aetherProtocol: String = AetherProtocol.WIREGUARD.type,
     aetherTransport: String = AetherTransport.HTTP3.type,
+    aetherMasqueSni: String = AETHER_MASQUE_SNI,
     aetherScanMode: String = AetherScanMode.BALANCED.type,
     aetherObfuscation: String = AetherObfuscation.AUTO.type,
     aetherFingerprint: String = AetherFingerprint.CHROME.type,
@@ -170,6 +172,7 @@ class ServerUiState(
     var isFetchingCert by mutableStateOf(isFetchingCert)
     var aetherProtocol by mutableStateOf(aetherProtocol)
     var aetherTransport by mutableStateOf(aetherTransport)
+    var aetherMasqueSni by mutableStateOf(aetherMasqueSni)
     var aetherScanMode by mutableStateOf(aetherScanMode)
     var aetherObfuscation by mutableStateOf(aetherObfuscation)
     var aetherFingerprint by mutableStateOf(aetherFingerprint)
@@ -324,6 +327,8 @@ class ServerUiState(
             pinnedCA256 = pinnedCA256,
             aetherProtocol = if (isAether) aetherProtocol else null,
             aetherTransport = if (isAether) aetherTransport else null,
+            // Kept whatever the protocol, as the transport is.
+            aetherMasqueSni = if (isAether) aetherMasqueSni.nullIfBlank() else null,
             aetherScanMode = if (isAether) aetherScanMode else null,
             aetherObfuscation = if (isAether) aetherObfuscation else null,
             aetherFingerprint = if (isAether) aetherFingerprint else null,
@@ -427,6 +432,8 @@ class ServerUiState(
                 // Normalized so the dropdowns always hold one of their own values, whatever was persisted.
                 aetherProtocol = AetherProtocol.fromString(initialConfig.aetherProtocol).type,
                 aetherTransport = AetherTransport.fromString(initialConfig.aetherTransport).type,
+                // Shown filled in, as the ECH settings are, so that what the core is told is in sight.
+                aetherMasqueSni = initialConfig.aetherMasqueSni.nullIfBlank() ?: AETHER_MASQUE_SNI,
                 aetherScanMode = AetherScanMode.fromString(initialConfig.aetherScanMode).type,
                 aetherObfuscation = AetherObfuscation.fromString(initialConfig.aetherObfuscation).type,
                 aetherFingerprint = AetherFingerprint.fromString(initialConfig.aetherFingerprint).type,

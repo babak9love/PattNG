@@ -199,6 +199,12 @@ object AppConfig {
     const val AETHER_ECH_DNS = "udp://1.1.1.1"
     const val AETHER_ECH_DOMAIN = "cloudflare-ech.com"
 
+    /**
+     * PattNG: the server name the MASQUE handshakes of the Aether core put in their ClientHello, unless a profile names
+     * another; the core's own default as well. The HTTP host of the CONNECT request stays the core's.
+     */
+    const val AETHER_MASQUE_SNI = "www.cloudflare.com"
+
     /** PattNG: where the Aether core sends the calls to the WARP API, which register and enroll the keys, unless told otherwise. */
     const val AETHER_ENROLL_ADDRESS = "api.cloudflareclient.com"
 

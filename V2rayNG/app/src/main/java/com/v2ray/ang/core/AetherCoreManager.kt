@@ -328,6 +328,11 @@ object AetherCoreManager {
                 // A scan keeps the exit rule as well, so that it ends on an endpoint the session will accept.
                 settingValue(profile.aetherExitLoc)?.let { addAll(listOf("--exit-loc", it)) }
 
+                // The server name the MASQUE handshakes put in their ClientHello, on either carrier and both hops, the
+                // default named as well, so that the command shows what is sent; the HTTP host stays the core's.
+                if (protocol.overMasque) {
+                    addAll(listOf("--masque-sni", settingValue(profile.aetherMasqueSni) ?: AppConfig.AETHER_MASQUE_SNI))
+                }
                 if (protocol.overMasque && transport == AetherTransport.HTTP2) {
                     add("--h2")
                     // The ClientHello of the MASQUE handshake, and of the calls to the WARP API the core makes for a
