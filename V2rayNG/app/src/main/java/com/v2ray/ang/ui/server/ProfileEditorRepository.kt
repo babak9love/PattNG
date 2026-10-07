@@ -6,6 +6,7 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.fmt.CustomFmt
 import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.ProfileStorageException
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.Dispatchers
@@ -29,12 +30,15 @@ interface ProfileEditorSource : ProfileNameSource {
     /**
      * Stores the profile [guid] names with [edit] made on it as stored then, or, when [guid] is blank or names none any
      * more, a new profile of [type] with [edit] made on it, and with it [raw], when given, as the configuration in full
-     * that a custom profile is; gives the guid it is stored as.
+     * that a custom profile is; gives the guid it is stored as, or null, logged, when the storage refused the write.
      */
-    suspend fun saveProfile(guid: String, type: EConfigType, raw: String? = null, edit: (ProfileItem) -> Unit): String
+    suspend fun saveProfile(guid: String, type: EConfigType, raw: String? = null, edit: (ProfileItem) -> Unit): String?
 
-    /** Stores [profile], which its editor built whole, as [guid] names it, or as a new profile when [guid] is blank; gives the guid it is stored as. */
-    suspend fun storeProfile(guid: String, profile: ProfileItem): String
+    /**
+     * Stores [profile], which its editor built whole, as [guid] names it, or as a new profile when [guid] is blank; gives
+     * the guid it is stored as, or null, logged, when the storage refused the write.
+     */
+    suspend fun storeProfile(guid: String, profile: ProfileItem): String?
 
     /**
      * The profile the custom configuration [content] describes, read off the main thread, or the failure reading it
@@ -50,8 +54,9 @@ interface ProfileEditorSource : ProfileNameSource {
 }
 
 /**
- * PattNG: [ProfileEditorSource] over [MmkvManager], which owns the profiles: it only moves their reads and writes off
- * the main thread, and lets the editors' view models be tested without it.
+ * PattNG: [ProfileEditorSource] over [MmkvManager], which owns the profiles: it moves their reads and writes, and the
+ * reading of a custom configuration, off the main thread, logs what fails there, and lets the editors' view models be
+ * tested without it.
  */
 class ProfileEditorRepository : ProfileEditorSource {
 
@@ -59,23 +64,35 @@ class ProfileEditorRepository : ProfileEditorSource {
         withStoredProfileNames(takes, check)
 
     // The profile and its configuration are written in one go, which a cancelled save does not cut in two.
-    override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String =
+    override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String? =
         withContext(Dispatchers.IO) {
             val config = MmkvManager.decodeServerConfig(guid) ?: ProfileItem.create(type)
             edit(config)
-            MmkvManager.encodeServerConfig(guid, config).also { stored ->
-                if (raw != null) MmkvManager.encodeServerRaw(stored, raw)
+            storedAs(guid) {
+                if (raw == null) MmkvManager.encodeServerConfig(guid, config) else MmkvManager.encodeServerConfigWithRaw(guid, config, raw)
             }
         }
 
-    override suspend fun storeProfile(guid: String, profile: ProfileItem): String =
-        withContext(Dispatchers.IO) { MmkvManager.encodeServerConfig(guid, profile) }
+    override suspend fun storeProfile(guid: String, profile: ProfileItem): String? =
+        withContext(Dispatchers.IO) { storedAs(guid) { MmkvManager.encodeServerConfig(guid, profile) } }
 
     override suspend fun parseCustomConfig(guid: String, content: String): Result<ProfileItem> =
         withContext(Dispatchers.Default) {
-            runCatching { CustomFmt.parse(content) }.onFailure { failure ->
-                LogUtil.e(AppConfig.TAG, "Custom configuration editor: failed to parse the configuration of profile $guid", failure)
+            try {
+                Result.success(CustomFmt.parse(content))
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Custom configuration editor: failed to parse the configuration of profile $guid", e)
+                Result.failure(e)
             }
+        }
+
+    /** The guid [write] stores the profile [guid] names as, or null, logged, when the storage refuses the write. */
+    private inline fun storedAs(guid: String, write: () -> String): String? =
+        try {
+            write()
+        } catch (e: ProfileStorageException) {
+            LogUtil.e(AppConfig.TAG, "Profile editor: failed to store profile ${guid.ifBlank { "(new)" }}", e)
+            null
         }
 
     override suspend fun isSelected(guid: String): Boolean =

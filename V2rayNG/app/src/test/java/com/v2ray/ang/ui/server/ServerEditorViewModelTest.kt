@@ -165,4 +165,24 @@ class ServerEditorViewModelTest {
         assertNull(viewModel.outcome.value)
         assertTrue(source.deletes.isEmpty())
     }
+
+    @Test
+    fun aWriteTheStorageRefusesIsToldAndTheScreenStaysForAnotherTry() {
+        source.refuseWrites = true
+        val viewModel = viewModel()
+
+        viewModel.save(vless("new"))
+
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.stored.isEmpty())
+
+        // Tried again once the storage takes it: stored as a new profile, once.
+        viewModel.onOutcomeHandled()
+        source.refuseWrites = false
+        viewModel.save(vless("new"))
+
+        assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertEquals(listOf("", ""), source.saves)
+        assertEquals(setOf("guid-1"), source.stored.keys)
+    }
 }

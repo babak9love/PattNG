@@ -44,6 +44,9 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     /** When set, a save waits for it before it writes, as one off the main thread takes its time. */
     var saveGate: CompletableDeferred<Unit>? = null
 
+    /** When set, the storage refuses every write, as on a full device: nothing is written. */
+    var refuseWrites = false
+
     /** What a custom configuration reads as. */
     var parsed: Result<ProfileItem> = Result.success(ProfileItem.create(EConfigType.CUSTOM))
 
@@ -57,9 +60,10 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         names.withProfileNames(takes, check)
 
-    override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String {
+    override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String? {
         saves += guid
         saveGate?.await()
+        if (refuseWrites) return null
         val key = guid.ifBlank { "guid-${stored.size + 1}" }
         val config = stored[key] ?: ProfileItem.create(type)
         edit(config)
@@ -68,9 +72,10 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
         return key
     }
 
-    override suspend fun storeProfile(guid: String, profile: ProfileItem): String {
+    override suspend fun storeProfile(guid: String, profile: ProfileItem): String? {
         saves += guid
         saveGate?.await()
+        if (refuseWrites) return null
         val key = guid.ifBlank { "guid-${stored.size + 1}" }
         stored[key] = profile
         return key

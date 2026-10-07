@@ -26,20 +26,24 @@ abstract class ProfileEditorViewModel(
 
     /**
      * Stores the profile, of [type], with [edit] made on it, and [raw] with it when given, see
-     * [ProfileEditorSource.saveProfile], and keeps the guid it is stored as.
+     * [ProfileEditorSource.saveProfile], and keeps the guid it is stored as; a write the storage refused is told, see
+     * [WRITE_REFUSED].
      */
-    protected suspend fun store(type: EConfigType, raw: String? = null, edit: (ProfileItem) -> Unit): EditorOutcome.Saved {
+    protected suspend fun store(type: EConfigType, raw: String? = null, edit: (ProfileItem) -> Unit): EditorOutcome {
         guid = source.saveProfile(guid, type, raw) { config ->
             edit(config)
             stampSubscription(config)
-        }
+        } ?: return WRITE_REFUSED
         return EditorOutcome.Saved(guid)
     }
 
-    /** Stores [profile], which the screen built whole, see [ProfileEditorSource.storeProfile], and keeps the guid it is stored as. */
-    protected suspend fun store(profile: ProfileItem): EditorOutcome.Saved {
+    /**
+     * Stores [profile], which the screen built whole, see [ProfileEditorSource.storeProfile], and keeps the guid it is
+     * stored as; a write the storage refused is told, see [WRITE_REFUSED].
+     */
+    protected suspend fun store(profile: ProfileItem): EditorOutcome {
         stampSubscription(profile)
-        guid = source.storeProfile(guid, profile)
+        guid = source.storeProfile(guid, profile) ?: return WRITE_REFUSED
         return EditorOutcome.Saved(guid)
     }
 
@@ -47,6 +51,11 @@ abstract class ProfileEditorViewModel(
         if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
             config.subscriptionId = subscriptionId
         }
+    }
+
+    private companion object {
+        /** A write the storage refused, as when the device is full: told, and the screen stays open for another try. */
+        val WRITE_REFUSED = EditorOutcome.Refused(R.string.toast_failure)
     }
 
     /**

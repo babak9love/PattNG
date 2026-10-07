@@ -560,6 +560,23 @@ object MmkvManager {
     }
 
     /**
+     * PattNG: saves [config] as [encodeServerConfig] does, with [raw], the configuration in full a custom profile is,
+     * under the guid it gives: both are written, or, when a write fails, neither, the raw configuration put back as it
+     * was, and the failure is thrown.
+     */
+    fun encodeServerConfigWithRaw(guid: String, config: ProfileItem, raw: String): String {
+        val key = guid.ifBlank { Utils.getUuid() }
+        val previous = serverRawStorage.decodeString(key)
+        requireStorageWrite(serverRawStorage.encode(key, raw), "Failed to save raw profile payload")
+        return try {
+            encodeServerConfig(key, config)
+        } catch (e: ProfileStorageException) {
+            if (previous == null) serverRawStorage.removeValueForKey(key) else serverRawStorage.encode(key, previous)
+            throw e
+        }
+    }
+
+    /**
      * Decodes the raw server configuration.
      *
      * @param guid The server GUID.

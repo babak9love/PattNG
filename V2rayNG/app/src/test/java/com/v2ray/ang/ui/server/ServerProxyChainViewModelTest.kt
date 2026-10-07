@@ -246,4 +246,15 @@ class ServerProxyChainViewModelTest {
         assertEquals(listOf("chain-guid"), source.saves)
         assertTrue(source.deletes.isEmpty())
     }
+
+    @Test
+    fun aWriteTheStorageRefusesIsTold() {
+        source.refuseWrites = true
+        val viewModel = viewModel()
+
+        viewModel.save("chain", listOf("entry", "exit"))
+
+        assertEquals(refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.stored.isEmpty())
+    }
 }

@@ -4,6 +4,7 @@ import android.app.Application
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.fmt.CustomFmt
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.ui.base.EditorOutcome
 import kotlinx.coroutines.CompletableDeferred
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -134,6 +136,31 @@ class ServerCustomConfigViewModelTest {
         viewModel.delete()
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf(GUID), source.deletes)
+    }
+
+    @Test
+    fun aWriteTheStorageRefusesIsToldAndNothingIsStored() {
+        source.refuseWrites = true
+        val viewModel = viewModel()
+
+        viewModel.save("custom", CONTENT)
+
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertEquals("old", source.stored.getValue(GUID).remarks)
+        assertTrue(source.raws.isEmpty())
+    }
+
+    @Test
+    fun theReaderGivesTheServerOfAConfigurationAndSaysWhatItCannotRead() {
+        // What the repository reads with, see ProfileEditorRepository.parseCustomConfig.
+        val parsed = CustomFmt.parse("""{"remarks": "real", "outbounds": [{"protocol": "vless", "settings": {"address": "203.0.113.9", "port": 443}}]}""")
+        assertEquals("real", parsed.remarks)
+        assertEquals("203.0.113.9", parsed.server)
+        assertEquals("443", parsed.serverPort)
+
+        val refusal = malformedConfig(assertThrows(Exception::class.java) { CustomFmt.parse("""{"outbounds": [""") })
+        assertEquals(R.string.toast_malformed_json_detail, refusal.message)
+        assertTrue(refusal.args.single().isNotBlank())
     }
 
     private companion object {

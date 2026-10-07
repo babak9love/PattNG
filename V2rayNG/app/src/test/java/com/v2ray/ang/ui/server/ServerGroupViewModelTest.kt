@@ -209,4 +209,15 @@ class ServerGroupViewModelTest {
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf("group-guid"), source.deletes)
     }
+
+    @Test
+    fun aWriteTheStorageRefusesIsTold() {
+        source.refuseWrites = true
+        val viewModel = viewModel()
+
+        viewModel.save(edit)
+
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.stored.isEmpty())
+    }
 }
