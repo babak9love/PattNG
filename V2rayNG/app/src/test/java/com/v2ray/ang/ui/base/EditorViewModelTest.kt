@@ -4,9 +4,11 @@ import android.app.Application
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -20,7 +22,7 @@ class EditorViewModelTest {
 
     private class Editor : EditorViewModel(mock<Application>()) {
         fun save(work: suspend () -> EditorOutcome?) = launchSave(work)
-        fun delete(work: suspend () -> Unit) = launchDelete(work)
+        fun delete(work: suspend () -> EditorOutcome) = launchDelete(work)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -87,17 +89,53 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun aDeleteDoesNotStartWhileASaveRuns() {
+    fun aDeleteStopsASaveThatHasNotWrittenAndRunsInItsPlace() {
         val editor = Editor()
-        val gate = CompletableDeferred<Unit>()
+        val lookup = CompletableDeferred<Unit>()
+        var written = false
         var deleted = false
-        editor.save { gate.await(); EditorOutcome.Saved("guid") }
+        editor.save { lookup.await(); written = true; EditorOutcome.Saved("guid") }
 
-        editor.delete { deleted = true }
-        gate.complete(Unit)
+        // Confirmed while the save looks names up: the delete is not dropped, and the save does not write after it.
+        editor.delete { deleted = true; EditorOutcome.Deleted }
+        lookup.complete(Unit)
 
-        assertFalse(deleted)
+        assertTrue(deleted)
+        assertFalse(written)
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+    }
+
+    @Test
+    fun aDeleteWaitsForTheWriteOfASaveAndRunsAfterIt() {
+        val editor = Editor()
+        val write = CompletableDeferred<Unit>()
+        val order = mutableListOf<String>()
+        editor.save {
+            // A write under way ends, as one on Dispatchers.IO does when its coroutine is cancelled.
+            withContext(NonCancellable) { write.await(); order += "written" }
+            EditorOutcome.Saved("guid")
+        }
+
+        editor.delete { order += "deleted"; EditorOutcome.Deleted }
+        assertTrue(order.isEmpty())
+        write.complete(Unit)
+
+        assertEquals(listOf("written", "deleted"), order)
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+    }
+
+    @Test
+    fun aRefusedDeleteLeavesTheScreenOpenForSavesAndDeletes() {
+        val editor = Editor()
+        editor.delete { EditorOutcome.Refused(1) }
+        assertEquals(EditorOutcome.Refused(1), editor.outcome.value)
+
+        editor.onOutcomeHandled()
+        editor.save { EditorOutcome.Saved("guid") }
         assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+        editor.onOutcomeHandled()
+        editor.delete { EditorOutcome.Deleted }
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
     }
 
     @Test
@@ -106,17 +144,17 @@ class EditorViewModelTest {
         val gate = CompletableDeferred<Unit>()
         var deletes = 0
         var saved = false
-        editor.delete { deletes++; gate.await() }
+        editor.delete { deletes++; gate.await(); EditorOutcome.Deleted }
 
         editor.save { saved = true; EditorOutcome.Saved("guid") }
-        editor.delete { deletes++ }
+        editor.delete { deletes++; EditorOutcome.Deleted }
         gate.complete(Unit)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
 
         // Not after it either: the save would write back what it deleted.
         editor.onOutcomeHandled()
         editor.save { saved = true; EditorOutcome.Saved("guid") }
-        editor.delete { deletes++ }
+        editor.delete { deletes++; EditorOutcome.Deleted }
 
         assertFalse(saved)
         assertEquals(1, deletes)
@@ -143,7 +181,7 @@ class EditorViewModelTest {
 
         var started = false
         editor.save { started = true; EditorOutcome.Saved("guid") }
-        editor.delete { started = true }
+        editor.delete { started = true; EditorOutcome.Deleted }
         assertFalse(started)
         assertNull(editor.outcome.value)
     }
@@ -156,6 +194,7 @@ class EditorViewModelTest {
         editor.delete {
             gate.await()
             deleted = true
+            EditorOutcome.Deleted
         }
 
         editor.onScreenLeft()

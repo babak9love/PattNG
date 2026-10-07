@@ -6,19 +6,14 @@ import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
-import com.v2ray.ang.ui.base.EditorViewModel
 
-/**
- * PattNG: the save of the proxy chain editor, see [EditorViewModel]. The chain is stored as [guid]: the profile the
- * screen was opened on, or none for a new chain until its first save stores one, which a later save writes over. A new
- * chain goes into the subscription [subscriptionId], when the screen was opened in one.
- */
+/** PattNG: the save and the delete of the proxy chain editor, see [ProfileEditorViewModel]. */
 class ServerProxyChainViewModel(
     application: Application,
-    private val source: ProfileEditorSource,
-    private var guid: String,
-    private val subscriptionId: String?,
-) : EditorViewModel(application) {
+    source: ProfileEditorSource,
+    guid: String,
+    subscriptionId: String?,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId) {
 
     /**
      * Saves the chain as [remarks] with [members], the names of its profiles in its order. Every member has to be
@@ -39,14 +34,10 @@ class ServerProxyChainViewModel(
             null -> Unit
         }
 
-        guid = source.saveProfile(guid, EConfigType.PROXYCHAIN) { config ->
+        store(EConfigType.PROXYCHAIN) { config ->
             config.remarks = remarks.trim()
             config.proxyChainProfiles = ProfileItem.proxyChainProfilesOf(chainMembers)
             config.description = chainMembers.joinToString(" -> ")
-            if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
-                config.subscriptionId = subscriptionId
-            }
         }
-        EditorOutcome.Saved(guid)
     }
 }

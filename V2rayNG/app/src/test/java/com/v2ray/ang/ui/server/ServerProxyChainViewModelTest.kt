@@ -182,4 +182,49 @@ class ServerProxyChainViewModelTest {
         assertTrue(source.saves.isEmpty())
         assertNull(viewModel.outcome.value)
     }
+
+    @Test
+    fun aDeleteDeletesTheChainUnlessTheAppRunsOnIt() {
+        source.stored["chain-guid"] = ProfileItem.create(EConfigType.PROXYCHAIN)
+        source.selected = "chain-guid"
+        val viewModel = viewModel(guid = "chain-guid")
+
+        viewModel.delete()
+        assertEquals(refused(R.string.toast_action_not_allowed), viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
+
+        // Told, the screen stays open, and deletes once the app runs on another profile.
+        viewModel.onOutcomeHandled()
+        source.selected = "other"
+        viewModel.delete()
+        assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
+        assertEquals(listOf("chain-guid"), source.deletes)
+    }
+
+    @Test
+    fun aDeleteConfirmedWhileTheMembersAreLookedUpStopsTheSaveAndDeletes() {
+        source.stored["chain-guid"] = ProfileItem.create(EConfigType.PROXYCHAIN)
+        val gate = CompletableDeferred<Unit>()
+        source.names.gate = gate
+        val viewModel = viewModel(guid = "chain-guid")
+
+        viewModel.save("chain", listOf("entry", "exit"))
+        viewModel.delete()
+        gate.complete(Unit)
+
+        assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
+        assertEquals(listOf("chain-guid"), source.deletes)
+        assertTrue(source.saves.isEmpty())
+        assertTrue(source.stored.isEmpty())
+    }
+
+    @Test
+    fun aNewChainHasNoneToDelete() {
+        val viewModel = viewModel()
+
+        viewModel.delete()
+
+        assertNull(viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
+    }
 }

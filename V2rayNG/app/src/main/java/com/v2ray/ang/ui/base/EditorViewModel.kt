@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,9 +26,9 @@ sealed interface EditorOutcome {
  * PattNG: the save and the delete of an editor screen that reads and writes off the main thread. They run here rather
  * than in the activity's lifecycle scope, which ends when the activity is recreated, as on a rotation: a save cut off
  * there was lost, or written with nothing told, and the screen, still open on what it was opened with, stored a second
- * copy at the next tap. Here one runs at a time, nothing starts once a delete has, and the [outcome] reaches whichever
- * activity shows the screen when it comes. A view model of a screen keeps what its saves stored as, for the next one to
- * write over. [onScreenLeft] stops what has not written yet.
+ * copy at the next tap. Here one runs at a time, a delete stops a save first, nothing starts once a delete has, and the
+ * [outcome] reaches whichever activity shows the screen when it comes. A view model of a screen keeps what its saves
+ * stored as, for the next one to write over. [onScreenLeft] stops what has not written yet.
  */
 abstract class EditorViewModel(application: Application) : BaseViewModel(application) {
 
@@ -53,13 +54,21 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
         job = viewModelScope.launch { save()?.let { _outcome.value = it } }
     }
 
-    /** Runs [delete], unless a save or a delete runs, a delete has started, or the screen is left; then [outcome] is [EditorOutcome.Deleted]. */
-    protected fun launchDelete(delete: suspend () -> Unit) {
-        if (isBusy || deleting || left) return
+    /**
+     * Runs [delete], unless a delete has started or the screen is left. A save that runs is stopped first: one that has
+     * not written does not, and one that writes ends its write before [delete] starts, so that it cannot write back what
+     * is deleted. What [delete] ends with goes to [outcome]: [EditorOutcome.Deleted], or a refusal, after which the
+     * screen stays open and saves again.
+     */
+    protected fun launchDelete(delete: suspend () -> EditorOutcome) {
+        if (deleting || left) return
         deleting = true
+        val save = job
         job = viewModelScope.launch {
-            delete()
-            _outcome.value = EditorOutcome.Deleted
+            save?.cancelAndJoin()
+            val result = delete()
+            if (result != EditorOutcome.Deleted) deleting = false
+            _outcome.value = result
         }
     }
 

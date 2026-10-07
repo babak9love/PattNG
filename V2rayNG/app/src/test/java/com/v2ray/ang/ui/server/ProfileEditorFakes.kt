@@ -38,6 +38,10 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     /** The guid each save was asked to store as, blank for a new profile. */
     val saves = mutableListOf<String>()
 
+    /** The profile the app runs on, which is not deleted. */
+    var selected: String? = null
+    val deletes = mutableListOf<String>()
+
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         names.withProfileNames(takes, check)
 
@@ -48,5 +52,12 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
         edit(config)
         stored[key] = config
         return key
+    }
+
+    override suspend fun isSelected(guid: String): Boolean = guid == selected
+
+    override suspend fun deleteProfile(guid: String) {
+        deletes += guid
+        stored.remove(guid)
     }
 }

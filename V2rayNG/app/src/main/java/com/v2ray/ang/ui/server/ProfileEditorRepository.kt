@@ -21,13 +21,19 @@ interface ProfileNameSource {
 internal suspend fun <T> withStoredProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
     withContext(Dispatchers.IO) { check { SettingsManager.findServerViaRemarks(it, takes) } }
 
-/** PattNG: where the proxy chain and the policy group editors find the profiles they name and store their own. */
+/** PattNG: where the proxy chain and the policy group editors find the profiles they name and store, or delete, their own. */
 interface ProfileEditorSource : ProfileNameSource {
     /**
      * Stores the profile [guid] names with [edit] made on it as stored then, or, when [guid] is blank or names none any
      * more, a new profile of [type] with [edit] made on it; gives the guid it is stored as.
      */
     suspend fun saveProfile(guid: String, type: EConfigType, edit: (ProfileItem) -> Unit): String
+
+    /** Whether [guid] names the profile selected, the one the app runs on. */
+    suspend fun isSelected(guid: String): Boolean
+
+    /** Deletes the profile [guid] names. */
+    suspend fun deleteProfile(guid: String)
 }
 
 /**
@@ -45,4 +51,11 @@ class ProfileEditorRepository : ProfileEditorSource {
             edit(config)
             MmkvManager.encodeServerConfig(guid, config)
         }
+
+    override suspend fun isSelected(guid: String): Boolean =
+        withContext(Dispatchers.IO) { MmkvManager.getSelectServer() == guid }
+
+    override suspend fun deleteProfile(guid: String) {
+        withContext(Dispatchers.IO) { MmkvManager.removeServer(guid) }
+    }
 }

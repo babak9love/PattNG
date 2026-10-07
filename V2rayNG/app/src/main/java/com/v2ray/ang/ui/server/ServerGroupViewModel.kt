@@ -8,7 +8,6 @@ import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
-import com.v2ray.ang.ui.base.EditorViewModel
 
 /** PattNG: a subscription the policy group editor offers to draw members from: its [id], blank for all, and its [label]. */
 data class PolicyGroupSubscription(val id: String, val label: String)
@@ -45,17 +44,13 @@ data class PolicyGroupEdit(
     val fallbackTag: String,
 )
 
-/**
- * PattNG: the save of the policy group editor, see [EditorViewModel]. The group is stored as [guid]: the profile the
- * screen was opened on, or none for a new group until its first save stores one, which a later save writes over. A new
- * group goes into the subscription [subscriptionId], when the screen was opened in one.
- */
+/** PattNG: the save and the delete of the policy group editor, see [ProfileEditorViewModel]. */
 class ServerGroupViewModel(
     application: Application,
-    private val source: ProfileEditorSource,
-    private var guid: String,
-    private val subscriptionId: String?,
-) : EditorViewModel(application) {
+    source: ProfileEditorSource,
+    guid: String,
+    subscriptionId: String?,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId) {
 
     /**
      * Saves the group as [edit] has it. The fallback of a group that tests its members names a profile, and the name has
@@ -74,18 +69,14 @@ class ServerGroupViewModel(
             }
         }
 
-        guid = source.saveProfile(guid, EConfigType.POLICYGROUP) { config ->
+        store(EConfigType.POLICYGROUP) { config ->
             config.remarks = edit.remarks.trim()
             config.policyGroupFilter = edit.filter.trim()
             config.policyGroupType = edit.type.toString()
             config.policyGroupSubscriptionId = edit.subscriptionId
             config.policyGroupTestOutbounds = edit.testOutbounds
             config.policyGroupFallbackTag = fallback
-            if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
-                config.subscriptionId = subscriptionId
-            }
             config.description = "${edit.typeLabel} - ${edit.subscriptionLabel} - ${config.policyGroupFilter}"
         }
-        EditorOutcome.Saved(guid)
     }
 }

@@ -43,7 +43,6 @@ import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.moveItem
-import com.v2ray.ang.extension.toast
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
@@ -101,6 +100,11 @@ class ServerProxyChainActivity : BaseComponentActivity() {
                         restartService = isRunning
                     )
                 }
+            },
+            onDeleted = {
+                ProfileEditorResult.run {
+                    finishDeleted(editGuid)
+                }
             }
         )
         ProxyChainScreen(
@@ -111,34 +115,17 @@ class ServerProxyChainActivity : BaseComponentActivity() {
             allRemarks = allRemarks,
             onBackClick = { finish() },
             onSave = { remarks, members -> viewModel.save(remarks, members) },
-            onDelete = { deleteServer() }
+            onDelete = { viewModel.delete() }
         )
     }
 
-    /** PattNG: a save that has not written yet stops as the screen is left, so that it does not write after it is gone. */
+    /**
+     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
+     * it is gone.
+     */
     override fun finish() {
         viewModel.onScreenLeft()
         super.finish()
-    }
-
-    /** Deletes the profile, unless a save runs, which would write it back. */
-    private fun deleteServer(): Boolean {
-        if (editGuid.isEmpty() || viewModel.isBusy) {
-            return false
-        }
-
-        if (editGuid == MmkvManager.getSelectServer()) {
-            toast(R.string.toast_action_not_allowed)
-            return false
-        }
-
-        MmkvManager.removeServer(editGuid)
-
-        ProfileEditorResult.run {
-            finishDeleted(editGuid)
-        }
-
-        return true
     }
 }
 

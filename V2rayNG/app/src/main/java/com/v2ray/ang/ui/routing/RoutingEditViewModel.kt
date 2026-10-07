@@ -53,6 +53,9 @@ class RoutingEditViewModel(
     /** Deletes the rule, unless a save runs, which would write it back; a new rule, never stored, has none to delete. */
     fun delete() {
         val stored = position.takeIf { it >= 0 } ?: return
-        launchDelete { source.deleteRule(stored) }
+        launchDelete {
+            source.deleteRule(stored)
+            EditorOutcome.Deleted
+        }
     }
 }

@@ -192,4 +192,21 @@ class ServerGroupViewModelTest {
         assertEquals(PolicyGroupSubscription("", "All"), offered.pick("gone"))
         assertEquals(PolicyGroupSubscription("", "All"), offered.pick(null))
     }
+
+    @Test
+    fun aDeleteDeletesTheGroupUnlessTheAppRunsOnIt() {
+        source.stored["group-guid"] = ProfileItem.create(EConfigType.POLICYGROUP)
+        source.selected = "group-guid"
+        val viewModel = viewModel(guid = "group-guid")
+
+        viewModel.delete()
+        assertEquals(EditorOutcome.Refused(R.string.toast_action_not_allowed), viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
+
+        viewModel.onOutcomeHandled()
+        source.selected = null
+        viewModel.delete()
+        assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
+        assertEquals(listOf("group-guid"), source.deletes)
+    }
 }
