@@ -80,9 +80,9 @@ object SettingsManager {
      * @param context The application context.
      * @param type The routing preset type.
      */
-    fun resetRoutingRulesetsFromPresets(context: Context, type: RoutingType) {
-        val rulesetList = getPresetRoutingRulesets(context, type) ?: return
-        resetRoutingRulesetsCommon(rulesetList)
+    fun resetRoutingRulesetsFromPresets(context: Context, type: RoutingType): Boolean {
+        val rulesetList = getPresetRoutingRulesets(context, type) ?: return false
+        return resetRoutingRulesetsCommon(rulesetList)
     }
 
     /**
@@ -101,8 +101,7 @@ object SettingsManager {
                 return false
             }
 
-            resetRoutingRulesetsCommon(rulesetList)
-            return true
+            return resetRoutingRulesetsCommon(rulesetList)
         } catch (e: Exception) {
             LogUtil.e(ANG_PACKAGE, "Failed to reset routing rulesets", e)
             return false
@@ -112,10 +111,24 @@ object SettingsManager {
     /**
      * Common method to reset routing rulesets.
      * @param rulesetList The list of rulesets.
+     * @return PattNG: whether the storage took them; a refusal is logged.
      */
-    private fun resetRoutingRulesetsCommon(rulesetList: MutableList<RulesetItem>) {
-        MmkvManager.encodeRoutingRulesets(rulesetsAfterImport(MmkvManager.decodeRoutingRulesets(), rulesetList))
+    private fun resetRoutingRulesetsCommon(rulesetList: MutableList<RulesetItem>): Boolean {
+        val stored = changeRoutingRulesets {
+            MmkvManager.encodeRoutingRulesets(rulesetsAfterImport(MmkvManager.decodeRoutingRulesets(), rulesetList))
+        }
+        if (!stored) LogUtil.e(AppConfig.TAG, "SettingsManager: the storage refused the imported routing rulesets")
+        return stored
     }
+
+    /** PattNG: what every read, change and write of the stored routing rulesets holds, see [changeRoutingRulesets]. */
+    private val routingRulesetsLock = Any()
+
+    /**
+     * PattNG: runs [change], a read of the stored routing rulesets, its change and its write, while no other runs, so
+     * that none writes back a list another changed meanwhile: an import, the routing list, the editor of a rule.
+     */
+    internal fun <T> changeRoutingRulesets(change: () -> T): T = synchronized(routingRulesetsLock) { change() }
 
     /**
      * The rulesets an import of [imported] leaves: the locked ones of [stored] first, kept as they are, then [imported].

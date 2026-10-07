@@ -57,6 +57,9 @@ private val ROUTING_NETWORK_OPTIONS = listOf("tcp", "udp", "tcp,udp")
 /** PattNG: where the editor keeps the id of its rule, to find the rule again should its process be gone before it is back. */
 private const val KEY_RULE_ID = "routing_edit_rule_id"
 
+/** PattNG: the id of the rule the routing list opened the editor on, by which the editor finds it. */
+internal const val EXTRA_RULE_ID = "rule_id"
+
 class RoutingEditActivity : BaseComponentActivity() {
     private val position by lazy { intent.getIntExtra("position", -1) }
 
@@ -64,7 +67,10 @@ class RoutingEditActivity : BaseComponentActivity() {
     private lateinit var outboundSuggestions: List<String>
     private var canUseProcess: Boolean = false
 
-    /** PattNG: the id of the rule the editor was on, as its saved state kept it, see [onSaveInstanceState]. */
+    /**
+     * PattNG: the id of the rule the editor is on, as its saved state kept it, see [onSaveInstanceState], or as the list
+     * that opened it named it.
+     */
     private var reopenedRuleId: String? = null
 
     /**
@@ -81,7 +87,7 @@ class RoutingEditActivity : BaseComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        reopenedRuleId = savedInstanceState?.getString(KEY_RULE_ID)
+        reopenedRuleId = savedInstanceState?.getString(KEY_RULE_ID) ?: intent.getStringExtra(EXTRA_RULE_ID)?.takeIf { it.isNotEmpty() }
         // PattNG: the rule as the view model keeps it, so that a recreated screen does not read it again at its position.
         initial = viewModel.initial
         val profileRemarks = SettingsManager.getProfileRemarks()

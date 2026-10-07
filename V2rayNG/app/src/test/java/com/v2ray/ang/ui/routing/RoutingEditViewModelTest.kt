@@ -34,15 +34,22 @@ class RoutingEditViewModelTest {
         /** The position and the id each delete was asked for. */
         val deletes = mutableListOf<Pair<Int, String>>()
 
+        /** When set, the storage refuses every write: nothing is written. */
+        var refuseWrites = false
+
         override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
             names.withProfileNames(takes, check)
 
-        override suspend fun saveRule(position: Int, rule: RulesetItem) {
+        override suspend fun saveRule(position: Int, rule: RulesetItem): Boolean {
+            if (refuseWrites) return false
             saves += position to rule.copy()
+            return true
         }
 
-        override suspend fun deleteRule(position: Int, id: String) {
+        override suspend fun deleteRule(position: Int, id: String): Boolean {
+            if (refuseWrites) return false
             deletes += position to id
+            return true
         }
     }
 
@@ -224,5 +231,20 @@ class RoutingEditViewModelTest {
         assertFalse(viewModel.leaveScreen())
         viewModel.onOutcomeHandled()
         assertTrue(viewModel.leaveScreen())
+    }
+
+    @Test
+    fun aSaveOrADeleteTheStorageRefusesIsTold() {
+        source.refuseWrites = true
+        val viewModel = viewModel(position = 3, initial = rule(id = "rule-id"))
+
+        viewModel.save(rule())
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+
+        viewModel.onOutcomeHandled()
+        viewModel.delete()
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+        assertTrue(source.deletes.isEmpty())
     }
 }

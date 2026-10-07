@@ -52,16 +52,21 @@ class RoutingEditViewModel(
         if (ruleId.isNotEmpty()) {
             rule.id = ruleId
         }
-        source.saveRule(position, rule)
+        if (!source.saveRule(position, rule)) return@launchSave WRITE_REFUSED
         EditorOutcome.Saved(rule.id)
     }
 
-    /** Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to delete. */
+    /**
+     * Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to
+     * delete. A delete the storage refused is told.
+     */
     fun delete() {
         if (position < 0) return
-        launchDelete {
-            source.deleteRule(position, ruleId)
-            null
-        }
+        launchDelete { WRITE_REFUSED.takeUnless { source.deleteRule(position, ruleId) } }
+    }
+
+    private companion object {
+        /** A write or a delete the storage refused, as when the device is full: told, and the screen stays open. */
+        val WRITE_REFUSED = EditorOutcome.Refused(R.string.toast_failure)
     }
 }

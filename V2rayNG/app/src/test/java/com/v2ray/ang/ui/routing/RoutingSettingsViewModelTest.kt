@@ -34,7 +34,7 @@ class RoutingSettingsViewModelTest {
         val started = mutableListOf<String>()
         val done = mutableListOf<String>()
         val updated = mutableListOf<RulesetItem>()
-        val stored = mutableListOf<List<RulesetItem>>()
+        val moved = mutableListOf<Pair<String, String>>()
 
         override suspend fun loadRules(): List<RulesetItem> {
             loads++
@@ -49,11 +49,11 @@ class RoutingSettingsViewModelTest {
             done += "update ${rule.id}"
         }
 
-        override suspend fun storeRules(rules: List<RulesetItem>) {
-            started += "store"
+        override suspend fun moveRule(fromId: String, toId: String) {
+            started += "move $fromId"
             writeGate?.await()
-            stored += rules
-            done += "store"
+            moved += fromId to toId
+            done += "move $fromId"
         }
     }
 
@@ -88,33 +88,34 @@ class RoutingSettingsViewModelTest {
     }
 
     @Test
-    fun aRuleTurnedOffIsShownSoAtOnceAndStoredByItself() {
+    fun aRuleTurnedOffIsShownSoAtOnceAndStoredByItsId() {
         val viewModel = viewModel()
         viewModel.reload()
-        val off = a.copy(enabled = false)
+        val off = b.copy(enabled = false)
 
-        viewModel.update(0, off)
+        viewModel.update(off)
 
-        assertEquals(listOf(off, b), viewModel.rulesetsFlow.value)
+        assertEquals(listOf(a, off), viewModel.rulesetsFlow.value)
         assertEquals(listOf(off), source.updated)
-        // A position the list does not reach changes nothing.
-        viewModel.update(2, off)
+        // A rule the list does not hold changes nothing.
+        viewModel.update(RulesetItem(id = "gone", remarks = "gone"))
         assertEquals(listOf(off), source.updated)
     }
 
     @Test
-    fun aRuleMovedIsShownSoAtOnceAndTheListStoredInThatOrder() {
+    fun aRuleMovedIsShownSoAtOnceAndStoredByTheIds() {
         val viewModel = viewModel()
         viewModel.reload()
 
-        viewModel.move(0, 1)
+        viewModel.move("a", "b")
 
         assertEquals(listOf(b, a), viewModel.rulesetsFlow.value)
-        assertEquals(listOf(listOf(b, a)), source.stored)
-        // A move to where the rule is, or out of the list, changes nothing.
-        viewModel.move(1, 1)
-        viewModel.move(0, 5)
-        assertEquals(1, source.stored.size)
+        assertEquals(listOf("a" to "b"), source.moved)
+        // A move to where the rule is, or of or to a rule the list does not hold, changes nothing.
+        viewModel.move("a", "a")
+        viewModel.move("gone", "a")
+        viewModel.move("a", "gone")
+        assertEquals(1, source.moved.size)
     }
 
     @Test
@@ -126,8 +127,8 @@ class RoutingSettingsViewModelTest {
         source.rules = listOf(a, b, RulesetItem(id = "c", remarks = "c"))
 
         viewModel.reload()
-        viewModel.update(0, a.copy(enabled = false))
-        viewModel.move(0, 1)
+        viewModel.update(a.copy(enabled = false))
+        viewModel.move("a", "b")
         gate.complete(Unit)
 
         // What was read is shown, and nothing stored over it from the list shown before.
@@ -142,12 +143,12 @@ class RoutingSettingsViewModelTest {
         val gate = CompletableDeferred<Unit>()
         source.writeGate = gate
 
-        viewModel.update(0, a.copy(enabled = false))
-        viewModel.move(0, 1)
+        viewModel.update(a.copy(enabled = false))
+        viewModel.move("a", "b")
         assertEquals(listOf("update a"), source.started)
 
         gate.complete(Unit)
-        assertEquals(listOf("update a", "store"), source.done)
+        assertEquals(listOf("update a", "move a"), source.done)
     }
 
     @Test
@@ -172,12 +173,12 @@ class RoutingSettingsViewModelTest {
         val gate = CompletableDeferred<Unit>()
         source.writeGate = gate
 
-        viewModel.update(0, a.copy(enabled = false))
-        viewModel.move(0, 1)
+        viewModel.update(a.copy(enabled = false))
+        viewModel.move("a", "b")
         // The screen closes, which ends the view model's scope, while one write waits and the other for its turn.
         viewModel.viewModelScope.cancel()
         gate.complete(Unit)
 
-        assertEquals(listOf("update a", "store"), source.done)
+        assertEquals(listOf("update a", "move a"), source.done)
     }
 }

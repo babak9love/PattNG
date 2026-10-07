@@ -48,25 +48,27 @@ class RoutingSettingsViewModel(
     }
 
     /**
-     * Shows [item] in place of the rule at [position] and stores it, found again by its id. PattNG: not while the rules
-     * are read anew, which would show what was read in its place; stored even when the screen closes right after.
+     * Shows [item] in place of the rule of its id and stores it so. PattNG: by the id, as a position the screen took from
+     * the list it showed may have moved by now; not while the rules are read anew, which would show what was read in its
+     * place; stored even when the screen closes right after.
      */
-    fun update(position: Int, item: RulesetItem) {
-        if (isReloading || position !in rulesets.indices) return
-        rulesets[position] = item
+    fun update(item: RulesetItem) {
+        val index = rulesets.indexOfFirst { it.id == item.id }
+        if (isReloading || index < 0) return
+        rulesets[index] = item
         _rulesetsFlow.value = rulesets.toList()
         store { source.updateRule(item) }
     }
 
     /**
-     * Shows the rule at [fromPosition] at [toPosition] and stores the list in that order. PattNG: not while the rules are
-     * read anew; stored even when the screen closes right after.
+     * Shows the rule of [fromId] where the rule of [toId] stands and stores it there, by their ids as well, so that a
+     * change another made to the stored list meanwhile, as an import, is not written over. PattNG: not while the rules
+     * are read anew; stored even when the screen closes right after.
      */
-    fun move(fromPosition: Int, toPosition: Int) {
-        if (isReloading || !rulesets.moveItem(fromPosition, toPosition)) return
+    fun move(fromId: String, toId: String) {
+        if (isReloading || !rulesets.moveItem(rulesets.indexOfFirst { it.id == fromId }, rulesets.indexOfFirst { it.id == toId })) return
         _rulesetsFlow.value = rulesets.toList()
-        val order = rulesets.toList()
-        store { source.storeRules(order) }
+        store { source.moveRule(fromId, toId) }
     }
 
     private val isReloading: Boolean
