@@ -35,6 +35,6 @@ fun EditorOutcomeEffect(
 
             EditorOutcome.Deleted -> onDeleted()
         }
-        viewModel.onOutcomeHandled()
+        viewModel.onOutcomeHandled(result)
     }
 }

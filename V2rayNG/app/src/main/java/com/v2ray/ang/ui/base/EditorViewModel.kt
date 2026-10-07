@@ -86,8 +86,11 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
         deleteJob?.cancel()
     }
 
-    /** The screen has acted on [outcome]. */
-    fun onOutcomeHandled() {
-        _outcome.value = null
+    /**
+     * The screen has acted on [handled], the outcome it was shown: cleared, unless another one came meanwhile, as a save
+     * that ends right after a delete was refused, which the screen then acts on in its turn.
+     */
+    fun onOutcomeHandled(handled: EditorOutcome? = _outcome.value) {
+        if (handled != null) _outcome.compareAndSet(handled, null)
     }
 }

@@ -142,6 +142,23 @@ class EditorViewModelTest {
     }
 
     @Test
+    fun anOutcomeThatCameAfterTheOneActedOnStaysForTheScreen() {
+        val editor = Editor()
+        val lookup = CompletableDeferred<Unit>()
+        editor.save { lookup.await(); EditorOutcome.Saved("guid") }
+        editor.delete(refuse = { EditorOutcome.Refused(1) }) { error("a refused delete does not run") }
+        val shown = editor.outcome.value
+
+        // The save ends before the screen has acted on the refusal it was shown: acting on it leaves the save's outcome.
+        lookup.complete(Unit)
+        editor.onOutcomeHandled(shown)
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+
+        editor.onOutcomeHandled(EditorOutcome.Saved("guid"))
+        assertNull(editor.outcome.value)
+    }
+
+    @Test
     fun aRefusedDeleteLeavesASaveThatRunsToGoOn() {
         val editor = Editor()
         val lookup = CompletableDeferred<Unit>()
