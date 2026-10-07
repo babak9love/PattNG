@@ -9,6 +9,7 @@ import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.ProfileStorageException
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.LogUtil
+import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -46,11 +47,14 @@ interface ProfileEditorSource : ProfileNameSource {
      */
     suspend fun parseCustomConfig(guid: String, content: String): Result<ProfileItem>
 
+    /** A guid of its own for a new profile, which no profile has. */
+    fun newGuid(): String
+
     /** Whether [guid] names the profile selected, the one the app runs on. */
     suspend fun isSelected(guid: String): Boolean
 
-    /** Deletes the profile [guid] names. */
-    suspend fun deleteProfile(guid: String)
+    /** Deletes the profile [guid] names; false, logged, when the storage refused it, which leaves the profile as it was. */
+    suspend fun deleteProfile(guid: String): Boolean
 }
 
 /**
@@ -95,10 +99,15 @@ class ProfileEditorRepository : ProfileEditorSource {
             null
         }
 
+    override fun newGuid(): String = Utils.getUuid()
+
     override suspend fun isSelected(guid: String): Boolean =
         withContext(Dispatchers.IO) { MmkvManager.getSelectServer() == guid }
 
-    override suspend fun deleteProfile(guid: String) {
-        withContext(Dispatchers.IO) { MmkvManager.removeServer(guid) }
-    }
+    override suspend fun deleteProfile(guid: String): Boolean =
+        withContext(Dispatchers.IO) {
+            MmkvManager.tryRemoveServer(guid).also { removed ->
+                if (!removed) LogUtil.e(AppConfig.TAG, "Profile editor: the storage refused the list without profile $guid")
+            }
+        }
 }

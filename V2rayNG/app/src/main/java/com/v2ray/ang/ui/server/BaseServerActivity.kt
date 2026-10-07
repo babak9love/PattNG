@@ -1,7 +1,6 @@
 package com.v2ray.ang.ui.server
 
 import android.os.Bundle
-import androidx.activity.compose.BackHandler
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,7 +29,6 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig.REALITY
@@ -66,11 +64,9 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     protected abstract val serverConfigType: EConfigType
 
     protected val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    protected val isRunning by lazy {
-        intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
-    }
+    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
+    protected var isRunning = false
+        private set
     protected val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
 
     protected lateinit var initialConfig: ProfileItem
@@ -84,19 +80,19 @@ abstract class BaseServerActivity : BaseComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isRunning = intent.getBooleanExtra("isRunning", false)
+                && editGuid.isNotEmpty()
+                && editGuid == MmkvManager.getSelectServer()
         val existingConfig = MmkvManager.decodeServerConfig(editGuid)
         initialConfig = existingConfig ?: ProfileItem.create(serverConfigType)
     }
 
     /**
-     * PattNG: while a save or a delete runs the screen stays; it closes once that has written, telling the main screen
-     * what it did, see [ServerEditorScaffold]. Left before, the write would go untold: the main screen would neither show
-     * it nor restart the running profile with it. Once the screen is left, no save or delete starts any more.
+     * PattNG: the screen closes only once the save or the delete that runs has written, telling the screen it returns
+     * to what it did, see [com.v2ray.ang.ui.base.EditorViewModel.leaveScreen].
      */
     override fun finish() {
-        if (editor.isBusy) return
-        editor.onScreenLeft()
-        super.finish()
+        if (editor.leaveScreen()) super.finish()
     }
 
     @Composable
@@ -520,10 +516,6 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     ) {
         var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
         val scrollState = rememberScrollState()
-        // PattNG: Back waits for a save or a delete that runs, see finish(); held only meanwhile, so that predictive back
-        // shows where it leads at any other time.
-        val busy by editor.busy.collectAsStateWithLifecycle()
-        BackHandler(enabled = busy) {}
         EditorOutcomeEffect(
             viewModel = editor,
             onSaved = { guid ->

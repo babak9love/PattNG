@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -165,16 +166,16 @@ class SubEditViewModelTest {
     }
 
     @Test
-    fun leavingTheScreenWhileTheNeighborsAreLookedUpStoresNothing() {
+    fun theScreenMayNotCloseWhileTheNeighborsAreLookedUp() {
         val gate = CompletableDeferred<Unit>()
         source.names.gate = gate
         val viewModel = viewModel()
 
         viewModel.save(edits(prev = "entry"))
-        viewModel.onScreenLeft()
+        assertFalse(viewModel.leaveScreen())
         gate.complete(Unit)
 
-        assertTrue(source.saves.isEmpty())
-        assertNull(viewModel.outcome.value)
+        assertEquals(EditorOutcome.Saved("sub-1"), viewModel.outcome.value)
+        assertTrue(viewModel.leaveScreen())
     }
 }

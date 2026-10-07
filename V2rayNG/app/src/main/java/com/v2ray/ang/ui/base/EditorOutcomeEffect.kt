@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.base
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,7 +12,9 @@ import com.v2ray.ang.extension.toastSuccess
 
 /**
  * PattNG: acts once on each outcome of [viewModel], in whichever activity shows the editor when it comes: tells a
- * refusal; tells a save, then hands the key it stored as to [onSaved]; hands a delete to [onDeleted].
+ * refusal; tells a save, then hands the key it stored as to [onSaved]; hands a delete to [onDeleted]. Back waits while a
+ * save or a delete runs, as the activity's finish() does, see [EditorViewModel.leaveScreen]: held only meanwhile, so that
+ * predictive back shows where it leads at any other time.
  */
 @Composable
 fun EditorOutcomeEffect(
@@ -19,6 +22,8 @@ fun EditorOutcomeEffect(
     onSaved: (key: String) -> Unit,
     onDeleted: () -> Unit = {},
 ) {
+    val busy by viewModel.busy.collectAsStateWithLifecycle()
+    BackHandler(enabled = busy) {}
     val outcome by viewModel.outcome.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(outcome) {

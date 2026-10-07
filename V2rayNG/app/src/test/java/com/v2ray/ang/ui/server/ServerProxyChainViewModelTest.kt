@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -128,7 +129,7 @@ class ServerProxyChainViewModelTest {
         viewModel.save("chain 2", listOf("exit", "entry"))
 
         assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
-        assertEquals(listOf("", "guid-1"), source.saves)
+        assertEquals(listOf("guid-1", "guid-1"), source.saves)
         assertEquals(setOf("guid-1"), source.stored.keys)
         assertEquals("chain 2", source.stored.getValue("guid-1").remarks)
     }
@@ -166,21 +167,21 @@ class ServerProxyChainViewModelTest {
         gate.complete(Unit)
 
         assertEquals(1, source.names.lookups)
-        assertEquals(listOf(""), source.saves)
+        assertEquals(listOf("guid-1"), source.saves)
     }
 
     @Test
-    fun leavingTheScreenWhileTheMembersAreLookedUpStoresNothing() {
+    fun theScreenMayNotCloseWhileTheMembersAreLookedUp() {
         val gate = CompletableDeferred<Unit>()
         source.names.gate = gate
         val viewModel = viewModel()
 
         viewModel.save("chain", listOf("entry", "exit"))
-        viewModel.onScreenLeft()
+        assertFalse(viewModel.leaveScreen())
         gate.complete(Unit)
 
-        assertTrue(source.saves.isEmpty())
-        assertNull(viewModel.outcome.value)
+        assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertTrue(viewModel.leaveScreen())
     }
 
     @Test

@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -210,16 +211,16 @@ class RoutingEditViewModelTest {
     }
 
     @Test
-    fun leavingTheScreenWhileTheProfileIsLookedUpStoresNothing() {
+    fun theScreenMayNotCloseWhileTheProfileIsLookedUp() {
         val gate = CompletableDeferred<Unit>()
         source.names.gate = gate
         val viewModel = viewModel()
 
         viewModel.save(rule())
-        viewModel.onScreenLeft()
+        assertFalse(viewModel.leaveScreen())
         gate.complete(Unit)
 
-        assertTrue(source.saves.isEmpty())
-        assertNull(viewModel.outcome.value)
+        assertEquals(EditorOutcome.Saved(source.saves.single().second.id), viewModel.outcome.value)
+        assertTrue(viewModel.leaveScreen())
     }
 }

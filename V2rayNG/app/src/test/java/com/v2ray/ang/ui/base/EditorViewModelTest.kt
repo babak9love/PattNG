@@ -22,7 +22,14 @@ class EditorViewModelTest {
 
     private class Editor : EditorViewModel(mock<Application>()) {
         fun save(work: suspend () -> EditorOutcome?) = launchSave(work)
-        fun delete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, work: suspend () -> Unit) = launchDelete(refuse, work)
+        fun delete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, work: suspend () -> Unit) =
+            launchDelete(refuse) {
+                work()
+                null
+            }
+
+        /** A delete that ends in what [work] gives: the refusal of the storage, or null once deleted. */
+        fun deleteOrRefuse(work: suspend () -> EditorOutcome.Refused?) = launchDelete(delete = work)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -201,45 +208,51 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun leavingTheScreenStopsASaveThatHasNotWrittenAndStartsNothingMore() {
+    fun theScreenMayNotCloseWhileASaveRunsAndOnceItMayNothingStarts() {
         val editor = Editor()
-        val lookup = CompletableDeferred<Unit>()
-        var written = false
-        editor.save {
-            lookup.await()
-            written = true
-            EditorOutcome.Saved("guid")
-        }
+        val write = CompletableDeferred<Unit>()
+        editor.save { write.await(); EditorOutcome.Saved("guid") }
 
-        editor.onScreenLeft()
-        lookup.complete(Unit)
-
-        assertFalse(written)
-        assertFalse(editor.isBusy)
-        assertNull(editor.outcome.value)
+        // Back waits: the save ends in its outcome, which closes the screen telling what it wrote.
+        assertFalse(editor.leaveScreen())
+        write.complete(Unit)
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+        assertTrue(editor.leaveScreen())
 
         var started = false
         editor.save { started = true; EditorOutcome.Saved("guid") }
         editor.delete { started = true }
         assertFalse(started)
-        assertNull(editor.outcome.value)
     }
 
     @Test
-    fun leavingTheScreenStopsADeleteThatHasNotWritten() {
+    fun theScreenMayNotCloseWhileADeleteRuns() {
         val editor = Editor()
         val gate = CompletableDeferred<Unit>()
-        var deleted = false
-        editor.delete {
-            gate.await()
-            deleted = true
-        }
+        editor.delete { gate.await() }
 
-        editor.onScreenLeft()
+        assertFalse(editor.leaveScreen())
         gate.complete(Unit)
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+        assertTrue(editor.leaveScreen())
+    }
 
-        assertFalse(deleted)
-        assertNull(editor.outcome.value)
+    @Test
+    fun aDeleteTheStorageRefusesEndsInItsRefusalAndTheScreenStaysForSavesAndDeletes() {
+        val editor = Editor()
+
+        editor.deleteOrRefuse { EditorOutcome.Refused(2) }
+        assertEquals(EditorOutcome.Refused(2), editor.outcome.value)
+
+        editor.onOutcomeHandled()
+        editor.save { EditorOutcome.Saved("guid") }
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+
+        editor.onOutcomeHandled()
+        var deleted = false
+        editor.delete { deleted = true }
+        assertTrue(deleted)
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
     }
 
     @Test

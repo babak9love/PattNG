@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -128,7 +129,7 @@ class ServerGroupViewModelTest {
         viewModel.save(edit.copy(remarks = "group 2", fallbackTag = " "))
 
         assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
-        assertEquals(listOf("", "guid-1"), source.saves)
+        assertEquals(listOf("guid-1", "guid-1"), source.saves)
         assertEquals("group 2", source.stored.getValue("guid-1").remarks)
         assertNull(source.stored.getValue("guid-1").policyGroupFallbackTag)
     }
@@ -146,17 +147,17 @@ class ServerGroupViewModelTest {
     }
 
     @Test
-    fun leavingTheScreenWhileTheFallbackIsLookedUpStoresNothing() {
+    fun theScreenMayNotCloseWhileTheFallbackIsLookedUp() {
         val gate = CompletableDeferred<Unit>()
         source.names.gate = gate
         val viewModel = viewModel()
 
         viewModel.save(edit)
-        viewModel.onScreenLeft()
+        assertFalse(viewModel.leaveScreen())
         gate.complete(Unit)
 
-        assertTrue(source.saves.isEmpty())
-        assertNull(viewModel.outcome.value)
+        assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertTrue(viewModel.leaveScreen())
     }
 
     @Test

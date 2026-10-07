@@ -57,6 +57,12 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     var selected: String? = null
     val deletes = mutableListOf<String>()
 
+    /** When set, the storage refuses every delete: nothing is deleted. */
+    var refuseDeletes = false
+
+    /** The guids given to new profiles so far. */
+    private var newGuids = 0
+
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         names.withProfileNames(takes, check)
 
@@ -86,10 +92,14 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
         return parsed
     }
 
+    override fun newGuid(): String = "guid-${++newGuids}"
+
     override suspend fun isSelected(guid: String): Boolean = guid == selected
 
-    override suspend fun deleteProfile(guid: String) {
+    override suspend fun deleteProfile(guid: String): Boolean {
+        if (refuseDeletes) return false
         deletes += guid
         stored.remove(guid)
+        return true
     }
 }

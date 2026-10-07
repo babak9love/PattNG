@@ -28,7 +28,8 @@ sealed interface EditorOutcome {
  * there was lost, or written with nothing told, and the screen, still open on what it was opened with, stored a second
  * copy at the next tap. Here one runs at a time, a delete stops a save first, nothing starts once a delete has, and the
  * [outcome] reaches whichever activity shows the screen when it comes. A view model of a screen keeps what its saves
- * stored as, for the next one to write over. [onScreenLeft] stops what has not written yet.
+ * stored as, for the next one to write over. The screen waits for the save or the delete that runs before it closes,
+ * see [leaveScreen].
  */
 abstract class EditorViewModel(application: Application) : BaseViewModel(application) {
 
@@ -48,7 +49,7 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
 
     private val _busy = MutableStateFlow(false)
 
-    /** [isBusy], for the screen to observe: one that must tell what a write did waits for it before it closes. */
+    /** [isBusy], for the screen to observe: Back waits for what runs, see [leaveScreen]. */
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
     /**
@@ -66,19 +67,23 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
      * delete [refuse] gives a refusal for is not run: the refusal goes to [outcome], a save that runs goes on, and the
      * screen stays open for saves and deletes. Otherwise a save that runs is stopped first: one that has not written
      * does not, and one that writes ends its write before [delete] starts, so that it cannot write back what is deleted.
+     * A delete the storage refuses gives the refusal it ends with, which goes to [outcome] in place of
+     * [EditorOutcome.Deleted]; the screen stays open as well.
      */
-    protected fun launchDelete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, delete: suspend () -> Unit) {
+    protected fun launchDelete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, delete: suspend () -> EditorOutcome.Refused?) {
         if (deleting || left) return
         deleting = true
         deleteJob = viewModelScope.launch {
-            refuse?.invoke()?.let { refusal ->
+            val refusal = refuse?.invoke() ?: run {
+                saveJob?.cancelAndJoin()
+                delete()
+            }
+            if (refusal != null) {
                 deleting = false
                 _outcome.value = refusal
-                return@launch
+            } else {
+                _outcome.value = EditorOutcome.Deleted
             }
-            saveJob?.cancelAndJoin()
-            delete()
-            _outcome.value = EditorOutcome.Deleted
         }
         watch(deleteJob)
     }
@@ -90,13 +95,14 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     }
 
     /**
-     * The screen is left: the save or the delete that runs stops unless it writes already, which it ends without an
-     * outcome, and none starts any more. A screen that must tell what a write did waits for it instead, see [busy].
+     * Whether the screen may close now: not while a save or a delete runs, which closes it once it has written, with
+     * what it did for the screen it returns to; left before, the write would go untold, and that screen would neither
+     * show it nor restart the running profile with it. Once the screen may close, no save or delete starts any more.
      */
-    fun onScreenLeft() {
+    fun leaveScreen(): Boolean {
+        if (isBusy) return false
         left = true
-        saveJob?.cancel()
-        deleteJob?.cancel()
+        return true
     }
 
     /**

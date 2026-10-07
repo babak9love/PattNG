@@ -89,12 +89,11 @@ class SubEditActivity : BaseComponentActivity() {
     }
 
     /**
-     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
-     * it is gone.
+     * PattNG: the screen closes only once the save or the delete that runs has written, telling the screen it returns
+     * to what it did, see [com.v2ray.ang.ui.base.EditorViewModel.leaveScreen].
      */
     override fun finish() {
-        viewModel.onScreenLeft()
-        super.finish()
+        if (viewModel.leaveScreen()) super.finish()
     }
 
     /**

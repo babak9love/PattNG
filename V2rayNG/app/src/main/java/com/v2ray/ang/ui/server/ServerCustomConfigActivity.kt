@@ -1,7 +1,6 @@
 package com.v2ray.ang.ui.server
 
 import android.os.Bundle
-import androidx.activity.compose.BackHandler
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
@@ -55,7 +54,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
@@ -74,11 +72,8 @@ import kotlinx.coroutines.flow.collectLatest
 class ServerCustomConfigActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    private val isRunning by lazy {
-        intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
-    }
+    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
+    private var isRunning = false
 
     private var initialRemarks: String = ""
     private var initialContent: String = ""
@@ -92,6 +87,9 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isRunning = intent.getBooleanExtra("isRunning", false)
+                && editGuid.isNotEmpty()
+                && editGuid == MmkvManager.getSelectServer()
         val config = MmkvManager.decodeServerConfig(editGuid)
         initialRemarks = config?.remarks ?: ""
         initialContent = MmkvManager.decodeServerRaw(editGuid).orEmpty()
@@ -99,10 +97,6 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
-        // PattNG: Back waits for a save or a delete that runs, see finish(); held only meanwhile, so that predictive back
-        // shows where it leads at any other time.
-        val busy by viewModel.busy.collectAsStateWithLifecycle()
-        BackHandler(enabled = busy) {}
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
@@ -131,14 +125,11 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
     }
 
     /**
-     * PattNG: while a save or a delete runs the screen stays; it closes once that has written, telling the main screen
-     * what it did. Left before, the write would go untold: the main screen would neither show it nor restart the running
-     * profile with it. Once the screen is left, no save or delete starts any more.
+     * PattNG: the screen closes only once the save or the delete that runs has written, telling the screen it returns
+     * to what it did, see [com.v2ray.ang.ui.base.EditorViewModel.leaveScreen].
      */
     override fun finish() {
-        if (viewModel.isBusy) return
-        viewModel.onScreenLeft()
-        super.finish()
+        if (viewModel.leaveScreen()) super.finish()
     }
 }
 

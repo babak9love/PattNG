@@ -394,21 +394,33 @@ object MmkvManager {
             return
         }
 
-        // Get config to determine which subscription to update
-        val config = decodeServerConfig(guid)
-        val subId = getSubscriptionId(config?.subscriptionId)
+        tryRemoveServer(guid)
+    }
 
-        // Remove from appropriate server list
-        val serverList = decodeServerList(subId)
-        serverList.remove(guid)
-        encodeServerList(serverList, subId)
+    /**
+     * PattNG: removes the profile [guid] names, as [removeServer] does, under the profile index lock, so that a list
+     * written meanwhile, as by a subscription update, is not written back without its change: out of its list first,
+     * then its payloads, its raw configuration among them, which [removeServer] used to leave behind. False, with
+     * nothing removed, when the storage refused the list without it.
+     */
+    fun tryRemoveServer(guid: String): Boolean {
+        if (guid.isBlank()) return true
+        return withProfileIndexLock {
+            // Get config to determine which subscription to update
+            val config = decodeServerConfig(guid)
+            val subId = getSubscriptionId(config?.subscriptionId)
 
-        // Clean up storage
-        if (getSelectServer() == guid) {
-            mainStorage.remove(KEY_SELECTED_SERVER)
+            // Remove from appropriate server list
+            val serverList = decodeServerList(subId)
+            if (serverList.remove(guid) && !persistServerList(serverList, subId)) return@withProfileIndexLock false
+
+            // Clean up storage
+            if (getSelectServer() == guid) {
+                mainStorage.remove(KEY_SELECTED_SERVER)
+            }
+            removeProfilePayloads(listOf(guid))
+            true
         }
-        profileFullStorage.remove(guid)
-        serverAffStorage.remove(guid)
     }
 
     /**
