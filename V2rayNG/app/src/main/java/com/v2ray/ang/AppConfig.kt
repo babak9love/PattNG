@@ -331,7 +331,10 @@ object AppConfig {
     /** Xray's default targetStrategy, and the default of most profile types; an outbound with it carries none. */
     const val TARGET_STRATEGY_AS_IS = "AsIs"
 
-    /** The default targetStrategy of Aether and WireGuard profiles, see ProfileItem.defaultTargetStrategy. */
+    /**
+     * The default targetStrategy of an Aether profile whose traffic leaves through WARP, see
+     * CoreOutboundBuilder.defaultTargetStrategy.
+     */
     const val TARGET_STRATEGY_FORCE_IPV4V6 = "ForceIPv4v6"
     const val TLS = "tls"
     const val REALITY = "reality"

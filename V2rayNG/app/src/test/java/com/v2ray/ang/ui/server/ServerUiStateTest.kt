@@ -6,8 +6,10 @@ import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
 import com.v2ray.ang.enums.AetherObfuscation
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
 import com.v2ray.ang.enums.AetherPsiphonCdnSet
 import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -63,10 +65,13 @@ class ServerUiStateTest {
         val profile = ProfileItem.create(EConfigType.VLESS)
 
         val untouched = ServerUiState.from(profile)
-        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, untouched.targetStrategy)
+        // None is chosen while the profile follows its default, which the screen shows.
+        assertEquals("", untouched.targetStrategy)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, untouched.shownTargetStrategy)
         assertNull(untouched.toProfileItem(profile).targetStrategy)
 
         untouched.targetStrategy = "UseIPv4v6"
+        assertEquals("UseIPv4v6", untouched.shownTargetStrategy)
         assertEquals("UseIPv4v6", untouched.toProfileItem(profile).targetStrategy)
 
         val stored = ServerUiState.from(ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = "ForceIP" })
@@ -74,19 +79,77 @@ class ServerUiStateTest {
     }
 
     @Test
-    fun aetherAndWireguardProfilesDefaultToForceIPv4v6AndKeepAsIsWhenChosen() {
-        for (type in listOf(EConfigType.AETHER, EConfigType.WIREGUARD)) {
-            val profile = ProfileItem.create(type)
-            val untouched = ServerUiState.from(profile)
-            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, untouched.targetStrategy, type.name)
-            // Their default is stored as none, so that the profile follows the default.
-            assertNull(untouched.toProfileItem(profile).targetStrategy, type.name)
-            // AsIs is not their default, so it is stored as it is, and read back so.
-            untouched.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
-            val asIs = untouched.toProfileItem(profile)
-            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, asIs.targetStrategy, type.name)
-            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, ServerUiState.from(asIs).targetStrategy, type.name)
+    fun anAetherProfileThroughWarpDefaultsToForceIPv4v6AndAWireguardOneToAsIs() {
+        val aether = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(aether)
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+        // The default, chosen, is stored as none, so that the profile follows it.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertNull(state.toProfileItem(aether).targetStrategy)
+        // AsIs is not its default, so it is stored as it is, and read back so.
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        val asIs = state.toProfileItem(aether)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, asIs.targetStrategy)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, ServerUiState.from(asIs).shownTargetStrategy)
+
+        // A WireGuard tunnel looks names up itself, with the profile's own DNS: it passes them on as they are.
+        val wireguard = ProfileItem.create(EConfigType.WIREGUARD)
+        val wireguardState = ServerUiState.from(wireguard)
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, wireguardState.shownTargetStrategy)
+        assertNull(wireguardState.toProfileItem(wireguard).targetStrategy)
+        wireguardState.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, wireguardState.toProfileItem(wireguard).targetStrategy)
+        // One that stored AsIs while ForceIPv4v6 was the default of its type follows its default, AsIs, once saved again.
+        val storedAsIs = wireguard.copy(targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS)
+        assertNull(ServerUiState.from(storedAsIs).toProfileItem(storedAsIs).targetStrategy)
+    }
+
+    @Test
+    fun anAetherProfilesDefaultFollowsWhereTorAndPsiphonStandOnTheScreen() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+
+        // Inside the tunnel, or alone, Tor and Psiphon carry the traffic last and look names up at their exit.
+        for (tor in listOf(AetherTor.CHAIN, AetherTor.ONLY)) {
+            state.aetherTor = tor.type
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy, tor.name)
+            assertNull(state.toProfileItem(profile).targetStrategy, tor.name)
         }
+        // Around the tunnel, they leave the traffic to WARP.
+        state.aetherTor = AetherTor.REVERSE.type
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+        state.aetherTor = AetherTor.OFF.type
+        for (psiphon in listOf(AetherPsiphon.CHAIN, AetherPsiphon.ONLY)) {
+            state.aetherPsiphon = psiphon.type
+            assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy, psiphon.name)
+        }
+        state.aetherPsiphon = AetherPsiphon.REVERSE.type
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.shownTargetStrategy)
+
+        // A choice is weighed against the default of the profile as it is saved: on one whose traffic leaves through
+        // Tor, ForceIPv4v6 is stored, and AsIs is not.
+        state.aetherPsiphon = AetherPsiphon.OFF.type
+        state.aetherTor = AetherTor.CHAIN.type
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.toProfileItem(profile).targetStrategy)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertNull(state.toProfileItem(profile).targetStrategy)
+    }
+
+    @Test
+    fun aCommandOfItsOwnSaysWhereAnAetherProfilesTrafficLeaves() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        val built = com.v2ray.ang.core.AetherCore.of(state.toProfileItem(profile, 20808), 20808).command
+
+        // The settings leave through WARP, the command through Tor; the command runs, so the traffic leaves through Tor.
+        state.aetherCommand = "$built --tor"
+        assertEquals(AppConfig.TARGET_STRATEGY_AS_IS, state.shownTargetStrategy)
+        val stored = state.toProfileItem(profile, 20808)
+        assertEquals("$built --tor", stored.aetherCommand)
+        assertNull(stored.targetStrategy)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, state.toProfileItem(profile, 20808).targetStrategy)
     }
 
     @Test
@@ -263,6 +326,12 @@ class ServerUiStateTest {
         assertEquals(true, state.hasOtherAetherSettings)
         state.targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
         assertEquals(false, state.hasOtherAetherSettings)
+        // Where Tor carries the traffic last, AsIs is the default, and ForceIPv4v6 a setting of its own.
+        state.aetherTor = AetherTor.CHAIN.type
+        assertEquals(true, state.hasOtherAetherSettings)
+        state.targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS
+        assertEquals(false, state.hasOtherAetherSettings)
+        state.aetherTor = AetherTor.OFF.type
         state.targetStrategy = ""
         // The exit-node's finalMask and dialMode stand outside the fold, after the fingerprint.
         state.finalMask = """{"tcp": []}"""

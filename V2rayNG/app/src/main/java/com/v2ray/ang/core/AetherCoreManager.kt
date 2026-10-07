@@ -1097,6 +1097,16 @@ object AetherCoreManager {
     private const val TOR_NAME = "TOR"
     private const val PSIPHON_NAME = "PSIPHON"
 
+    /**
+     * PattNG: whether what the app sends through the tunnel [argv] runs leaves it through WARP, the last part of
+     * [pathOf]: not through Tor or Psiphon, which come last when they run inside the tunnel or are the whole of it.
+     */
+    internal fun leavesThroughWarp(argv: List<String>): Boolean = leavesThroughWarp(torModeOf(argv), psiphonModeOf(argv))
+
+    /** [leavesThroughWarp] with Tor standing at [tor] and Psiphon at [psiphon]. */
+    internal fun leavesThroughWarp(tor: AetherTor, psiphon: AetherPsiphon): Boolean =
+        (tor == AetherTor.OFF || tor == AetherTor.REVERSE) && (psiphon == AetherPsiphon.OFF || psiphon == AetherPsiphon.REVERSE)
+
     /** A core process is stale when its owner is known to be dead or it holds the address we are about to bind. */
     internal fun isStale(argv: List<String>, ownerAlive: Boolean?, bindAddress: String?): Boolean =
         ownerAlive == false || (bindAddress != null && listenerAddressOf(argv) == bindAddress)

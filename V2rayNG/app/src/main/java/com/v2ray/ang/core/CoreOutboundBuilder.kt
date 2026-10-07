@@ -66,13 +66,45 @@ object CoreOutboundBuilder {
     }
 
     /**
-     * Copies the profile targetStrategy onto the outbound, or the default of its type when it stores none, see
-     * [ProfileItem.defaultTargetStrategy]. AsIs, Xray's default, leaves the field out.
+     * Copies the profile targetStrategy onto the outbound, or the profile's default when it stores none, see
+     * [defaultTargetStrategy]. AsIs, Xray's default, leaves the field out.
      */
     internal fun applyTargetStrategy(outbound: OutboundBean, profileItem: ProfileItem) {
         val strategy = profileItem.targetStrategy?.trim()?.takeIf { it.isNotEmpty() }
-            ?: ProfileItem.defaultTargetStrategy(profileItem.configType)
+            ?: defaultTargetStrategy(profileItem)
         outbound.targetStrategy = strategy.takeUnless { it.equals(AppConfig.TARGET_STRATEGY_AS_IS, ignoreCase = true) }
+    }
+
+    /**
+     * PattNG: the targetStrategy of [profile] when it stores none. An Aether profile whose traffic leaves its core
+     * through WARP gets ForceIPv4v6: the core looks names up inside the tunnel with no cache, once for every UDP
+     * datagram, so Xray's DNS, with its cache, looks them up first, IPv4 before IPv6, and a name it cannot look up is
+     * not sent at all. Every other profile passes names on as they are (AsIs, Xray's own): an Aether one whose traffic
+     * leaves through Tor or Psiphon, which look names up at their exit; a WireGuard one, whose tunnel looks names up
+     * with the profile's own DNS and keeps the answers; and one of any other type, whose server looks them up. Where an
+     * outbound carries something else than your traffic, see [applyChainTargetStrategies] and [toOutboundAetherExit].
+     */
+    fun defaultTargetStrategy(profile: ProfileItem): String =
+        if (profile.configType == EConfigType.AETHER && AetherCore.leavesThroughWarp(profile)) {
+            AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        } else {
+            AppConfig.TARGET_STRATEGY_AS_IS
+        }
+
+    /**
+     * PattNG: the targetStrategy of the outbounds of a proxy chain, [hops] its profiles beside their outbounds, tagged,
+     * the first carrying your traffic. A hop after the first carries the connection of the hop before it to that
+     * hop's server, whose name a lookup by Xray would ask of the DNS that reaches out through this same chain: it
+     * passes names on as they are unless its profile sets a targetStrategy. The exit-node of an Aether hop passes every
+     * name on, see [toOutboundAetherExit].
+     */
+    internal fun applyChainTargetStrategies(hops: List<Pair<ProfileItem, OutboundBean>>) {
+        hops.forEachIndexed { index, (profile, outbound) ->
+            when {
+                outbound.tag == AppConfig.TAG_EXIT_NODE -> outbound.targetStrategy = null
+                index > 0 && profile.targetStrategy.isNullOrBlank() -> outbound.targetStrategy = null
+            }
+        }
     }
 
     /** Applies global outbound options (mux, protocol-specific tweaks, etc.). */
@@ -678,14 +710,22 @@ object CoreOutboundBuilder {
     /**
      * PattNG: the exit-node of an Aether core, the outbound that what the core dials out through leaves Xray
      * by: the outbound of the profile [exit] names as its node, which [nodeOutbound] gives, as a proxy chain
-     * builds its hop, and changed in its tag alone; or else a freedom outbound with the finalMask and the
+     * builds its hop, changed in its tag, and passing every name the core sends on as it is, whatever its
+     * profile sets: a name Xray looked up for it would be asked of the DNS that reaches out through the core
+     * itself, which is not up yet when it needs the name, or, where the configuration has no DNS, of the
+     * phone's own resolver, outside the tunnel; or else a freedom outbound with the finalMask and the
      * dialMode of [exit] set as an ordinary profile sets them on its own outbound. Null when the node gives
      * none, see [ExitNodeOutbound.Problem]: the core would reach the internet without it. The session's
      * configuration carries it, and a core of its own dials out through it as well, see
      * [AetherCoreManager.withProcess].
      */
     fun toOutboundAetherExit(exit: AetherExit, nodeOutbound: (String) -> ExitNodeOutbound = ::toOutboundOfNode): OutboundBean? {
-        exit.node?.let { name -> return (nodeOutbound(name) as? ExitNodeOutbound.Built)?.outbound?.apply { tag = AppConfig.TAG_EXIT_NODE } }
+        exit.node?.let { name ->
+            return (nodeOutbound(name) as? ExitNodeOutbound.Built)?.outbound?.apply {
+                tag = AppConfig.TAG_EXIT_NODE
+                targetStrategy = null
+            }
+        }
         val outbound = OutboundBean(tag = AppConfig.TAG_EXIT_NODE, protocol = "freedom", mux = null)
         if (!exit.finalMask.isNullOrBlank()) {
             // A freedom outbound has no transport; the stream settings carry the mask alone.

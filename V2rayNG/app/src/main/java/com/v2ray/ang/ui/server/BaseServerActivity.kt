@@ -265,7 +265,7 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     protected fun CommonTargetStrategyField(state: ServerUiState) {
         FormDropdownField(
             stringResource(R.string.server_lab_target_strategy),
-            state.targetStrategy,
+            state.shownTargetStrategy,
             stringArrayResource(R.array.target_strategy_values).toList(),
             { state.targetStrategy = it }
         )

@@ -440,6 +440,7 @@ object CoreConfigManager {
         chainOutbounds.forEachIndexed { index, outbound ->
             outbound.tag = chainTags[index]
         }
+        CoreOutboundBuilder.applyChainTargetStrategies(chain)
         for (i in 0 until chainOutbounds.size - 1) {
             if (i == aetherHop) continue
             chainOutbounds[i].ensureSockopt().dialerProxy = chainOutbounds[i + 1].tag
@@ -537,7 +538,19 @@ object CoreConfigManager {
         v2rayConfig.fakedns = null
         v2rayConfig.stats = null
         v2rayConfig.policy = null
-        v2rayConfig.outbounds.forEach { key -> key.mux = null }
+        trimOutboundsForSpeedtest(v2rayConfig.outbounds)
+    }
+
+    /**
+     * The outbounds of a latency test, without mux. PattNG: and passing every name on as it is, whatever their
+     * profiles set: a test has no DNS, so a name an outbound had Xray look up would be asked of the phone's own
+     * resolver, outside the tunnel the test measures.
+     */
+    internal fun trimOutboundsForSpeedtest(outbounds: List<V2rayConfig.OutboundBean>) {
+        outbounds.forEach { outbound ->
+            outbound.mux = null
+            outbound.targetStrategy = null
+        }
     }
 
     /**

@@ -13,6 +13,7 @@ import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_REMOTE_DNS
 import com.v2ray.ang.core.AetherCore
 import com.v2ray.ang.core.AetherCoreManager
+import com.v2ray.ang.core.CoreOutboundBuilder
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherFingerprint
 import com.v2ray.ang.enums.AetherIpVersion
@@ -68,7 +69,7 @@ class ServerUiState(
     kcpTti: String = "",
     browserDialerMode: String = "",
     dialMode: String = "",
-    targetStrategy: String = ProfileItem.defaultTargetStrategy(configType),
+    targetStrategy: String = "",
     streamSecurity: String = "",
     sni: String = "",
     allowInsecure: Boolean = false,
@@ -150,6 +151,7 @@ class ServerUiState(
     var kcpTti by mutableStateOf(kcpTti)
     var browserDialerMode by mutableStateOf(browserDialerMode)
     var dialMode by mutableStateOf(dialMode)
+    /** The targetStrategy chosen; blank while the profile follows its default, see [shownTargetStrategy]. */
     var targetStrategy by mutableStateOf(targetStrategy)
     var streamSecurity by mutableStateOf(streamSecurity)
     var sni by mutableStateOf(sni)
@@ -215,7 +217,25 @@ class ServerUiState(
     val hasOtherAetherSettings: Boolean
         get() = aetherDns.isNotBlank() ||
             aetherExitLoc.isNotBlank() ||
-            (targetStrategy.isNotBlank() && targetStrategy != ProfileItem.defaultTargetStrategy(configType))
+            (targetStrategy.isNotBlank() && targetStrategy != defaultTargetStrategy)
+
+    /**
+     * PattNG: the targetStrategy of the profile as the screen sets it up now, while it stores none: an Aether
+     * profile's follows where Tor and Psiphon stand, in its settings or in the command it carries in their place, see
+     * [CoreOutboundBuilder.defaultTargetStrategy].
+     */
+    val defaultTargetStrategy: String
+        get() = CoreOutboundBuilder.defaultTargetStrategy(
+            ProfileItem.create(configType).also {
+                it.aetherTor = aetherTor
+                it.aetherPsiphon = aetherPsiphon
+                it.aetherCommand = aetherCommand.nullIfBlank()
+            }
+        )
+
+    /** The targetStrategy the screen shows: the one chosen, or the profile's default while none is. */
+    val shownTargetStrategy: String
+        get() = targetStrategy.ifBlank { defaultTargetStrategy }
 
     var isRemarksError by mutableStateOf(false)
     var isAddressError by mutableStateOf(false)
@@ -286,8 +306,8 @@ class ServerUiState(
                 null
             },
             dialMode = dialMode.nullIfBlank(),
-            // The default of the type is stored as none, so that the profile follows it; anything else as it is.
-            targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == ProfileItem.defaultTargetStrategy(configType) },
+            // Set below, against the default of the profile as built here.
+            targetStrategy = null,
             security = streamSecurity,
             sni = sni,
             insecure = allowInsecure,
@@ -332,10 +352,16 @@ class ServerUiState(
             aetherTorRelays = if (isTor) aetherTorRelays else null,
             aetherCommand = null,
         )
-        if (!isAether) return profile
         // A command that says what the settings say is no command of its own: the profile follows the settings.
         val command = aetherCommand.trim()
-        return if (command.isEmpty() || command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command) profile else profile.copy(aetherCommand = command)
+        val built = if (!isAether || command.isEmpty() || command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command) {
+            profile
+        } else {
+            profile.copy(aetherCommand = command)
+        }
+        // The profile's default is stored as none, so that the profile follows it, as Tor and Psiphon move it; anything
+        // else as it is.
+        return built.copy(targetStrategy = targetStrategy.takeUnless { it.isBlank() || it == CoreOutboundBuilder.defaultTargetStrategy(built) })
     }
 
     companion object {
@@ -380,7 +406,7 @@ class ServerUiState(
                 kcpTti = initialConfig.kcpTti?.toString() ?: "",
                 browserDialerMode = initialConfig.browserDialerMode ?: "",
                 dialMode = initialConfig.dialMode ?: "",
-                targetStrategy = initialConfig.targetStrategy ?: ProfileItem.defaultTargetStrategy(initialConfig.configType),
+                targetStrategy = initialConfig.targetStrategy.orEmpty(),
                 streamSecurity = initialConfig.security ?: "",
                 sni = initialConfig.sni ?: "",
                 allowInsecure = initialConfig.insecure == true,

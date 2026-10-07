@@ -222,4 +222,19 @@ class CoreConfigManagerTest {
         assertEquals(1, config.outbounds.size)
         assertTrue(config.routing.rules.isEmpty())
     }
+
+    @Test
+    fun aLatencyTestsOutboundsCarryNoMuxAndPassEveryNameOn() {
+        // A test has no DNS: a name looked up by Xray would be asked of the phone's own resolver, outside the tunnel.
+        val outbounds = listOf(
+            socks("127.0.0.1", 10819).apply { targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6 },
+            socks("203.0.113.7", 1080).apply { targetStrategy = "UseIPv4" },
+            socks("203.0.113.8", 1080),
+        )
+        assertTrue(outbounds.all { it.mux != null })
+
+        CoreConfigManager.trimOutboundsForSpeedtest(outbounds)
+
+        assertTrue(outbounds.all { it.mux == null && it.targetStrategy == null })
+    }
 }

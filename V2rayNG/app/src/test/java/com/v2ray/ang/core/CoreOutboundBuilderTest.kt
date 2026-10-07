@@ -3,6 +3,8 @@ package com.v2ray.ang.core
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -165,26 +167,90 @@ class CoreOutboundBuilderTest {
     }
 
     @Test
-    fun test_applyTargetStrategy_aetherAndWireguardDefaultToForceIPv4v6() {
-        // Their tunnels carry IP packets alone, so Xray's DNS looks a name up for them first.
-        for (type in listOf(EConfigType.AETHER, EConfigType.WIREGUARD)) {
-            val outbound = OutboundBean(protocol = "socks")
-            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type))
-            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy, type.name)
-            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = " " })
-            assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy, type.name)
-            // AsIs chosen for one of them stays AsIs, so its outbound carries none; any other choice is kept.
-            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS })
-            assertNull(outbound.targetStrategy, type.name)
-            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type).apply { targetStrategy = "UseIPv6" })
-            assertEquals("UseIPv6", outbound.targetStrategy, type.name)
+    fun test_applyTargetStrategy_anAetherProfileThroughWarpDefaultsToForceIPv4v6() {
+        // Its core looks names up inside the tunnel with no cache, so Xray's DNS looks them up for it first.
+        val outbound = OutboundBean(protocol = "socks")
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.AETHER))
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy)
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = " " })
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, outbound.targetStrategy)
+        // AsIs chosen for one stays AsIs, so its outbound carries none; any other choice is kept.
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = AppConfig.TARGET_STRATEGY_AS_IS })
+        assertNull(outbound.targetStrategy)
+        CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(EConfigType.AETHER).apply { targetStrategy = "UseIPv6" })
+        assertEquals("UseIPv6", outbound.targetStrategy)
+        // Every other type passes names on as they are, WireGuard as well, whose tunnel looks them up with the profile's
+        // own DNS and keeps the answers; a choice is kept there too.
+        for (type in EConfigType.entries.filter { it != EConfigType.AETHER }) {
+            val other = OutboundBean(protocol = "vless", targetStrategy = "UseIP")
+            CoreOutboundBuilder.applyTargetStrategy(other, ProfileItem.create(type))
+            assertNull(other.targetStrategy, type.name)
         }
-        // Every other type keeps AsIs, Xray's own default.
-        for (type in EConfigType.entries.filter { it != EConfigType.AETHER && it != EConfigType.WIREGUARD }) {
-            val outbound = OutboundBean(protocol = "vless", targetStrategy = "UseIP")
-            CoreOutboundBuilder.applyTargetStrategy(outbound, ProfileItem.create(type))
-            assertNull(outbound.targetStrategy, type.name)
+        val wireguard = OutboundBean(protocol = "wireguard")
+        CoreOutboundBuilder.applyTargetStrategy(wireguard, ProfileItem.create(EConfigType.WIREGUARD).apply { targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6 })
+        assertEquals(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, wireguard.targetStrategy)
+    }
+
+    @Test
+    fun test_defaultTargetStrategy_anAetherProfileWhoseTrafficLeavesThroughTorOrPsiphonPassesNamesOn() {
+        fun aether(tor: AetherTor = AetherTor.OFF, psiphon: AetherPsiphon = AetherPsiphon.OFF, command: String? = null) =
+            ProfileItem.create(EConfigType.AETHER).apply {
+                aetherTor = tor.type
+                aetherPsiphon = psiphon.type
+                aetherCommand = command
+            }
+        fun default(profile: ProfileItem) = CoreOutboundBuilder.defaultTargetStrategy(profile)
+        val force = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
+        val asIs = AppConfig.TARGET_STRATEGY_AS_IS
+
+        // Inside the tunnel, or alone, Tor and Psiphon carry the traffic last, and look names up at their exit.
+        assertEquals(asIs, default(aether(tor = AetherTor.CHAIN)))
+        assertEquals(asIs, default(aether(tor = AetherTor.ONLY)))
+        assertEquals(asIs, default(aether(psiphon = AetherPsiphon.CHAIN)))
+        assertEquals(asIs, default(aether(psiphon = AetherPsiphon.ONLY)))
+        assertEquals(asIs, default(aether(tor = AetherTor.REVERSE, psiphon = AetherPsiphon.CHAIN)))
+        // Around the tunnel, they leave the traffic to WARP.
+        assertEquals(force, default(aether()))
+        assertEquals(force, default(aether(tor = AetherTor.REVERSE)))
+        assertEquals(force, default(aether(psiphon = AetherPsiphon.REVERSE)))
+        assertEquals(force, default(aether(tor = AetherTor.REVERSE, psiphon = AetherPsiphon.REVERSE)))
+
+        // A command of its own runs in place of the settings, so it says where the traffic leaves.
+        assertEquals(asIs, default(aether(command = "aether --masque --tor")))
+        assertEquals(asIs, default(aether(command = "aether --psiphon-only --psiphon-bind 127.0.0.1:10819")))
+        assertEquals(force, default(aether(tor = AetherTor.CHAIN, command = "aether --masque --tor-reverse")))
+        // One the app cannot read does not run, and the settings do.
+        assertEquals(asIs, default(aether(tor = AetherTor.CHAIN, command = "aether")))
+        assertEquals(force, default(aether(command = "aether --tor --tor-bind 127.0.0.1:")))
+    }
+
+    @Test
+    fun test_applyChainTargetStrategies_aHopCarryingTheHopBeforeItPassesNamesOnUnlessItsProfileSaysOtherwise() {
+        fun hop(type: EConfigType, tag: String, strategy: String? = null): Pair<ProfileItem, OutboundBean> {
+            val profile = ProfileItem.create(type).apply { targetStrategy = strategy }
+            return profile to OutboundBean(tag = tag, protocol = "socks").also { CoreOutboundBuilder.applyTargetStrategy(it, profile) }
         }
+
+        // Aether first carries your traffic and keeps its default; the hop after it is its exit-node, which passes every
+        // name on whatever its profile says; a later hop keeps what its profile says.
+        val throughAether = listOf(
+            hop(EConfigType.AETHER, AppConfig.TAG_PROXY),
+            hop(EConfigType.WIREGUARD, AppConfig.TAG_EXIT_NODE, AppConfig.TARGET_STRATEGY_FORCE_IPV4V6),
+            hop(EConfigType.VLESS, "proxy-chain-2", "UseIPv4"),
+        )
+        CoreOutboundBuilder.applyChainTargetStrategies(throughAether)
+        assertEquals(listOf(AppConfig.TARGET_STRATEGY_FORCE_IPV4V6, null, "UseIPv4"), throughAether.map { it.second.targetStrategy })
+
+        // Aether after the first carries the connection of the hop before it, and hands its server name to its core.
+        val behindAether = listOf(
+            hop(EConfigType.VLESS, AppConfig.TAG_PROXY),
+            hop(EConfigType.AETHER, "proxy-chain-1"),
+        )
+        CoreOutboundBuilder.applyChainTargetStrategies(behindAether)
+        assertEquals(listOf<String?>(null, null), behindAether.map { it.second.targetStrategy })
+        val chosen = listOf(hop(EConfigType.VLESS, AppConfig.TAG_PROXY), hop(EConfigType.AETHER, "proxy-chain-1", "UseIPv4v6"))
+        CoreOutboundBuilder.applyChainTargetStrategies(chosen)
+        assertEquals("UseIPv4v6", chosen[1].second.targetStrategy)
     }
 
     @Test
@@ -209,14 +275,21 @@ class CoreOutboundBuilderTest {
     }
 
     @Test
-    fun test_toOutboundAetherExit_takesTheOutboundOfItsNodeChangedInItsTagAlone() {
-        val node = OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "vless", streamSettings = OutboundBean.StreamSettingsBean(network = "ws"))
+    fun test_toOutboundAetherExit_takesTheOutboundOfItsNodeChangedInItsTagAndPassingEveryNameOn() {
+        val node = OutboundBean(
+            tag = AppConfig.TAG_PROXY,
+            protocol = "vless",
+            streamSettings = OutboundBean.StreamSettingsBean(network = "ws"),
+            targetStrategy = AppConfig.TARGET_STRATEGY_FORCE_IPV4V6,
+        )
         val nodes = mapOf("germany" to ExitNodeOutbound.Built(node), "twice" to ExitNodeOutbound.SameName)
         val exit = CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "germany")) { nodes[it] ?: ExitNodeOutbound.NotFound }!!
         assertEquals(AppConfig.TAG_EXIT_NODE, exit.tag)
         assertEquals("vless", exit.protocol)
         assertEquals("ws", exit.streamSettings?.network)
         assertNull(exit.streamSettings?.sockopt)
+        // What the core sends itself is not looked up by Xray, whose DNS would reach out through the core.
+        assertNull(exit.targetStrategy)
         // A name no profile has any more, or several have, or one that gives no outbound, gives no exit-node, rather than freedom.
         assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "gone")) { nodes[it] ?: ExitNodeOutbound.NotFound })
         assertNull(CoreOutboundBuilder.toOutboundAetherExit(AetherExit(node = "twice")) { nodes[it] ?: ExitNodeOutbound.NotFound })

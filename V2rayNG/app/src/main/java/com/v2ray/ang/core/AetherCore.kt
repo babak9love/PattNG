@@ -8,6 +8,8 @@ import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherPsiphon
+import com.v2ray.ang.enums.AetherTor
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.nullIfBlank
 import com.v2ray.ang.handler.MmkvManager
@@ -100,11 +102,35 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
          * in the app dials.
          */
         fun ofCommand(command: String): AetherCore? {
+            val arguments = readableArguments(command) ?: return null
+            val listener = AetherCoreManager.listenerFlagOf(arguments)
+            if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, AetherCoreManager.socksPort))
+            return AetherCore(arguments)
+        }
+
+        /**
+         * The arguments of [command] when it names something the app can run, see [ofCommand]: not no argument at all,
+         * nor a listener whose port cannot be read. Null otherwise.
+         */
+        private fun readableArguments(command: String): List<String>? {
             val arguments = argumentsOf(command)
             if (arguments.isEmpty()) return null
             val listener = AetherCoreManager.listenerFlagOf(arguments)
-            if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, AetherCoreManager.socksPort))
-            return AetherCore(arguments).takeIf { AetherCoreManager.portAfter(arguments, listener) != null }
+            return arguments.takeIf { listener !in arguments || AetherCoreManager.portAfter(arguments, listener) != null }
+        }
+
+        /**
+         * PattNG: whether what the app sends through the core of [profile] leaves it through WARP, rather than through
+         * Tor or Psiphon, see [AetherCoreManager.leavesThroughWarp]: as the command line the profile carries says, or
+         * else, as for [of], as its settings say.
+         */
+        fun leavesThroughWarp(profile: ProfileItem): Boolean {
+            val arguments = profile.aetherCommand?.takeIf { it.isNotBlank() }?.let(::readableArguments)
+            return if (arguments != null) {
+                AetherCoreManager.leavesThroughWarp(arguments)
+            } else {
+                AetherCoreManager.leavesThroughWarp(AetherTor.fromString(profile.aetherTor), AetherPsiphon.fromString(profile.aetherPsiphon))
+            }
         }
 
         /** The arguments of [command]: its [words], without a program name in front. */
