@@ -335,4 +335,28 @@ class CoreOutboundBuilderTest {
         assertEquals(ExitNodeOutbound.EchUnusable, CoreOutboundBuilder.nodeOutboundOf(withEch("freedom")))
         assertEquals(ExitNodeOutbound.EchUnusable, CoreOutboundBuilder.nodeOutboundOf(withEch("""{"tag": "ech", "protocol": "freedom"}""", echConfigList = null)))
     }
+
+    @Test
+    fun aWireGuardOutboundGetsOnlyAddressesAsRemoteDnsEachItsOwnEntry() {
+        val none = emptyList<String>()
+        // Blank: the default servers, one entry each, the IPv4 ones alone when IPv6 is off.
+        assertEquals(
+            listOf("1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001") to none,
+            CoreOutboundBuilder.wireguardRemoteDns(null, ipv6Enabled = true),
+        )
+        assertEquals(listOf("1.1.1.1", "1.0.0.1") to none, CoreOutboundBuilder.wireguardRemoteDns(" , ", ipv6Enabled = false))
+        // "local", which the core takes no more, a host name and an address with a port are left out.
+        assertEquals(listOf("1.1.1.1", "1.0.0.1") to listOf("local"), CoreOutboundBuilder.wireguardRemoteDns("local", ipv6Enabled = false))
+        assertEquals(
+            listOf("8.8.8.8") to listOf("dns.google", "1.1.1.1:53"),
+            CoreOutboundBuilder.wireguardRemoteDns("dns.google, 8.8.8.8, 1.1.1.1:53", ipv6Enabled = true),
+        )
+        // Only IPv6 servers while IPv6 is off: the default IPv4 ones.
+        assertEquals(listOf("1.1.1.1", "1.0.0.1") to none, CoreOutboundBuilder.wireguardRemoteDns("2001:4860:4860::8888", ipv6Enabled = false))
+        // An IPv6 address loses its brackets; with a port it is left out.
+        assertEquals(
+            listOf("2001:4860:4860::8888", "9.9.9.9") to listOf("[2001:4860:4860::8844]:53"),
+            CoreOutboundBuilder.wireguardRemoteDns("[2001:4860:4860::8888], 9.9.9.9, [2001:4860:4860::8844]:53", ipv6Enabled = true),
+        )
+    }
 }

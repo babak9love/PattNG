@@ -310,6 +310,28 @@ object CoreOutboundBuilder {
         return outboundBean
     }
 
+    /**
+     * PattNG: the remote DNS servers of a WireGuard outbound, and the entries of [remoteDNS] left out. The core parses
+     * each server as an IP address and stops the whole process on anything else, as a host name, an address with a
+     * port, or "local", which it takes no more; so only addresses go, an IPv6 one without its brackets, the IPv4 ones
+     * alone when IPv6 is off, each its own entry; and when none is left, the default ones, see
+     * [AppConfig.WIREGUARD_LOCAL_REMOTE_DNS], split as well.
+     */
+    internal fun wireguardRemoteDns(remoteDNS: String?, ipv6Enabled: Boolean): Pair<List<String>, List<String>> {
+        fun entries(list: String?) = list?.split(",").orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+        fun address(entry: String): String? = when {
+            entry.startsWith("[") -> entry.takeIf { it.endsWith("]") }?.substring(1, entry.length - 1)?.takeIf(Utils::isPureIpAddress)
+            Utils.isPureIpAddress(entry) -> entry
+            else -> null
+        }
+
+        val read = entries(remoteDNS).map { entry -> entry to address(entry) }
+        val leftOut = read.filter { it.second == null }.map { it.first }
+        val usable = read.mapNotNull { it.second }.filter { ipv6Enabled || !it.contains(":") }
+        val servers = usable.ifEmpty { entries(AppConfig.WIREGUARD_LOCAL_REMOTE_DNS).filter { ipv6Enabled || !it.contains(":") } }
+        return servers to leftOut
+    }
+
     private fun toOutboundWireguard(profileItem: ProfileItem): OutboundBean? {
         val outboundBean = createInitOutbound(EConfigType.WIREGUARD)
 
@@ -327,18 +349,15 @@ object CoreOutboundBuilder {
             ipv4Addresses.ifEmpty { listOf(AppConfig.WIREGUARD_LOCAL_ADDRESS_V4) }
         }
 
-        val rawDNS = profileItem.remoteDNS
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
-            ?.ifEmpty { null }
-            ?: listOf(AppConfig.WIREGUARD_LOCAL_REMOTE_DNS)
-
-        val remotes = if (MmkvManager.decodeSettingsBool(AppConfig.PREF_IPV6_ENABLED) == true) {
-            rawDNS
-        } else {
-            val ipv4Dns = rawDNS.filter { !it.contains(":") }
-            ipv4Dns.ifEmpty { listOf(AppConfig.WIREGUARD_LOCAL_REMOTE_DNS) }
+        val (remotes, leftOut) = wireguardRemoteDns(
+            profileItem.remoteDNS,
+            ipv6Enabled = MmkvManager.decodeSettingsBool(AppConfig.PREF_IPV6_ENABLED) == true,
+        )
+        if (leftOut.isNotEmpty()) {
+            LogUtil.w(
+                AppConfig.TAG,
+                "CoreOutboundBuilder: WireGuard profile '${profileItem.remarks}' remoteDNS entries left out, no IP address: ${leftOut.joinToString()}"
+            )
         }
 
         outboundBean?.settings?.let { wireguard ->
