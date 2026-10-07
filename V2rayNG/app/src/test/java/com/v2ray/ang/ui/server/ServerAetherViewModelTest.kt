@@ -509,6 +509,17 @@ class ServerAetherViewModelTest {
     }
 
     @Test
+    fun theScreenHoldsTheProfileCheckedUntilItIsEdited() {
+        val checked = profile.copy(remarks = "warp")
+
+        assertTrue(holdsChecked(checked.copy(), checked))
+        // A new profile is added anew when the screen's activity is recreated, as on a rotation: that is no edit.
+        assertTrue(holdsChecked(checked.copy(addedTime = checked.addedTime + 1_000), checked))
+        assertFalse(holdsChecked(checked.copy(remarks = "edited"), checked))
+        assertFalse(holdsChecked(checked.copy(aetherProtocol = AetherProtocol.WIREGUARD.type), checked))
+    }
+
+    @Test
     fun aSaveGoesOnOnlyWhenTheKeysTheProfileNeedsAreThere() {
         val viewModel = viewModel()
 

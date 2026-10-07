@@ -42,7 +42,7 @@ class SubEditViewModel(
         EditorOutcome.Saved(subId)
     }
 
-    /** Deletes the subscription, unless a save runs, which would write it back; a new one, never stored, has none to delete. */
+    /** Deletes the subscription, see [EditorViewModel.launchDelete]; a new one, never stored, has none to delete. */
     fun delete() {
         val key = subId.takeIf { it.isNotEmpty() } ?: return
         launchDelete {

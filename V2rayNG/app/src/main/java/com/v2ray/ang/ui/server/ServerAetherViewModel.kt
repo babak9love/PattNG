@@ -50,6 +50,12 @@ sealed interface AetherKeysCheck {
     data class Refused(@StringRes val message: Int, val args: List<String>) : AetherKeysCheck
 }
 
+/**
+ * PattNG: whether the screen, holding [current], holds still [checked], the profile a check of its keys was made on:
+ * the time a new profile was added, which the screen sets anew when its activity is recreated, does not count.
+ */
+internal fun holdsChecked(current: ProfileItem, checked: ProfileItem): Boolean = current == checked.copy(addedTime = current.addedTime)
+
 sealed interface AetherLogText {
     data class Raw(val value: String) : AetherLogText
     data class Resource(@StringRes val id: Int, val args: List<String> = emptyList()) : AetherLogText

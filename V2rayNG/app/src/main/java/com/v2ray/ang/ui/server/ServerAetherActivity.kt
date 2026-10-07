@@ -632,7 +632,7 @@ class ServerAetherActivity : BaseServerActivity() {
      */
     private fun saveChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
         if (isFinishing) return
-        if (state.toProfileItem(initialConfig, listenPort) == checked) saveServer(state) else requestSave(state, listenPort)
+        if (holdsChecked(state.toProfileItem(initialConfig, listenPort), checked)) saveServer(state) else requestSave(state, listenPort)
     }
 
     /**
@@ -641,7 +641,7 @@ class ServerAetherActivity : BaseServerActivity() {
      */
     private fun scanChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
         val current = state.toProfileItem(initialConfig, listenPort)
-        viewModel.scan(current, anyway = current == checked)
+        viewModel.scan(current, anyway = holdsChecked(current, checked))
     }
 
     override fun validateBasicConfig(state: ServerUiState): Boolean {
