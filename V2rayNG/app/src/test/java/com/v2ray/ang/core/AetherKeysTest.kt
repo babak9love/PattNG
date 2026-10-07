@@ -277,11 +277,13 @@ class AetherKeysTest {
 
     @Test
     fun aProfileAsTheExitNodeLeavesTheFinalMaskAndTheDialModeOutOfUse() {
-        val noded = AetherKeysSettings(exitNode = "germany", finalMask = "{not json", dialMode = "ForceIP")
+        val noded = AetherKeysSettings(exitNode = "germany", finalMask = """{"tcp": []}""", dialMode = "ForceIP")
         assertEquals(AetherExit(node = "germany"), noded.exit)
         assertEquals(AetherExit(node = "germany"), noded.copy(exitNode = " germany ").exit)
         assertNull(AetherKeys.problem(noded))
-        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(exitNode = "")))
+        // A broken finalMask is refused all the same, as the Aether page refuses it: none is kept for freedom.
+        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(finalMask = "{not json")))
+        assertEquals(AetherKeys.Problem.INVALID_FINAL_MASK, AetherKeys.problem(noded.copy(exitNode = "", finalMask = "{not json")))
         assertEquals(AetherExit(dialMode = "ForceIP"), noded.copy(exitNode = " ", finalMask = "").exit)
         // The exit-node is Xray's, so the command of the run stays as it was.
         assertEquals(AetherKeys.arguments(AetherKeysSettings()), AetherKeys.arguments(AetherKeysSettings(exitNode = "germany")))

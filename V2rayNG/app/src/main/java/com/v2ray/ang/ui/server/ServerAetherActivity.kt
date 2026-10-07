@@ -640,14 +640,14 @@ class ServerAetherActivity : BaseServerActivity() {
 
     // The finalMask of an Aether profile is that of its exit-node: a bad one is named by its own label and checked as
     // on the WARP keys page, before the check every profile has would name it the outbound's. With a profile as the
-    // exit-node it is out of use, and not checked at all.
+    // exit-node it is out of use, but a broken one is refused all the same: it would be kept for freedom, and a link
+    // of the profile, which carries no exit-node, would hand it on.
     override fun validateCommonConfig(state: ServerUiState, config: ProfileItem): Boolean {
-        val freedom = config.aetherExitNode.isNullOrBlank()
-        if (freedom && !AetherExit.takesFinalMask(config.finalMask)) {
+        if (!AetherExit.takesFinalMask(config.finalMask)) {
             toast(R.string.aether_lab_exit_final_mask)
             return false
         }
-        return super.validateCommonConfig(state, if (freedom) config else config.copy(finalMask = null))
+        return super.validateCommonConfig(state, config)
     }
 
     // The profile chosen as the exit-node is looked up when the keys are checked, see ServerAetherViewModel.checkKeysBeforeSave.

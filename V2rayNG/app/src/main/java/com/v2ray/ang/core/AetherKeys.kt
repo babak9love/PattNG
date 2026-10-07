@@ -99,11 +99,12 @@ object AetherKeys {
     /**
      * Why [settings] cannot run, or null when they can. A command written by hand is only checked for what it
      * registers: the settings it replaces do not count, and the core names what else it does not take. The
-     * finalMask counts either way, since the run dials out through it, unless a profile is the exit-node, which
-     * leaves it out of use. Whether one profile, and one only, has that name still is for the run to look up.
+     * finalMask counts either way, since the run dials out through it, and is checked as well while a profile is
+     * the exit-node, which leaves it out of use, as the Aether page checks it: no broken one is kept for freedom.
+     * Whether one profile, and one only, has that name still is for the run to look up.
      */
     fun problem(settings: AetherKeysSettings): Problem? {
-        if (settings.exitNode.isBlank() && !AetherExit.takesFinalMask(settings.finalMask)) return Problem.INVALID_FINAL_MASK
+        if (!AetherExit.takesFinalMask(settings.finalMask)) return Problem.INVALID_FINAL_MASK
         if (isCustom(settings)) return Problem.INVALID_COMMAND.takeIf { kindOf(runArguments(settings)) == null }
         val address = settings.enrollAddress.trim()
         if (address.isNotEmpty() && !isEnrollAddress(address)) return Problem.INVALID_ENROLL_ADDRESS
