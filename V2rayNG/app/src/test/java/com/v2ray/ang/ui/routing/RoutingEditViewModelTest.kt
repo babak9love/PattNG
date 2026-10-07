@@ -30,7 +30,8 @@ class RoutingEditViewModelTest {
 
         /** The position each save was asked to store at, with a copy of the rule as it was then. */
         val saves = mutableListOf<Pair<Int, RulesetItem>>()
-        val deletes = mutableListOf<Int>()
+        /** The position and the id each delete was asked for. */
+        val deletes = mutableListOf<Pair<Int, String>>()
 
         override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
             names.withProfileNames(takes, check)
@@ -39,8 +40,8 @@ class RoutingEditViewModelTest {
             saves += position to rule.copy()
         }
 
-        override suspend fun deleteRule(position: Int) {
-            deletes += position
+        override suspend fun deleteRule(position: Int, id: String) {
+            deletes += position to id
         }
     }
 
@@ -59,7 +60,7 @@ class RoutingEditViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(position: Int = -1) = RoutingEditViewModel(mock<Application>(), source, position)
+    private fun viewModel(position: Int = -1, storedId: String = "") = RoutingEditViewModel(mock<Application>(), source, position, storedId)
 
     private fun rule(tag: String = "exit", enabled: Boolean = true, id: String = "") =
         RulesetItem(id = id, remarks = "rule", outboundTag = tag, enabled = enabled)
@@ -113,7 +114,7 @@ class RoutingEditViewModelTest {
     }
 
     @Test
-    fun aNewRuleGetsOneIdAndIsStoredFirstThenWrittenOver() {
+    fun aNewRuleGetsOneIdThatEverySaveOfItKeeps() {
         val viewModel = viewModel()
 
         viewModel.save(rule())
@@ -122,35 +123,58 @@ class RoutingEditViewModelTest {
         assertTrue(stored.id.isNotEmpty())
         assertEquals(EditorOutcome.Saved(stored.id), viewModel.outcome.value)
 
-        // As when the screen, recreated before it closed, is saved again: the rule it stored first is written over, and keeps its id.
+        // As when the screen, recreated before it closed, is saved again: the rule keeps its id, by which the rule it stored
+        // first is found again and written over.
         viewModel.onOutcomeHandled()
         viewModel.save(rule())
 
-        assertEquals(0 to stored.id, source.saves[1].first to source.saves[1].second.id)
+        assertEquals(-1 to stored.id, source.saves[1].first to source.saves[1].second.id)
         assertEquals(EditorOutcome.Saved(stored.id), viewModel.outcome.value)
     }
 
     @Test
-    fun aStoredRuleIsWrittenOverAtItsPositionWithTheIdItHas() {
-        val viewModel = viewModel(position = 3)
+    fun aStoredRuleIsSavedWithTheIdItIsStoredWith() {
+        val viewModel = viewModel(position = 3, storedId = "rule-id")
 
         viewModel.save(rule(id = "rule-id"))
         viewModel.onOutcomeHandled()
         viewModel.save(rule())
 
-        assertEquals(listOf(3 to "rule-id", 3 to ""), source.saves.map { it.first to it.second.id })
+        assertEquals(listOf(3 to "rule-id", 3 to "rule-id"), source.saves.map { it.first to it.second.id })
+
+        // One from before rules had ids keeps none, and goes by its position.
+        val legacy = viewModel(position = 4)
+        legacy.save(rule())
+        assertEquals(4 to "", source.saves[2].first to source.saves[2].second.id)
+    }
+
+    @Test
+    fun aRuleIsFoundAgainByItsIdWhereverTheListHasMovedIt() {
+        val rules = listOf(RulesetItem(id = "a"), RulesetItem(id = "b"), RulesetItem(id = "c"))
+
+        assertEquals(1, storedAt(rules, "b", 1))
+        // Moved, or with a rule deleted before it, while the editor was open.
+        assertEquals(0, storedAt(listOf(rules[1], rules[0], rules[2]), "b", 1))
+        assertEquals(0, storedAt(rules.drop(1), "b", 1))
+        // Gone, or new: no rule has the id.
+        assertEquals(-1, storedAt(rules, "gone", 1))
+        assertEquals(-1, storedAt(null, "b", 1))
+        // A rule without an id goes by its position, while the list reaches that far.
+        assertEquals(2, storedAt(rules, "", 2))
+        assertEquals(-1, storedAt(rules, "", 3))
+        assertEquals(-1, storedAt(rules, "", -1))
     }
 
     @Test
     fun aDeleteDeletesTheRuleAtItsPositionAndANewRuleHasNoneToDelete() {
-        val stored = viewModel(position = 3)
+        val stored = viewModel(position = 3, storedId = "rule-id")
         stored.delete()
-        assertEquals(listOf(3), source.deletes)
+        assertEquals(listOf(3 to "rule-id"), source.deletes)
         assertEquals(EditorOutcome.Deleted, stored.outcome.value)
 
         val new = viewModel()
         new.delete()
-        assertEquals(listOf(3), source.deletes)
+        assertEquals(listOf(3 to "rule-id"), source.deletes)
         assertNull(new.outcome.value)
     }
 

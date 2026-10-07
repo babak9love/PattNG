@@ -63,7 +63,7 @@ class RoutingEditActivity : BaseComponentActivity() {
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [RoutingEditViewModel]. */
     private val viewModel: RoutingEditViewModel by viewModels {
         viewModelFactory {
-            initializer { RoutingEditViewModel(application, RoutingEditRepository(), position) }
+            initializer { RoutingEditViewModel(application, RoutingEditRepository(), position, initial?.id.orEmpty()) }
         }
     }
 

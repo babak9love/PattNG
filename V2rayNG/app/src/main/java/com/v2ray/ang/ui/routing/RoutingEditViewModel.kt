@@ -11,18 +11,22 @@ import com.v2ray.ang.ui.base.EditorViewModel
 import java.util.UUID
 
 /**
- * PattNG: the save and the delete of the routing rule editor, see [EditorViewModel]. The rule is stored at [position]:
- * the one the screen was opened on, or, for a new rule (a negative one), the first, where its first save puts it, and
- * where a later save writes over it.
+ * PattNG: the save and the delete of the routing rule editor, see [EditorViewModel]. The screen was opened on the rule
+ * at [position], whose id is [storedId], or on a new rule, at a negative position. The rule is written where it is
+ * found again by its id, see [RoutingEditSource.saveRule]: the list may have changed while the editor was open.
  */
 class RoutingEditViewModel(
     application: Application,
     private val source: RoutingEditSource,
-    private var position: Int,
+    private val position: Int,
+    storedId: String,
 ) : EditorViewModel(application) {
 
-    /** The id of a new rule, given once, so that every save of it keeps it; null for a rule that was stored already. */
-    private val newRuleId: String? = if (position < 0) UUID.randomUUID().toString() else null
+    /**
+     * The id of the rule: the one it is stored with, or, for a new rule, one given once, which every save of it keeps.
+     * Blank for a stored rule from before rules had ids, which goes by its position.
+     */
+    private val id: String = storedId.ifEmpty { if (position < 0) UUID.randomUUID().toString() else "" }
 
     /**
      * Saves [rule]. A rule that sends to a profile names it, and the name has to find that one profile, as at the start:
@@ -40,21 +44,18 @@ class RoutingEditViewModel(
             }
         }
 
-        if (newRuleId != null && rule.id.isEmpty()) {
-            rule.id = newRuleId
+        if (rule.id.isEmpty()) {
+            rule.id = id
         }
         source.saveRule(position, rule)
-        if (position < 0) {
-            position = 0
-        }
         EditorOutcome.Saved(rule.id)
     }
 
-    /** Deletes the rule, unless a save runs, which would write it back; a new rule, never stored, has none to delete. */
+    /** Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to delete. */
     fun delete() {
-        val stored = position.takeIf { it >= 0 } ?: return
+        if (position < 0) return
         launchDelete {
-            source.deleteRule(stored)
+            source.deleteRule(position, id)
             EditorOutcome.Deleted
         }
     }
