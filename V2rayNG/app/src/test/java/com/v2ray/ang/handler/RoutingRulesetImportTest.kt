@@ -45,4 +45,19 @@ class RoutingRulesetImportTest {
         assertEquals(imported, SettingsManager.rulesetsAfterImport(null, imported))
         assertEquals(imported, SettingsManager.rulesetsAfterImport(emptyList(), imported))
     }
+
+    @Test
+    fun theCopyOfALockedRulesetExportedBeforeItWasLockedIsLeftOutToo() {
+        val copy = locked.copy(remarks = "as exported", locked = false)
+
+        assertEquals(listOf(locked), SettingsManager.rulesetsAfterImport(listOf(locked), listOf(copy)))
+    }
+
+    @Test
+    fun aRulesetWithTheIdOfAnUnlockedOneIsImportedInItsPlace() {
+        // The unlocked one gives way to the import, so its copy is no second rule with its id.
+        val copy = unlocked.copy(remarks = "as exported")
+
+        assertEquals(listOf(locked, copy), SettingsManager.rulesetsAfterImport(listOf(locked, unlocked), listOf(copy)))
+    }
 }
