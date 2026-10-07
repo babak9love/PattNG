@@ -21,9 +21,9 @@ internal fun ExitNodeField(
     enabled: Boolean = true,
 ) {
     val freedom = stringResource(R.string.aether_exit_node_freedom)
-    val numbered = stringResource(R.string.aether_exit_node_numbered)
+    val numbered = stringResource(R.string.label_numbered)
     val names = nodes.orEmpty().map { it.name }
-    val labels = remember(names, freedom, numbered) { exitNodeLabels(names, setOf(freedom)) { name, number -> numbered.format(name, number) } }
+    val labels = remember(names, freedom, numbered) { distinctLabels(names, setOf(freedom)) { name, number -> numbered.format(name, number) } }
     val name = value.trim()
     val problem = problemOfExitNode(name, nodes)
     FormDropdownField(

@@ -578,7 +578,7 @@
     <string name="aether_lab_ip_version">IP 版本</string>
     <string name="aether_lab_exit_final_mask">exit-node 的 finalMask 原始 JSON，格式：{ FinalMaskObject }</string>
     <string name="aether_exit_node_freedom">freedom（預設）</string>
-    <string name="aether_exit_node_numbered">%1$s（%2$d）</string>
+    <string name="label_numbered">%1$s（%2$d）</string>
     <string name="aether_hint_exit_node">核心經由此設定檔的出站向外連線，如同經由代理鏈的一跳；下方的 finalMask 和 dialMode 只用於 freedom</string>
     <string name="aether_exit_node_unusable">exit-node 設定檔「%1$s」無法產生出站；請另選一個，或選擇 freedom</string>
     <string name="aether_exit_node_ech_unusable">exit-node 設定檔「%1$s」的 echOutbound 無法使用；請在該設定檔中修正，或另選一個，或選擇 freedom</string>

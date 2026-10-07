@@ -8,18 +8,18 @@ import org.junit.jupiter.api.Test
 
 class ExitNodesTest {
 
-    /** As R.string.aether_exit_node_numbered writes it in English. */
+    /** As R.string.label_numbered writes it in English. */
     private fun numbered(name: String, number: Int) = "$name ($number)"
 
     @Test
     fun eachLabelIsTheNameMadeUniqueWhereItIsTakenAlready() {
         assertEquals(
             listOf("germany", "freedom (default) (2)", "france", "freedom (default) (2) (2)"),
-            exitNodeLabels(listOf("germany", "freedom (default)", "france", "freedom (default) (2)"), setOf("freedom (default)"), ::numbered),
+            distinctLabels(listOf("germany", "freedom (default)", "france", "freedom (default) (2)"), setOf("freedom (default)"), ::numbered),
         )
-        assertEquals(emptyList<String>(), exitNodeLabels(emptyList(), setOf("freedom (default)"), ::numbered))
+        assertEquals(emptyList<String>(), distinctLabels(emptyList(), setOf("freedom (default)"), ::numbered))
         // The number is written as the language of the screen writes it.
-        assertEquals(listOf("freedom（默认）（2）"), exitNodeLabels(listOf("freedom（默认）"), setOf("freedom（默认）")) { name, number -> "$name（$number）" })
+        assertEquals(listOf("freedom（默认）（2）"), distinctLabels(listOf("freedom（默认）"), setOf("freedom（默认）")) { name, number -> "$name（$number）" })
     }
 
     @Test

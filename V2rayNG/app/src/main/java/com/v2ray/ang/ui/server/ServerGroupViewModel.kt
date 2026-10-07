@@ -10,6 +10,26 @@ import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
 import com.v2ray.ang.ui.base.EditorViewModel
 
+/** PattNG: a subscription the policy group editor offers to draw members from: its [id], blank for all, and its [label]. */
+data class PolicyGroupSubscription(val id: String, val label: String)
+
+/**
+ * PattNG: the subscriptions the policy group editor offers, [all] first, then [subscriptions], their keys beside their
+ * names, under labels made unique, see [distinctLabels]: the list hands back the label picked, and two subscriptions
+ * of the same name, or one named as [all] is, are two picks still.
+ */
+internal fun policyGroupSubscriptions(
+    all: String,
+    subscriptions: List<Pair<String, String>>,
+    numbered: (String, Int) -> String,
+): List<PolicyGroupSubscription> {
+    val labels = distinctLabels(subscriptions.map { it.second }, setOf(all), numbered)
+    return listOf(PolicyGroupSubscription("", all)) + subscriptions.mapIndexed { index, (id, _) -> PolicyGroupSubscription(id, labels[index]) }
+}
+
+/** PattNG: the subscription of these, as [policyGroupSubscriptions] offers them, whose key is [id]; all when none is, as for a subscription gone. */
+internal fun List<PolicyGroupSubscription>.pick(id: String?): PolicyGroupSubscription = firstOrNull { it.id == id } ?: first()
+
 /**
  * PattNG: what the policy group editor saves: its fields as the screen has them, the [type] and the [subscriptionId] as
  * picked, and the labels the screen shows for them, which make the group's description.

@@ -31,7 +31,6 @@ import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
 import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.extension.isNotNullEmpty
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
@@ -53,14 +52,13 @@ class ServerGroupActivity : BaseComponentActivity() {
                 && editGuid == MmkvManager.getSelectServer()
     }
     private val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
-    private val subIds = mutableListOf<String>()
-    private val subDisplay = mutableListOf<String>()
+    private lateinit var subscriptions: List<PolicyGroupSubscription>
     private lateinit var fallbackSuggestions: List<String>
 
     private lateinit var initialRemarks: String
     private lateinit var initialFilter: String
     private var initialType: Int = 0
-    private var initialSubIndex: Int = 0
+    private lateinit var initialSubscriptionId: String
     private var initialTestOutbounds: Boolean = false
     private lateinit var initialFallbackTag: String
 
@@ -88,11 +86,9 @@ class ServerGroupActivity : BaseComponentActivity() {
         initialTestOutbounds = config == null || config.policyGroupTestOutbounds != false ||
                 !BalancerStrategyType.from(config.policyGroupType).supportsObservatory
         initialFallbackTag = config?.policyGroupFallbackTag.orEmpty()
-        initialSubIndex = if (config != null) {
-            subIds.indexOf(config.policyGroupSubscriptionId ?: "").let { if (it >= 0) it else 0 }
-        } else if (subscriptionId.isNotNullEmpty()) {
-            subIds.indexOf(subscriptionId).let { if (it >= 0) it else 0 }
-        } else 0
+        // PattNG: the subscription is picked by its key: a group of a subscription gone, or a new one, starts on all.
+        val picked = if (config != null) config.policyGroupSubscriptionId.orEmpty() else subscriptionId.orEmpty()
+        initialSubscriptionId = subscriptions.pick(picked).id
     }
 
     @Composable
@@ -111,17 +107,17 @@ class ServerGroupActivity : BaseComponentActivity() {
         ServerGroupScreen(
             editGuid = editGuid,
             isRunning = isRunning,
-            subDisplay = subDisplay,
+            subscriptions = subscriptions,
             initialRemarks = initialRemarks,
             initialFilter = initialFilter,
             initialType = initialType,
-            initialSubIndex = initialSubIndex,
+            initialSubscriptionId = initialSubscriptionId,
             initialTestOutbounds = initialTestOutbounds,
             initialFallbackTag = initialFallbackTag,
             fallbackSuggestions = fallbackSuggestions,
             onBackClick = { finish() },
-            onSave = { remarks, filter, typeIdx, subIdx, testOutbounds, fallbackTag ->
-                saveServer(remarks, filter, typeIdx, subIdx, testOutbounds, fallbackTag)
+            onSave = { remarks, filter, typeIdx, subscription, testOutbounds, fallbackTag ->
+                saveServer(remarks, filter, typeIdx, subscription, testOutbounds, fallbackTag)
             },
             onDelete = { deleteServer() }
         )
@@ -137,18 +133,19 @@ class ServerGroupActivity : BaseComponentActivity() {
         remarks: String,
         filter: String,
         typeIdx: Int,
-        subIdx: Int,
+        subscriptionId: String,
         testOutbounds: Boolean,
         fallbackTag: String,
     ) {
+        val subscription = subscriptions.pick(subscriptionId)
         viewModel.save(
             PolicyGroupEdit(
                 remarks = remarks,
                 filter = filter,
                 type = typeIdx,
                 typeLabel = stringArrayPolicyGroupType().getOrNull(typeIdx).orEmpty(),
-                subscriptionId = subIds.getOrNull(subIdx),
-                subscriptionLabel = subDisplay.getOrNull(subIdx).orEmpty(),
+                subscriptionId = subscription.id,
+                subscriptionLabel = subscription.label,
                 testOutbounds = testOutbounds,
                 fallbackTag = fallbackTag,
             )
@@ -176,19 +173,11 @@ class ServerGroupActivity : BaseComponentActivity() {
     }
 
     private fun populateSubscriptionSpinner() {
-        val subs = MmkvManager.decodeSubscriptions()
-        subIds.clear()
-        subDisplay.clear()
-        subDisplay.add(getString(R.string.filter_config_all))
-        subIds.add("")
-        subs.forEach { sub ->
-            val name = when {
-                sub.subscription.remarks.isNotBlank() -> sub.subscription.remarks
-                else -> sub.guid
-            }
-            subDisplay.add(name)
-            subIds.add(sub.guid)
-        }
+        subscriptions = policyGroupSubscriptions(
+            all = getString(R.string.filter_config_all),
+            subscriptions = MmkvManager.decodeSubscriptions().map { sub -> sub.guid to sub.subscription.remarks.ifBlank { sub.guid } },
+            numbered = { name, number -> getString(R.string.label_numbered, name, number) },
+        )
     }
 
     private fun stringArrayPolicyGroupType(): Array<String> =
@@ -199,16 +188,16 @@ class ServerGroupActivity : BaseComponentActivity() {
 fun ServerGroupScreen(
     editGuid: String,
     isRunning: Boolean,
-    subDisplay: List<String>,
+    subscriptions: List<PolicyGroupSubscription>,
     initialRemarks: String,
     initialFilter: String,
     initialType: Int,
-    initialSubIndex: Int,
+    initialSubscriptionId: String,
     initialTestOutbounds: Boolean,
     initialFallbackTag: String,
     fallbackSuggestions: List<String>,
     onBackClick: () -> Unit,
-    onSave: (String, String, Int, Int, Boolean, String) -> Unit,
+    onSave: (String, String, Int, String, Boolean, String) -> Unit,
     onDelete: () -> Unit
 ) {
     val typeEntries = stringArrayResource(R.array.policy_group_type).toList()
@@ -217,7 +206,9 @@ fun ServerGroupScreen(
     var isRemarksError by rememberSaveable { mutableStateOf(false) }
     var filter by rememberSaveable { mutableStateOf(initialFilter) }
     var typeValue by rememberSaveable { mutableStateOf(typeEntries.getOrNull(initialType).orEmpty()) }
-    var subValue by rememberSaveable { mutableStateOf(subDisplay.getOrNull(initialSubIndex).orEmpty()) }
+    // PattNG: the subscription picked, by its key; the list shows it by its label.
+    var subscriptionId by rememberSaveable { mutableStateOf(initialSubscriptionId) }
+    val pickedSubscription = subscriptions.pick(subscriptionId)
     var testOutbounds by rememberSaveable { mutableStateOf(initialTestOutbounds) }
     var fallbackTag by rememberSaveable { mutableStateOf(initialFallbackTag) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -244,8 +235,7 @@ fun ServerGroupScreen(
                         val hasError = remarksErr
                         if (!hasError) {
                             val typeIdx = typeEntries.indexOf(typeValue).coerceAtLeast(0)
-                            val subIdx = subDisplay.indexOf(subValue).coerceAtLeast(0)
-                            onSave(remarks, filter, typeIdx, subIdx, testOutbounds, fallbackTag)
+                            onSave(remarks, filter, typeIdx, pickedSubscription.id, testOutbounds, fallbackTag)
                         }
                     }) {
                         Icon(painterResource(R.drawable.ic_fab_check), contentDescription = stringResource(R.string.acc_save))
@@ -277,9 +267,9 @@ fun ServerGroupScreen(
             )
             FormDropdownField(
                 label = stringResource(R.string.title_policy_group_subscription_id),
-                value = subValue,
-                options = subDisplay,
-                onValueChange = { subValue = it }
+                value = pickedSubscription.label,
+                options = subscriptions.map { it.label },
+                onValueChange = { label -> subscriptions.firstOrNull { it.label == label }?.let { subscriptionId = it.id } }
             )
             FormTextField(stringResource(R.string.title_policy_group_subscription_filter), filter, { filter = it })
             if (supportsObservatory) {

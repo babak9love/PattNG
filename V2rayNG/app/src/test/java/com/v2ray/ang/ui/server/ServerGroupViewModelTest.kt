@@ -158,4 +158,38 @@ class ServerGroupViewModelTest {
         assertTrue(source.saves.isEmpty())
         assertNull(viewModel.outcome.value)
     }
+
+    @Test
+    fun theSubscriptionsAreOfferedAllFirstUnderLabelsNoTwoOfWhichAreAlike() {
+        val offered = policyGroupSubscriptions(
+            all = "All",
+            subscriptions = listOf("a1" to "Iran", "b2" to "Iran", "c3" to "All", "d4" to "Work"),
+            numbered = { name, number -> "$name ($number)" },
+        )
+
+        assertEquals(
+            listOf(
+                PolicyGroupSubscription("", "All"),
+                PolicyGroupSubscription("a1", "Iran"),
+                PolicyGroupSubscription("b2", "Iran (2)"),
+                PolicyGroupSubscription("c3", "All (2)"),
+                PolicyGroupSubscription("d4", "Work"),
+            ),
+            offered,
+        )
+        // So each label the list hands back leads to one subscription.
+        assertEquals(offered.size, offered.map { it.label }.toSet().size)
+        assertEquals(listOf(PolicyGroupSubscription("", "All")), policyGroupSubscriptions("All", emptyList()) { name, number -> "$name ($number)" })
+    }
+
+    @Test
+    fun aSubscriptionIsPickedByItsKeyAndAGoneOneGivesAll() {
+        val offered = policyGroupSubscriptions("All", listOf("a1" to "Iran", "b2" to "Iran")) { name, number -> "$name ($number)" }
+
+        assertEquals(PolicyGroupSubscription("b2", "Iran (2)"), offered.pick("b2"))
+        assertEquals(PolicyGroupSubscription("a1", "Iran"), offered.pick("a1"))
+        assertEquals(PolicyGroupSubscription("", "All"), offered.pick(""))
+        assertEquals(PolicyGroupSubscription("", "All"), offered.pick("gone"))
+        assertEquals(PolicyGroupSubscription("", "All"), offered.pick(null))
+    }
 }
