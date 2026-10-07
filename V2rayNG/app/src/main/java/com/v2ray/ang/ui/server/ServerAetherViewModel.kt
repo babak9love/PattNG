@@ -16,6 +16,7 @@ import com.v2ray.ang.core.AetherScanResult
 import com.v2ray.ang.core.ExitNodeOutbound
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.fmt.AetherFmt
 import com.v2ray.ang.ui.base.BaseViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,10 +52,16 @@ sealed interface AetherKeysCheck {
 }
 
 /**
- * PattNG: whether the screen, holding [current], holds still [checked], the profile a check of its keys was made on:
- * the time a new profile was added, which the screen sets anew when its activity is recreated, does not count.
+ * PattNG: whether the screen, holding [current], holds still [checked], the profile a check of its keys was made on, as a
+ * save would store them, normalized, see [AetherFmt.normalize]: a field the screen fills back in with its default when
+ * its activity is recreated, as a cleared ECH resolver, is no edit, nor is the time a new profile was added, which the
+ * screen sets anew then.
  */
-internal fun holdsChecked(current: ProfileItem, checked: ProfileItem): Boolean = current == checked.copy(addedTime = current.addedTime)
+internal fun holdsChecked(current: ProfileItem, checked: ProfileItem): Boolean =
+    savedAs(current) == savedAs(checked.copy(addedTime = current.addedTime))
+
+/** [profile] as a save stores it, normalized on a copy, see [AetherFmt.normalize]. */
+private fun savedAs(profile: ProfileItem): ProfileItem = profile.copy().also { AetherFmt.normalize(it) }
 
 sealed interface AetherLogText {
     data class Raw(val value: String) : AetherLogText
@@ -110,6 +117,9 @@ class ServerAetherViewModel(
 
     private val nextLogId = AtomicLong()
     private var scanJob: Job? = null
+
+    /** The check of the keys of a profile the screen asked for last, see [checkKeysBeforeSave]. */
+    private var keysCheckJob: Job? = null
     private var reportedIdentity: AetherIdentityStatus? = null
 
     private val isBusy: Boolean
@@ -199,7 +209,9 @@ class ServerAetherViewModel(
      * which [profile] is normalized from, so that the screen can tell whether it holds that one still.
      */
     fun checkKeysBeforeSave(profile: ProfileItem, held: ProfileItem = profile) {
-        viewModelScope.launch {
+        // PattNG: a check a later one replaces, or one the screen has moved on from, would act on what it holds no more.
+        keysCheckJob?.cancel()
+        keysCheckJob = viewModelScope.launch {
             val node = profile.aetherExitNode?.trim().orEmpty()
             if (node.isNotEmpty()) {
                 (source.findExitNode(node) as? ExitNodeOutbound.Problem)?.let { problem ->
@@ -217,6 +229,7 @@ class ServerAetherViewModel(
     }
 
     fun onKeysCheckHandled() {
+        keysCheckJob?.cancel()
         _keysCheck.value = null
     }
 

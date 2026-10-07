@@ -2,6 +2,7 @@ package com.v2ray.ang.ui.server
 
 import android.app.Application
 import android.util.Log
+import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.core.AetherExitNode
 import com.v2ray.ang.core.AetherIdentity
@@ -48,6 +49,9 @@ class ServerAetherViewModelTest {
         var port = 10819
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
         val missingFiles = mutableSetOf<String>()
+
+        /** When set, a look at the key files waits for it, as one off the main thread takes its time. */
+        var keysGate: CompletableDeferred<Unit>? = null
         var nodes: List<AetherExitNode> = emptyList()
         val found = mutableMapOf<String, ExitNodeOutbound>()
 
@@ -59,7 +63,10 @@ class ServerAetherViewModelTest {
         override suspend fun identityStatus(protocol: AetherProtocol) =
             identities[protocol] ?: AetherIdentityStatus(protocol, null)
 
-        override suspend fun missingKeys(files: List<String>) = files.filter { it in missingFiles }
+        override suspend fun missingKeys(files: List<String>): List<String> {
+            keysGate?.await()
+            return files.filter { it in missingFiles }
+        }
         override suspend fun clearPsiphonData() = clearer()
         override suspend fun psiphonRegions() = regions
         override suspend fun listenPort() = port
@@ -517,6 +524,35 @@ class ServerAetherViewModelTest {
         assertTrue(holdsChecked(checked.copy(addedTime = checked.addedTime + 1_000), checked))
         assertFalse(holdsChecked(checked.copy(remarks = "edited"), checked))
         assertFalse(holdsChecked(checked.copy(aetherProtocol = AetherProtocol.WIREGUARD.type), checked))
+        // A cleared ECH resolver comes back as the default once the screen is recreated: saved, the two are one.
+        val cleared = checked.copy(aetherEch = true, aetherEchDns = null)
+        assertTrue(holdsChecked(cleared.copy(aetherEchDns = AppConfig.AETHER_ECH_DNS), cleared))
+        assertFalse(holdsChecked(cleared.copy(aetherEchDns = "udp://9.9.9.9"), cleared))
+    }
+
+    @Test
+    fun aCheckALaterOneReplacesOrTheScreenMovedOnFromSaysNothing() {
+        val gate = CompletableDeferred<Unit>()
+        source.keysGate = gate
+        val viewModel = viewModel()
+        val first = profile.copy(remarks = "first")
+        val second = profile.copy(remarks = "second")
+
+        viewModel.checkKeysBeforeSave(first)
+        source.keysGate = null
+        viewModel.checkKeysBeforeSave(second)
+        assertEquals(AetherKeysCheck.SaveReady(second), viewModel.keysCheck.value)
+        viewModel.onKeysCheckHandled()
+        gate.complete(Unit)
+        assertNull(viewModel.keysCheck.value)
+
+        // One still running when the screen acts on another outcome, as when it goes to get the keys, says nothing either.
+        val later = CompletableDeferred<Unit>()
+        source.keysGate = later
+        viewModel.checkKeysBeforeSave(first)
+        viewModel.onKeysCheckHandled()
+        later.complete(Unit)
+        assertNull(viewModel.keysCheck.value)
     }
 
     @Test
