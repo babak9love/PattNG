@@ -18,6 +18,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -167,7 +170,7 @@ class SubscriptionsViewModelTest {
         assertTrue(source.done.isEmpty())
         gate.complete(Unit)
         assertEquals(listOf("delete b"), source.done)
-        assertFalse(viewModel.refused.value)
+        assertNull(viewModel.refused.value)
         // One delete asked for a subscription no longer shown asks nothing.
         assertFalse(viewModel.remove("b"))
         assertEquals(listOf("delete b"), source.started)
@@ -181,11 +184,30 @@ class SubscriptionsViewModelTest {
 
         viewModel.remove("b")
 
-        assertTrue(viewModel.refused.value)
+        val refusal = checkNotNull(viewModel.refused.value)
         assertEquals(listOf("a", "b", "c"), viewModel.shown())
         assertEquals(2, source.loads)
-        viewModel.onRefusalShown()
-        assertFalse(viewModel.refused.value)
+        viewModel.onRefusalShown(refusal)
+        assertNull(viewModel.refused.value)
+    }
+
+    @Test
+    fun aRefusalSetAgainRightAfterTheLastWasToldIsToldToo() {
+        val viewModel = viewModel()
+        viewModel.reload()
+        source.refuseWrites = true
+
+        viewModel.remove("b")
+        val first = checkNotNull(viewModel.refused.value)
+        viewModel.setEnabled("a", false)
+        val second = checkNotNull(viewModel.refused.value)
+
+        // A number of its own, so the screen tells it, and the first one's late acknowledgement does not clear it.
+        assertNotEquals(first, second)
+        viewModel.onRefusalShown(first)
+        assertEquals(second, viewModel.refused.value)
+        viewModel.onRefusalShown(second)
+        assertNull(viewModel.refused.value)
     }
 
     @Test
@@ -214,7 +236,7 @@ class SubscriptionsViewModelTest {
 
         viewModel.setEnabled("a", false)
 
-        assertTrue(viewModel.refused.value)
+        assertNotNull(viewModel.refused.value)
         assertTrue(viewModel.subsFlow.value.first { it.guid == "a" }.subscription.enabled)
     }
 
@@ -243,7 +265,7 @@ class SubscriptionsViewModelTest {
 
         viewModel.move("c", "a")
 
-        assertTrue(viewModel.refused.value)
+        assertNotNull(viewModel.refused.value)
         assertEquals(listOf("a", "b", "c"), viewModel.shown())
     }
 
@@ -474,7 +496,7 @@ class SubscriptionsViewModelTest {
 
         viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, true)
 
-        assertTrue(viewModel.refused.value)
+        assertNotNull(viewModel.refused.value)
         assertEquals(SubscriptionUpdateOptions(), viewModel.updateOptions.value)
         assertEquals(2, source.optionLoads)
     }

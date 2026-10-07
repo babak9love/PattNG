@@ -21,10 +21,12 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicInteger
 
 class SubscriptionsViewModel(
     application: Application,
@@ -43,11 +45,15 @@ class SubscriptionsViewModel(
     val confirmRemove: StateFlow<Boolean> = _confirmRemove.asStateFlow()
 
     /**
-     * PattNG: whether the storage refused a change the list asked for, to be told once, see [onRefusalShown]; the list
+     * PattNG: a change the list asked for that the storage refused, still to be told once, by a number of its own, so that
+     * a refusal set again right after the last one was told is told too; null when none, see [onRefusalShown]. The list
      * shows the subscriptions as stored by then.
      */
-    private val _refused = MutableStateFlow(false)
-    val refused: StateFlow<Boolean> = _refused.asStateFlow()
+    private val _refused = MutableStateFlow<Int?>(null)
+    val refused: StateFlow<Int?> = _refused.asStateFlow()
+
+    /** PattNG: the number the last refusal got, see [refused]. */
+    private val refusals = AtomicInteger()
 
     /** PattNG: the reads and writes of the stored subscriptions, off the main thread, one at a time, in the order asked for. */
     private val storage = Mutex()
@@ -157,9 +163,9 @@ class SubscriptionsViewModel(
         store(changesGroups = true) { source.moveSubscription(fromId, toId) }
     }
 
-    /** PattNG: the refusal is told, see [refused]. */
-    fun onRefusalShown() {
-        _refused.value = false
+    /** PattNG: the refusal numbered [refusal] is told, see [refused]; a later one stays to be told. */
+    fun onRefusalShown(refusal: Int) {
+        _refused.update { if (it == refusal) null else it }
     }
 
     /**
@@ -196,7 +202,7 @@ class SubscriptionsViewModel(
                 }
             }
             if (!taken) {
-                _refused.value = true
+                _refused.value = refusals.incrementAndGet()
                 reload()
             }
         }
@@ -230,7 +236,7 @@ class SubscriptionsViewModel(
         viewModelScope.launch {
             val taken = withContext(NonCancellable) { optionsStorage.withLock { source.saveUpdateOption(option, value) } }
             if (!taken) {
-                _refused.value = true
+                _refused.value = refusals.incrementAndGet()
                 loadUpdateOptions()
             }
         }

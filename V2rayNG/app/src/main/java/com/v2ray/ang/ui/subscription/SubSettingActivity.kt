@@ -79,12 +79,14 @@ class SubSettingActivity : BaseComponentActivity() {
     @Composable
     override fun ScreenContent() {
         val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-        // PattNG: a change the storage refused is told once; the list shows the subscriptions as stored.
-        val refused by viewModel.refused.collectAsStateWithLifecycle()
-        LaunchedEffect(refused) {
-            if (refused) {
-                toastError(R.string.toast_failure)
-                viewModel.onRefusalShown()
+        // PattNG: a change the storage refused is told once, each refusal by its number, so that one set again right
+        // after the last was told is told too; the list shows the subscriptions as stored.
+        val refusal = viewModel.refused.collectAsStateWithLifecycle().value
+        val failureText = stringResource(R.string.toast_failure)
+        LaunchedEffect(refusal) {
+            if (refusal != null) {
+                toastError(failureText)
+                viewModel.onRefusalShown(refusal)
             }
         }
         SubSettingScreen(
