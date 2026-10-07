@@ -59,7 +59,8 @@ object CoreConfigManager {
                 val routed = routeAetherThroughXray(v2rayConfig, it, secondaryPort, node) ?: return secondaryPortFailure(context, guid, secondaryPort)
                 // That outbound joins after the domains of the others were resolved; its own is resolved as theirs are.
                 resolveOutboundDomainsToHosts(v2rayConfig, v2rayConfig.getAllProxyOutbound().filter { outbound -> outbound.tag == AppConfig.TAG_EXIT_NODE })
-                routed
+                // The key of the exit-node carries the content of that profile, so that a test tells it from a changed one.
+                withNodeContent(routed, node)
             }
             return toConfigResult(context, configContext, v2rayConfig, core)
         } catch (e: Exception) {
@@ -673,6 +674,16 @@ object CoreConfigManager {
         val name = core.exit.node ?: return null
         if (core.hasUpstream || outbounds.any { it.tag == AppConfig.TAG_EXIT_NODE }) return null
         return nodeOutbound(name) as? ExitNodeOutbound.Problem
+    }
+
+    /**
+     * PattNG: [core] with the content of the profile its exit-node names, as [nodeOutbound] built it, see
+     * [AetherExit.nodeContent]; as it is when it names none, or the profile gave no outbound.
+     */
+    internal fun withNodeContent(core: AetherCore, nodeOutbound: (String) -> ExitNodeOutbound): AetherCore {
+        val name = core.exit.node ?: return core
+        val content = (nodeOutbound(name) as? ExitNodeOutbound.Built)?.content ?: return core
+        return core.copy(exit = core.exit.copy(nodeContent = content))
     }
 
     /** PattNG: [lookup], asked once for each name however often a name is asked for, see [getV2rayConfig]. */

@@ -77,7 +77,14 @@ object AetherDelayTester {
     ): Long {
         val activeGuid = MmkvManager.getSelectServer()
         val session = withContext(Dispatchers.IO) { liveSession(context, activeGuid) }
-        return when (route(guid, core, activeGuid, session)) {
+        // Beside a live session, the exit-node a profile names is told by the content of that profile as well, which
+        // the session's key carries: an update of its subscription may have changed it since the session started.
+        val keyed = if (session != null && core.exit.node != null) {
+            withContext(Dispatchers.IO) { core.copy(exit = core.exit.withNodeContent()) }
+        } else {
+            core
+        }
+        return when (route(guid, keyed, activeGuid, session)) {
             Route.ACTIVE_SESSION -> probe(session?.port ?: AetherCoreManager.socksPort, deadlineAfter(TEST_BUDGET_MS))
             Route.NEW_TUNNEL -> tunnels.withLock { throughNewTunnel(context, guid, core, configuration, probe) }
             Route.SKIP -> {

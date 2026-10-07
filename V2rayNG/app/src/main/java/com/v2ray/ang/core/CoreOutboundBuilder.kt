@@ -704,7 +704,10 @@ object CoreOutboundBuilder {
      */
     fun toOutboundOfNode(name: String): ExitNodeOutbound = when (val found = AetherExit.nodeProfile(name)) {
         is ByName.One -> try {
-            nodeOutboundOf(convert(found.value))
+            when (val built = nodeOutboundOf(convert(found.value))) {
+                is ExitNodeOutbound.Built -> built.copy(content = AetherExit.contentOf(found.value))
+                else -> built
+            }
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to build the outbound of the Aether exit-node profile", e)
             ExitNodeOutbound.NoOutbound

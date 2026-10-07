@@ -1,5 +1,6 @@
 package com.v2ray.ang.core
 
+import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.AetherPsiphon
@@ -101,6 +102,29 @@ class AetherCoreTest {
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
         assertEquals(digest("\u0000code-1\u0000"), AetherExit(dialMode = "code-1").key)
         assertEquals(digest("\u0000\u0000hops"), AetherExit(hops = "hops").key)
+    }
+
+    @Test
+    fun theKeyOfAnExitNodeTellsAChangedProfileOfTheSameName() {
+        val germany = ProfileItem.create(EConfigType.VLESS).apply { remarks = "germany"; server = "203.0.113.7"; serverPort = "443" }
+        // A subscription's update gives the profile of the name another server, and a new guid the content does not hold.
+        val updated = germany.copy(server = "203.0.113.8")
+        val node = AetherExit(node = "germany")
+        fun found(profile: ProfileItem) = { name: String -> if (name == "germany") ByName.One(profile) else ByName.None }
+
+        val atStart = node.withNodeContent(found(germany))
+        assertEquals(AetherExit.contentOf(germany), atStart.nodeContent)
+        assertEquals(atStart.key, node.withNodeContent(found(germany.copy())).key)
+        assertNotEquals(atStart.key, node.withNodeContent(found(updated)).key)
+        assertNotEquals(atStart.key, node.key)
+        // A name no profile, or several, have any more gives none, and the key without it differs as well.
+        assertEquals(node, node.withNodeContent { ByName.None })
+        assertEquals(node, node.withNodeContent { ByName.Several })
+        // Without a node there is nothing to look up, and the key stays what it was.
+        assertEquals(AetherExit.PLAIN, AetherExit.PLAIN.withNodeContent { error("no node to look up") })
+        // The digest holds no secret of the profile.
+        assertFalse(atStart.key.contains("203.0.113.7"))
+        assertFalse(atStart.nodeContent!!.contains("203.0.113.7"))
     }
 
     @Test

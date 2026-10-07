@@ -196,6 +196,18 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun theSessionsCoreCarriesTheContentOfItsExitNodeInItsKey() {
+        val core = AetherCore.ofCommand("aether --bind 127.0.0.1:10819 --protocol masque")!!.copy(exit = AetherExit(node = "germany"))
+        val built = ExitNodeOutbound.Built(V2rayConfig.OutboundBean(tag = AppConfig.TAG_PROXY, protocol = "trojan"), content = "c0ffee")
+
+        assertEquals(AetherExit(node = "germany", nodeContent = "c0ffee"), CoreConfigManager.withNodeContent(core, { built }).exit)
+        // Without a node, or a node that gave no outbound, the core is as it was.
+        assertEquals(core, CoreConfigManager.withNodeContent(core) { ExitNodeOutbound.NotFound })
+        val plain = core.copy(exit = AetherExit.PLAIN)
+        assertEquals(plain, CoreConfigManager.withNodeContent(plain) { error("no node to look up") })
+    }
+
+    @Test
     fun aCoreWithAnUpstreamOfItsOwnLeavesTheConfigurationAlone() {
         val config = V2rayConfig(
             log = V2rayConfig.LogBean(),

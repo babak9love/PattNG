@@ -171,14 +171,31 @@ data class AetherExit(
     val dialMode: String? = null,
     val hops: String? = null,
     val node: String? = null,
+    /**
+     * A digest of the profile [node] names, as [contentOf] makes it, where it was looked up: as [hops] does for the
+     * hops of a chain, it tells the profile the core dials out through from the one that has the name by now, which an
+     * update of its subscription may have changed. See [withNodeContent].
+     */
+    val nodeContent: String? = null,
 ) {
 
     /**
      * What tells this exit-node from another in another process, without what it is made of: a digest
      * of it, which the session's core carries in its environment, see [AetherCoreManager.EXIT_ENV]. A
-     * node joins only where there is one, so that the key of any other exit-node stays what it was.
+     * node and its content join only where there are some, so that the key of any other exit-node stays what it was.
      */
-    val key: String get() = digest((listOf(finalMask, dialMode, hops) + listOfNotNull(node)).joinToString("\u0000") { it.orEmpty() })
+    val key: String
+        get() = digest((listOf(finalMask, dialMode, hops) + listOfNotNull(node, nodeContent)).joinToString("\u0000") { it.orEmpty() })
+
+    /**
+     * This exit-node with the content of the profile its [node] names, as [find] finds it, see [nodeContent]: as it is
+     * without a node, or with one no profile, or several, have the name of, which no core dials out through.
+     */
+    fun withNodeContent(find: (String) -> ByName<ProfileItem> = Companion::nodeProfile): AetherExit {
+        val name = node ?: return this
+        val profile = (find(name) as? ByName.One)?.value ?: return this
+        return copy(nodeContent = contentOf(profile))
+    }
 
     companion object {
         /** An exit-node with nothing set, as the core of a custom configuration dials out through. */
@@ -231,6 +248,9 @@ data class AetherExit(
          */
         fun through(hops: List<ProfileItem>): AetherExit = AetherExit(hops = digest(JsonUtil.toJson(hops)))
 
+        /** The digest [nodeContent] holds of [profile], the exit-node a [node] names; it holds secrets as well. */
+        fun contentOf(profile: ProfileItem): String = digest(JsonUtil.toJson(profile))
+
         private fun digest(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
@@ -247,7 +267,8 @@ data class AetherExitNode(val name: String, val profiles: Int)
  * the one profile that has it, built as a proxy chain builds a hop, or the [Problem] that leaves the core without one.
  */
 sealed interface ExitNodeOutbound {
-    data class Built(val outbound: V2rayConfig.OutboundBean) : ExitNodeOutbound
+    /** The [outbound] of the one profile that has the name, and the [content] of that profile, see [AetherExit.contentOf]. */
+    data class Built(val outbound: V2rayConfig.OutboundBean, val content: String? = null) : ExitNodeOutbound
 
     /** Why there is no exit-node, with the [message] that tells it, whose argument is the name. */
     sealed interface Problem : ExitNodeOutbound {
