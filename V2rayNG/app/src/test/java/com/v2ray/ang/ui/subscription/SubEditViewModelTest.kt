@@ -35,6 +35,9 @@ class SubEditViewModelTest {
         val deletes = mutableListOf<String>()
         var deleteGate: CompletableDeferred<Unit>? = null
 
+        /** When set, the storage refuses every write and every delete: nothing is written. */
+        var refuseWrites = false
+
         /** When set, the reads the screen opens on wait for it, as reads off the main thread take their time. */
         var openGate: CompletableDeferred<Unit>? = null
 
@@ -60,17 +63,20 @@ class SubEditViewModelTest {
             return confirmRemove
         }
 
-        override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String {
+        override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String? {
             saves += subId
+            if (refuseWrites) return null
             val key = subId.ifBlank { "sub-${stored.size + 1}" }
             stored[key] = (stored[key] ?: SubscriptionItem()).also(edit)
             return key
         }
 
-        override suspend fun deleteSubscription(subId: String) {
+        override suspend fun deleteSubscription(subId: String): Boolean {
             deleteGate?.await()
+            if (refuseWrites) return false
             deletes += subId
             stored.remove(subId)
+            return true
         }
     }
 
@@ -229,5 +235,38 @@ class SubEditViewModelTest {
         assertEquals("", opened?.subscription?.remarks)
         assertEquals("", opened?.subscription?.url)
         assertEquals(false, opened?.confirmRemove)
+    }
+
+    @Test
+    fun aSaveTheStorageRefusesIsToldAndALaterSaveStoresTheSubscriptionAsNew() {
+        source.refuseWrites = true
+        val viewModel = viewModel()
+
+        viewModel.save(edits())
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.stored.isEmpty())
+
+        viewModel.onOutcomeHandled()
+        source.refuseWrites = false
+        viewModel.save(edits())
+
+        assertEquals(EditorOutcome.Saved("sub-1"), viewModel.outcome.value)
+        // Asked to store a new one both times: the refused save gave it no key.
+        assertEquals(listOf("", ""), source.saves)
+    }
+
+    @Test
+    fun aDeleteTheStorageRefusesIsToldAndTheScreenStays() {
+        source.stored["sub-id"] = SubscriptionItem(remarks = "old")
+        source.refuseWrites = true
+        val viewModel = viewModel("sub-id")
+
+        viewModel.delete()
+
+        assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
+        assertEquals(setOf("sub-id"), source.stored.keys)
+        viewModel.onOutcomeHandled()
+        assertTrue(viewModel.leaveScreen())
     }
 }

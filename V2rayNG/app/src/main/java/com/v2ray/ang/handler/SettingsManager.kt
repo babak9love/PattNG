@@ -326,6 +326,23 @@ object SettingsManager {
     }
 
     /**
+     * PattNG: removes the subscription [subid] names, as [removeSubscriptionWithDefault] does, and tells whether the
+     * storage took it, see [MmkvManager.tryRemoveSubscription]: refused, the subscription stays as it was, its updates
+     * scheduled again. A default subscription the storage refused, when none is left, is logged.
+     */
+    fun tryRemoveSubscriptionWithDefault(subid: String): Boolean {
+        SubscriptionUpdater.cancelOne(subId = subid)
+        if (!MmkvManager.tryRemoveSubscription(subid)) {
+            SubscriptionUpdater.syncOne(subId = subid)
+            return false
+        }
+        if (decodeSubsList().isEmpty()) {
+            MmkvManager.tryEncodeSubscription(DEFAULT_SUBSCRIPTION_ID, SubscriptionItem(remarks = "Default"))
+        }
+        return true
+    }
+
+    /**
      * Get the SOCKS port.
      * @return The SOCKS port.
      */

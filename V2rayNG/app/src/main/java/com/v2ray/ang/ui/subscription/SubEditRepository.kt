@@ -33,12 +33,12 @@ interface SubEditSource : ProfileNameSource {
     /**
      * Stores the subscription [subId] names with [edit] made on it as stored then, so that what a background update
      * wrote meanwhile, as its update time, stays, or, when [subId] is blank, a new one; schedules its updates as it
-     * has them now; gives the key it is stored as.
+     * has them now; gives the key it is stored as, or null, with nothing stored, when the storage refused it.
      */
-    suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String
+    suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String?
 
-    /** Deletes the subscription [subId] names, with its profiles. */
-    suspend fun deleteSubscription(subId: String)
+    /** Deletes the subscription [subId] names, with its profiles. False, with nothing deleted, when the storage refused it. */
+    suspend fun deleteSubscription(subId: String): Boolean
 }
 
 /**
@@ -58,21 +58,24 @@ class SubEditRepository : SubEditSource {
     override suspend fun confirmsRemove(): Boolean =
         withContext(Dispatchers.IO) { MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false) }
 
-    override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String =
+    // A refusal is logged by tryEncodeSubscription; its updates are scheduled only once it is stored.
+    override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String? =
         withContext(Dispatchers.IO) {
             // A new subscription gets its key here, so that its updates are scheduled under it.
             val key = subId.ifBlank { Utils.getUuid() }
             val subItem = MmkvManager.decodeSubscription(key) ?: SubscriptionItem()
             edit(subItem)
-            MmkvManager.encodeSubscription(key, subItem)
+            MmkvManager.tryEncodeSubscription(key, subItem) ?: return@withContext null
             SubscriptionUpdater.syncOne(subId = key)
             SettingsChangeManager.makeSetupGroupTab()
             key
         }
 
-    override suspend fun deleteSubscription(subId: String) =
+    // A refusal is logged by MmkvManager.tryRemoveSubscription.
+    override suspend fun deleteSubscription(subId: String): Boolean =
         withContext(Dispatchers.IO) {
-            SettingsManager.removeSubscriptionWithDefault(subId)
-            SettingsChangeManager.makeSetupGroupTab()
+            SettingsManager.tryRemoveSubscriptionWithDefault(subId).also { removed ->
+                if (removed) SettingsChangeManager.makeSetupGroupTab()
+            }
         }
 }

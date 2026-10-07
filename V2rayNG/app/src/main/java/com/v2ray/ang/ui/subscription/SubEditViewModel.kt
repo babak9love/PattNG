@@ -43,7 +43,7 @@ class SubEditViewModel(
      * Saves the subscription with [edits], the edits of the screen read at the tap, made on the subscription as stored
      * when it is written. The previous and the next profile are found by their names, as the chain finds them when it
      * runs: a name no profile has, as after a rename or a delete, or several have, or one whose profile has no server
-     * address, is told rather than saved, see [proxyChainProblem].
+     * address, is told rather than saved, see [proxyChainProblem]. A save the storage refused is told, see [WRITE_REFUSED].
      */
     fun save(edits: (SubscriptionItem) -> Unit) = launchSave {
         val edited = SubscriptionItem().also(edits)
@@ -57,16 +57,21 @@ class SubEditViewModel(
             null -> Unit
         }
 
-        subId = source.saveSubscription(subId, edits)
+        subId = source.saveSubscription(subId, edits) ?: return@launchSave WRITE_REFUSED
         EditorOutcome.Saved(subId)
     }
 
-    /** Deletes the subscription, see [EditorViewModel.launchDelete]; a new one, never stored, has none to delete. */
+    /**
+     * Deletes the subscription, see [EditorViewModel.launchDelete]; a new one, never stored, has none to delete. A delete
+     * the storage refused is told, see [WRITE_REFUSED].
+     */
     fun delete() {
         val key = subId.takeIf { it.isNotEmpty() } ?: return
-        launchDelete {
-            source.deleteSubscription(key)
-            null
-        }
+        launchDelete { WRITE_REFUSED.takeUnless { source.deleteSubscription(key) } }
+    }
+
+    private companion object {
+        /** A write or a delete the storage refused, as when the device is full: told, and the screen stays open. */
+        val WRITE_REFUSED = EditorOutcome.Refused(R.string.toast_failure)
     }
 }

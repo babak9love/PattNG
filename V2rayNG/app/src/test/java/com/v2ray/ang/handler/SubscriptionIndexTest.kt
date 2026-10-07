@@ -5,32 +5,63 @@ import com.tencent.mmkv.MMKV
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.MockMakers
+import org.mockito.Mockito
 import org.mockito.Mockito.mockStatic
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.never
 import org.mockito.kotlin.reset
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
 class SubscriptionIndexTest {
     private val mainValues = mutableMapOf<String, String>()
     private val subValues = mutableMapOf<String, String>()
 
+    /** The keys whose writes the storage refuses, as a full device does. */
+    private val refusedMainKeys = mutableSetOf<String>()
+    private val refusedSubKeys = mutableSetOf<String>()
+
+    /** How many more writes of the main storage it takes; it refuses those after. */
+    private var mainWritesLeft = Int.MAX_VALUE
+
+    /** The key of each write of the main storage, in order, with whether the profile index lock was held for it. */
+    private val mainWrites = mutableListOf<Pair<String, Boolean>>()
+
     @BeforeEach
     fun prepareStorage() {
-        for ((storage, values) in listOf(main to mainValues, subs to subValues)) {
+        for ((storage, values, refused) in listOf(Triple(main, mainValues, refusedMainKeys), Triple(subs, subValues, refusedSubKeys))) {
             reset(storage)
             whenever(storage.decodeString(any())).thenAnswer { values[it.getArgument<String>(0)] }
             whenever(storage.encode(any<String>(), any<String>())).thenAnswer {
-                values[it.getArgument(0)] = it.getArgument(1)
+                val key = it.getArgument<String>(0)
+                if (storage === main) {
+                    mainWrites += key to Thread.holdsLock(main)
+                    if (mainWritesLeft-- <= 0) return@thenAnswer false
+                }
+                if (key in refused) return@thenAnswer false
+                values[key] = it.getArgument(1)
                 true
             }
             whenever(storage.allKeys()).thenAnswer { values.keys.toTypedArray() }
+            whenever(storage.remove(any())).thenAnswer {
+                values.remove(it.getArgument<String>(0))
+                null
+            }
+            doAnswer {
+                values.remove(it.getArgument<String>(0))
+                null
+            }.whenever(storage).removeValueForKey(any())
         }
+        reset(profiles, raws, affiliations)
     }
 
     @Test
@@ -94,10 +125,188 @@ class SubscriptionIndexTest {
         }
     }
 
+    @Test
+    fun aNewSubscriptionIsStoredThenListedUnderTheProfileIndexLock() {
+        mainValues["SUB_IDS"] = """["a"]"""
+
+        assertEquals("new", MmkvManager.tryEncodeSubscription("new", SubscriptionItem(remarks = "New")))
+
+        assertEquals("New", JsonUtil.fromJson(subValues.getValue("new"), SubscriptionItem::class.java)?.remarks)
+        assertEquals(listOf("a", "new"), MmkvManager.decodeSubsList())
+        assertEquals(listOf("SUB_IDS" to true), mainWrites)
+    }
+
+    @Test
+    fun aListedSubscriptionIsWrittenOverWithoutAListWrite() {
+        mainValues["SUB_IDS"] = """["a"]"""
+
+        assertEquals("a", MmkvManager.tryEncodeSubscription("a", SubscriptionItem(remarks = "Renamed")))
+
+        assertEquals("Renamed", JsonUtil.fromJson(subValues.getValue("a"), SubscriptionItem::class.java)?.remarks)
+        assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun aSubscriptionTheStorageRefusesIsToldAndLeftAsItWas() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        val stored = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        subValues["a"] = stored
+        refusedSubKeys += "a"
+
+        mockStatic(Log::class.java).use {
+            assertNull(MmkvManager.tryEncodeSubscription("a", SubscriptionItem(remarks = "Renamed")))
+        }
+
+        assertEquals(stored, subValues["a"])
+        assertTrue(mainWrites.isEmpty())
+    }
+
+    @Test
+    fun aNewSubscriptionTheListRefusesLeavesNothingBehind() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        refusedMainKeys += "SUB_IDS"
+
+        mockStatic(Log::class.java).use {
+            assertNull(MmkvManager.tryEncodeSubscription("new", SubscriptionItem(remarks = "New")))
+        }
+
+        assertFalse("new" in subValues)
+        assertEquals("""["a"]""", mainValues["SUB_IDS"])
+    }
+
+    @Test
+    fun aStoredSubscriptionNoListNamesIsPutBackAsItWasStoredWhenTheListRefusesIt() {
+        mainValues["SUB_IDS"] = """["a"]"""
+        val stored = JsonUtil.toJson(SubscriptionItem(remarks = "Unlisted"))
+        subValues["unlisted"] = stored
+        refusedMainKeys += "SUB_IDS"
+
+        mockStatic(Log::class.java).use {
+            assertNull(MmkvManager.tryEncodeSubscription("unlisted", SubscriptionItem(remarks = "Renamed")))
+        }
+
+        assertEquals(stored, subValues["unlisted"])
+    }
+
+    @Test
+    fun aSubscriptionGoesOutOfItsListThenWithItsProfilesUnderTheProfileIndexLock() {
+        mainValues["SUB_IDS"] = """["a","b"]"""
+        mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
+        mainValues["SELECTED_SERVER"] = "p2"
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        subValues["b"] = JsonUtil.toJson(SubscriptionItem(remarks = "Beta"))
+
+        assertTrue(MmkvManager.tryRemoveSubscription("a"))
+
+        assertEquals(listOf("b"), MmkvManager.decodeSubsList())
+        assertEquals("[]", mainValues["SUB_SERVERS_a"])
+        // The profile the app ran on was one of them.
+        assertFalse("SELECTED_SERVER" in mainValues)
+        assertFalse("a" in subValues)
+        assertTrue("b" in subValues)
+        // Their payloads, raw configurations among them, go once both lists are written.
+        verify(profiles).removeValuesForKeys(arrayOf("p1", "p2"))
+        verify(raws).removeValuesForKeys(arrayOf("p1", "p2"))
+        verify(affiliations).removeValuesForKeys(arrayOf("p1", "p2"))
+        assertEquals(listOf("SUB_IDS" to true, "SUB_SERVERS_a" to true), mainWrites)
+    }
+
+    @Test
+    fun aSubscriptionListTheStorageRefusesLeavesTheSubscriptionAsItWas() {
+        val ids = """["a","b"]"""
+        mainValues["SUB_IDS"] = ids
+        mainValues["SUB_SERVERS_a"] = """["p1"]"""
+        mainValues["SELECTED_SERVER"] = "p1"
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        refusedMainKeys += "SUB_IDS"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryRemoveSubscription("a"))
+        }
+
+        assertEquals(ids, mainValues["SUB_IDS"])
+        assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
+        assertEquals("p1", mainValues["SELECTED_SERVER"])
+        assertTrue("a" in subValues)
+        verifyNoInteractions(profiles, raws, affiliations)
+    }
+
+    @Test
+    fun aListOfProfilesTheStorageRefusesPutsTheSubscriptionListBackAsItWasStored() {
+        // Stored with a repeat, which goes back as it was stored.
+        val ids = """["b","a","b"]"""
+        mainValues["SUB_IDS"] = ids
+        mainValues["SUB_SERVERS_a"] = """["p1"]"""
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        refusedMainKeys += "SUB_SERVERS_a"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryRemoveSubscription("a"))
+        }
+
+        assertEquals(ids, mainValues["SUB_IDS"])
+        assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
+        assertTrue("a" in subValues)
+        verifyNoInteractions(profiles, raws, affiliations)
+    }
+
+    @Test
+    fun aSubscriptionTheStorageRefusesBackInItsListStaysOutOfItWithItsProfiles() {
+        mainValues["SUB_IDS"] = """["a","b"]"""
+        mainValues["SUB_SERVERS_a"] = """["p1"]"""
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+        // The first write is taken, the list of its profiles and the list put back are refused.
+        mainWritesLeft = 1
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryRemoveSubscription("a"))
+        }
+
+        assertEquals(listOf("b"), MmkvManager.decodeSubsList())
+        assertEquals("""["p1"]""", mainValues["SUB_SERVERS_a"])
+        assertTrue("a" in subValues)
+        verifyNoInteractions(profiles, raws, affiliations)
+        assertEquals(listOf("SUB_IDS", "SUB_SERVERS_a", "SUB_IDS"), mainWrites.map { it.first })
+    }
+
+    @Test
+    fun aDamagedListOfProfilesIsWrittenEmptyToo() {
+        mainValues["SUB_IDS"] = """["a","b"]"""
+        mainValues["SUB_SERVERS_a"] = "{"
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+
+        mockStatic(Log::class.java).use {
+            assertTrue(MmkvManager.tryRemoveSubscription("a"))
+        }
+
+        assertEquals("[]", mainValues["SUB_SERVERS_a"])
+        assertEquals(listOf("SUB_IDS" to true, "SUB_SERVERS_a" to true), mainWrites)
+        assertFalse("a" in subValues)
+        verifyNoInteractions(profiles, raws, affiliations)
+    }
+
+    @Test
+    fun theSubscriptionListIsRebuiltFromThePayloadsUnderTheProfileIndexLock() {
+        subValues["a"] = JsonUtil.toJson(SubscriptionItem(remarks = "Alpha"))
+
+        assertEquals(listOf("a"), MmkvManager.decodeSubscriptions().map { it.guid })
+
+        assertEquals(listOf("SUB_IDS" to true), mainWrites)
+    }
+
     companion object {
-        private val main: MMKV = mock()
-        private val subs: MMKV = mock()
-        private val settings: MMKV = mock()
+        /**
+         * A handle as a subclass mock: MMKV's lock, unlock and removeValuesForKeys, which the profile index lock and the
+         * removal of payloads call, are native methods, which the default inline mock maker cannot stand in for.
+         */
+        private fun handle(): MMKV = Mockito.mock(MMKV::class.java, Mockito.withSettings().mockMaker(MockMakers.SUBCLASS))
+
+        private val main: MMKV = handle()
+        private val subs: MMKV = handle()
+        private val settings: MMKV = handle()
+        private val profiles: MMKV = handle()
+        private val raws: MMKV = handle()
+        private val affiliations: MMKV = handle()
 
         @BeforeAll
         @JvmStatic
@@ -106,8 +315,14 @@ class SubscriptionIndexTest {
                 it.`when`<MMKV> { MMKV.mmkvWithID("MAIN", MMKV.MULTI_PROCESS_MODE) }.thenReturn(main)
                 it.`when`<MMKV> { MMKV.mmkvWithID("SUB", MMKV.MULTI_PROCESS_MODE) }.thenReturn(subs)
                 it.`when`<MMKV> { MMKV.mmkvWithID("SETTING", MMKV.MULTI_PROCESS_MODE) }.thenReturn(settings)
+                it.`when`<MMKV> { MMKV.mmkvWithID("PROFILE_FULL_CONFIG", MMKV.MULTI_PROCESS_MODE) }.thenReturn(profiles)
+                it.`when`<MMKV> { MMKV.mmkvWithID("SERVER_RAW", MMKV.MULTI_PROCESS_MODE) }.thenReturn(raws)
+                it.`when`<MMKV> { MMKV.mmkvWithID("SERVER_AFF", MMKV.MULTI_PROCESS_MODE) }.thenReturn(affiliations)
                 MmkvManager.decodeSubscriptions()
                 MmkvManager.decodeSettingsString("test-initialize")
+                MmkvManager.decodeServerConfig("test-initialize")
+                MmkvManager.decodeServerRaw("test-initialize")
+                MmkvManager.decodeServerAffiliationInfo("test-initialize")
             }
         }
     }
