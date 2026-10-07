@@ -2,6 +2,7 @@ package com.v2ray.ang.ui.subscription
 
 import android.os.Bundle
 import android.text.TextUtils
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -24,20 +25,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
-import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toLongEx
 import com.v2ray.ang.extension.toast
-import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
-import com.v2ray.ang.handler.SubscriptionUpdater
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
 import com.v2ray.ang.ui.compose.FormDropdownField
@@ -45,24 +44,19 @@ import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
-import com.v2ray.ang.ui.server.ProxyChainProblem
-import com.v2ray.ang.ui.server.proxyChainProblem
 import com.v2ray.ang.util.Utils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class SubEditActivity : BaseComponentActivity() {
     private val editSubId by lazy { intent.getStringExtra("subId").orEmpty() }
     private lateinit var suggestions: List<String>
     private lateinit var subItem: SubscriptionItem
 
-    /** PattNG: the save under way; the subscription is read and written off the main thread, one save at a time. */
-    private var saveJob: Job? = null
-
-    /** PattNG: the delete under way, which a save must not follow, nor run beside. */
-    private var deleteJob: Job? = null
+    /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [SubEditViewModel]. */
+    private val viewModel: SubEditViewModel by viewModels {
+        viewModelFactory {
+            initializer { SubEditViewModel(application, SubEditRepository(), editSubId) }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,27 +73,36 @@ class SubEditActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        EditorOutcomeEffect(
+            viewModel = viewModel,
+            onSaved = { finish() },
+            onDeleted = { finish() }
+        )
         SubEditScreen(
             editSubId = editSubId,
             initial = subItem,
             profileSuggestions = suggestions,
             onBackClick = { finish() },
             onSave = { saveServer(it) },
-            onDelete = { deleteServer() }
+            onDelete = { viewModel.delete() }
         )
+    }
+
+    /**
+     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
+     * it is gone.
+     */
+    override fun finish() {
+        viewModel.onScreenLeft()
+        super.finish()
     }
 
     /**
      * Saves the subscription with [applyEdits], the edits of the screen read at the tap, made on the subscription as
      * stored when it is written: what a background update wrote meanwhile, as its update time, stays. PattNG: the
-     * previous and the next profile are found by their names, as the chain finds them when it runs: a name no profile
-     * has, as after a rename or a delete, or several have, is told rather than saved. A save does not start once a
-     * delete has, nor while one runs.
+     * view model looks up the profiles it names and writes it, see [SubEditViewModel.save].
      */
     private fun saveServer(applyEdits: (SubscriptionItem) -> Unit) {
-        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
-            return
-        }
         val edited = SubscriptionItem().also(applyEdits)
         if (TextUtils.isEmpty(edited.remarks)) {
             return
@@ -117,53 +120,7 @@ class SubEditActivity : BaseComponentActivity() {
             return
         }
 
-        // The next profile first, then the previous one, as the chain finds them.
-        val neighbors = listOfNotNull(edited.nextProfile, edited.prevProfile).map { it.trim() }.filter { it.isNotEmpty() }
-        saveJob = lifecycleScope.launch {
-            val problem = withContext(Dispatchers.IO) {
-                proxyChainProblem(neighbors) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
-            }
-            when (problem) {
-                is ProxyChainProblem.Unresolved -> {
-                    toast(getString(problem.message, problem.name))
-                    return@launch
-                }
-
-                // The previous and the next profile chain every profile of the subscription. Either can be Aether,
-                // but not both: one core runs, so a chain can have one Aether profile.
-                ProxyChainProblem.SecondAether -> {
-                    toast(R.string.aether_chain_one_profile)
-                    return@launch
-                }
-
-                null -> Unit
-            }
-
-            withContext(Dispatchers.IO) {
-                val subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()
-                applyEdits(subItem)
-                MmkvManager.encodeSubscription(editSubId, subItem)
-                SubscriptionUpdater.syncOne(subId = editSubId)
-            }
-            SettingsChangeManager.makeSetupGroupTab()
-            toastSuccess(R.string.toast_success)
-            finish()
-        }
-    }
-
-    /** Deletes the subscription, unless a save runs, which would write it back, or a delete has started already. */
-    private fun deleteServer(): Boolean {
-        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
-            return false
-        }
-        if (editSubId.isNotEmpty()) {
-            deleteJob = lifecycleScope.launch(Dispatchers.IO) {
-                SettingsManager.removeSubscriptionWithDefault(editSubId)
-                SettingsChangeManager.makeSetupGroupTab()
-                launch(Dispatchers.Main) { finish() }
-            }
-        }
-        return true
+        viewModel.save(applyEdits)
     }
 }
 

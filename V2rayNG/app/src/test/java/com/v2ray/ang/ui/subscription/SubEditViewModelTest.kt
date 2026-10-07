@@ -1,0 +1,180 @@
+package com.v2ray.ang.ui.subscription
+
+import android.app.Application
+import com.v2ray.ang.R
+import com.v2ray.ang.dto.ByName
+import com.v2ray.ang.dto.CoreConfigContext
+import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.ui.base.EditorOutcome
+import com.v2ray.ang.ui.server.FakeProfileNames
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+
+class SubEditViewModelTest {
+
+    private class FakeSource : SubEditSource {
+        val names = FakeProfileNames()
+        val stored = linkedMapOf<String, SubscriptionItem>()
+
+        /** The key each save was asked to store as, blank for a new subscription. */
+        val saves = mutableListOf<String>()
+        val deletes = mutableListOf<String>()
+        var deleteGate: CompletableDeferred<Unit>? = null
+
+        override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
+            names.withProfileNames(takes, check)
+
+        override suspend fun saveSubscription(subId: String, edit: (SubscriptionItem) -> Unit): String {
+            saves += subId
+            val key = subId.ifBlank { "sub-${stored.size + 1}" }
+            stored[key] = (stored[key] ?: SubscriptionItem()).also(edit)
+            return key
+        }
+
+        override suspend fun deleteSubscription(subId: String) {
+            deleteGate?.await()
+            deletes += subId
+            stored.remove(subId)
+        }
+    }
+
+    private val source = FakeSource()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @BeforeEach
+    fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        source.names.add("entry")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @AfterEach
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel(subId: String = "") = SubEditViewModel(mock<Application>(), source, subId)
+
+    private fun edits(remarks: String = "sub", prev: String? = null, next: String? = null): (SubscriptionItem) -> Unit = {
+        it.remarks = remarks
+        it.prevProfile = prev
+        it.nextProfile = next
+    }
+
+    @Test
+    fun aNeighborNoProfileHasSeveralHaveOrWithoutAServerIsToldByItsName() {
+        source.names.add("twice")
+        source.names.add("twice")
+        source.names.add("bare", server = null)
+        val viewModel = viewModel()
+
+        viewModel.save(edits(next = " gone "))
+        assertEquals(EditorOutcome.Refused(CoreConfigContext.UnresolvedName.Reason.NOT_FOUND.message, listOf("gone")), viewModel.outcome.value)
+
+        viewModel.onOutcomeHandled()
+        viewModel.save(edits(prev = "twice"))
+        assertEquals(EditorOutcome.Refused(CoreConfigContext.UnresolvedName.Reason.SEVERAL.message, listOf("twice")), viewModel.outcome.value)
+
+        // The next profile is looked up first, as the chain finds it first.
+        viewModel.onOutcomeHandled()
+        viewModel.save(edits(prev = "twice", next = "bare"))
+        assertEquals(EditorOutcome.Refused(CoreConfigContext.UnresolvedName.Reason.NO_SERVER.message, listOf("bare")), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+    }
+
+    @Test
+    fun twoAetherNeighborsAreTold() {
+        source.names.add("warp", EConfigType.AETHER, server = null)
+        source.names.add("warp 2", EConfigType.AETHER, server = null)
+        val viewModel = viewModel()
+
+        viewModel.save(edits(prev = "warp", next = "warp 2"))
+
+        assertEquals(EditorOutcome.Refused(R.string.aether_chain_one_profile), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+    }
+
+    @Test
+    fun aNewSubscriptionIsStoredOnceAndALaterSaveWritesOverIt() {
+        val viewModel = viewModel()
+
+        viewModel.save(edits(prev = "entry"))
+        assertEquals(EditorOutcome.Saved("sub-1"), viewModel.outcome.value)
+        assertEquals("entry", source.stored.getValue("sub-1").prevProfile)
+
+        // As when the screen, recreated before it closed, is saved again: the subscription it stored is written over.
+        viewModel.onOutcomeHandled()
+        viewModel.save(edits(remarks = "sub 2"))
+
+        assertEquals(EditorOutcome.Saved("sub-1"), viewModel.outcome.value)
+        assertEquals(listOf("", "sub-1"), source.saves)
+        assertEquals(setOf("sub-1"), source.stored.keys)
+        assertEquals("sub 2", source.stored.getValue("sub-1").remarks)
+    }
+
+    @Test
+    fun theEditsAreMadeOnTheSubscriptionAsStored() {
+        source.stored["sub-id"] = SubscriptionItem(remarks = "old", lastUpdated = 42L)
+        val viewModel = viewModel("sub-id")
+
+        viewModel.save(edits(remarks = "new"))
+
+        assertEquals(EditorOutcome.Saved("sub-id"), viewModel.outcome.value)
+        assertEquals("new", source.stored.getValue("sub-id").remarks)
+        assertEquals(42L, source.stored.getValue("sub-id").lastUpdated)
+    }
+
+    @Test
+    fun aDeleteDeletesTheSubscriptionAndNoSaveFollowsIt() {
+        source.stored["sub-id"] = SubscriptionItem(remarks = "old")
+        val gate = CompletableDeferred<Unit>()
+        source.deleteGate = gate
+        val viewModel = viewModel("sub-id")
+
+        viewModel.delete()
+        viewModel.save(edits())
+        gate.complete(Unit)
+
+        assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
+        assertEquals(listOf("sub-id"), source.deletes)
+        assertTrue(source.saves.isEmpty())
+        assertTrue(source.stored.isEmpty())
+    }
+
+    @Test
+    fun aNewSubscriptionHasNoneToDelete() {
+        val viewModel = viewModel()
+
+        viewModel.delete()
+
+        assertTrue(source.deletes.isEmpty())
+        assertNull(viewModel.outcome.value)
+    }
+
+    @Test
+    fun leavingTheScreenWhileTheNeighborsAreLookedUpStoresNothing() {
+        val gate = CompletableDeferred<Unit>()
+        source.names.gate = gate
+        val viewModel = viewModel()
+
+        viewModel.save(edits(prev = "entry"))
+        viewModel.onScreenLeft()
+        gate.complete(Unit)
+
+        assertTrue(source.saves.isEmpty())
+        assertNull(viewModel.outcome.value)
+    }
+}

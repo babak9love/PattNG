@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -31,19 +32,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig.BUILTIN_OUTBOUND_TAGS
 import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
-import com.v2ray.ang.core.CoreConfigContextBuilder
-import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.extension.nullIfBlank
-import com.v2ray.ang.extension.toast
-import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.apppicker.AppPickerActivity
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
 import com.v2ray.ang.ui.compose.FormDropdownField
@@ -51,11 +50,6 @@ import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.UUID
 
 private val ROUTING_NETWORK_OPTIONS = listOf("tcp", "udp", "tcp,udp")
 
@@ -66,11 +60,12 @@ class RoutingEditActivity : BaseComponentActivity() {
     private lateinit var outboundSuggestions: List<String>
     private var canUseProcess: Boolean = false
 
-    /** PattNG: the save under way; the profile a rule sends to is looked up, and the rule written, off the main thread. */
-    private var saveJob: Job? = null
-
-    /** PattNG: the delete under way; both find the rule by its position, so neither starts beside the other. */
-    private var deleteJob: Job? = null
+    /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [RoutingEditViewModel]. */
+    private val viewModel: RoutingEditViewModel by viewModels {
+        viewModelFactory {
+            initializer { RoutingEditViewModel(application, RoutingEditRepository(), position) }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,67 +77,29 @@ class RoutingEditActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        EditorOutcomeEffect(
+            viewModel = viewModel,
+            onSaved = { finish() },
+            onDeleted = { finish() }
+        )
         RoutingEditScreen(
             position = position,
             initial = initial,
             outboundSuggestions = outboundSuggestions,
             canUseProcess = canUseProcess,
             onBackClick = { finish() },
-            onSave = { saveServer(it) },
-            onDelete = { deleteServer() }
+            onSave = { viewModel.save(it) },
+            onDelete = { viewModel.delete() }
         )
     }
 
-    private fun saveServer(rulesetItem: RulesetItem) {
-        if (rulesetItem.remarks.isNullOrEmpty()) {
-            return
-        }
-        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
-            return
-        }
-        saveJob = lifecycleScope.launch {
-            // PattNG: a rule that sends to a profile names it, and the name has to find that one profile, as at the
-            // start: a name no profile has, as after a rename or a delete, or several have, is told rather than saved.
-            // The start looks at enabled rules alone, and so does this.
-            val tag = rulesetItem.outboundTag
-            if (rulesetItem.enabled && tag !in BUILTIN_OUTBOUND_TAGS) {
-                val found = withContext(Dispatchers.IO) {
-                    SettingsManager.findServerViaRemarks(tag, CoreConfigContextBuilder::takesAsRoutingTarget)
-                }
-                when (found) {
-                    ByName.None -> {
-                        toast(getString(R.string.toast_profile_name_not_found, tag.trim()))
-                        return@launch
-                    }
-
-                    ByName.Several -> {
-                        toast(getString(R.string.toast_profile_name_duplicate, tag.trim()))
-                        return@launch
-                    }
-
-                    is ByName.One -> Unit
-                }
-            }
-            if (position < 0 && rulesetItem.id.isEmpty()) {
-                rulesetItem.id = UUID.randomUUID().toString()
-            }
-            withContext(Dispatchers.IO) { SettingsManager.saveRoutingRuleset(position, rulesetItem) }
-            toastSuccess(R.string.toast_success)
-            finish()
-        }
-    }
-
-    private fun deleteServer(): Boolean {
-        if (isFinishing || saveJob?.isActive == true || deleteJob?.isActive == true) {
-            return false
-        }
-        if (position >= 0) {
-            deleteJob = lifecycleScope.launch(Dispatchers.IO) {
-                SettingsManager.removeRoutingRuleset(position)
-                withContext(Dispatchers.Main) { finish() }
-            }
-        }
-        return true
+    /**
+     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
+     * it is gone.
+     */
+    override fun finish() {
+        viewModel.onScreenLeft()
+        super.finish()
     }
 }
 
