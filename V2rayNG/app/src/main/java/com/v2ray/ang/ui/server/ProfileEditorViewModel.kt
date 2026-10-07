@@ -8,27 +8,45 @@ import com.v2ray.ang.ui.base.EditorOutcome
 import com.v2ray.ang.ui.base.EditorViewModel
 
 /**
- * PattNG: the save and the delete of the editor of a profile made of other profiles, a proxy chain or a policy group,
- * see [EditorViewModel]. The profile is stored as [guid]: the one the screen was opened on, or none for a new one until
- * its first save stores it, which a later save writes over. A new one goes into the subscription [subscriptionId], when
- * the screen was opened in one.
+ * PattNG: the save and the delete of the editor of a profile, see [EditorViewModel]: one made of other profiles, a
+ * proxy chain or a policy group, one the screen builds whole, see [ServerEditorViewModel], or a custom one. The profile
+ * is stored as [guid]: the one the screen was opened on, or none for a new one until its first save stores it, which a
+ * later save writes over. A new one goes into the subscription [subscriptionId], when the screen was opened in one.
  */
 abstract class ProfileEditorViewModel(
     application: Application,
     protected val source: ProfileEditorSource,
-    private var guid: String,
+    guid: String,
     private val subscriptionId: String?,
 ) : EditorViewModel(application) {
 
-    /** Stores the profile, of [type], with [edit] made on it, see [ProfileEditorSource.saveProfile], and keeps the guid it is stored as. */
-    protected suspend fun store(type: EConfigType, edit: (ProfileItem) -> Unit): EditorOutcome.Saved {
-        guid = source.saveProfile(guid, type) { config ->
+    /** The guid the profile is stored as, see the class. */
+    protected var guid: String = guid
+        private set
+
+    /**
+     * Stores the profile, of [type], with [edit] made on it, and [raw] with it when given, see
+     * [ProfileEditorSource.saveProfile], and keeps the guid it is stored as.
+     */
+    protected suspend fun store(type: EConfigType, raw: String? = null, edit: (ProfileItem) -> Unit): EditorOutcome.Saved {
+        guid = source.saveProfile(guid, type, raw) { config ->
             edit(config)
-            if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
-                config.subscriptionId = subscriptionId
-            }
+            stampSubscription(config)
         }
         return EditorOutcome.Saved(guid)
+    }
+
+    /** Stores [profile], which the screen built whole, see [ProfileEditorSource.storeProfile], and keeps the guid it is stored as. */
+    protected suspend fun store(profile: ProfileItem): EditorOutcome.Saved {
+        stampSubscription(profile)
+        guid = source.storeProfile(guid, profile)
+        return EditorOutcome.Saved(guid)
+    }
+
+    private fun stampSubscription(config: ProfileItem) {
+        if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
+            config.subscriptionId = subscriptionId
+        }
     }
 
     /**

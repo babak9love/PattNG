@@ -625,10 +625,9 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     /**
-     * Saves the profile after the check of its keys, unless a save has closed the editor already: the check of a
-     * second tap on Save, made while the first one was checked, can end after that save, and would save a new
-     * profile twice. PattNG: the check was made on [checked], the profile the screen held at the tap; one edited
-     * while the check ran is checked in its turn, rather than saved without its own check.
+     * Saves the profile after the check of its keys, unless a save has closed the editor already. PattNG: the check was
+     * made on [checked], the profile the screen held at the tap; one edited while the check ran is checked in its turn,
+     * rather than saved without its own check.
      */
     private fun saveChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
         if (isFinishing) return

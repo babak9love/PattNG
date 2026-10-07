@@ -31,12 +31,24 @@ internal class FakeProfileNames {
     }
 }
 
-/** The profiles the proxy chain and the policy group editors store, in memory, with their names looked up in [names]. */
+/** The profiles the profile editors store, in memory, with their names looked up in [names]. */
 internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfileNames()) : ProfileEditorSource {
     val stored = linkedMapOf<String, ProfileItem>()
 
+    /** The configurations in full stored with their custom profiles, by guid. */
+    val raws = mutableMapOf<String, String>()
+
     /** The guid each save was asked to store as, blank for a new profile. */
     val saves = mutableListOf<String>()
+
+    /** When set, a save waits for it before it writes, as one off the main thread takes its time. */
+    var saveGate: CompletableDeferred<Unit>? = null
+
+    /** What a custom configuration reads as. */
+    var parsed: Result<ProfileItem> = Result.success(ProfileItem.create(EConfigType.CUSTOM))
+
+    /** The guids of the profiles whose custom configuration was read, which a failure is logged for. */
+    val parsedFor = mutableListOf<String>()
 
     /** The profile the app runs on, which is not deleted. */
     var selected: String? = null
@@ -45,13 +57,28 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         names.withProfileNames(takes, check)
 
-    override suspend fun saveProfile(guid: String, type: EConfigType, edit: (ProfileItem) -> Unit): String {
+    override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String {
         saves += guid
+        saveGate?.await()
         val key = guid.ifBlank { "guid-${stored.size + 1}" }
         val config = stored[key] ?: ProfileItem.create(type)
         edit(config)
         stored[key] = config
+        if (raw != null) raws[key] = raw
         return key
+    }
+
+    override suspend fun storeProfile(guid: String, profile: ProfileItem): String {
+        saves += guid
+        saveGate?.await()
+        val key = guid.ifBlank { "guid-${stored.size + 1}" }
+        stored[key] = profile
+        return key
+    }
+
+    override suspend fun parseCustomConfig(guid: String, content: String): Result<ProfileItem> {
+        parsedFor += guid
+        return parsed
     }
 
     override suspend fun isSelected(guid: String): Boolean = guid == selected

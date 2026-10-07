@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui.server
 
 import android.os.Bundle
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -28,6 +29,8 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig.REALITY
 import com.v2ray.ang.AppConfig.TLS
 import com.v2ray.ang.R
@@ -42,6 +45,7 @@ import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.CertificateFingerprintManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
 import com.v2ray.ang.ui.compose.FormDropdownField
@@ -69,10 +73,26 @@ abstract class BaseServerActivity : BaseComponentActivity() {
 
     protected lateinit var initialConfig: ProfileItem
 
+    /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [ServerEditorViewModel]. */
+    private val editor: ServerEditorViewModel by viewModels {
+        viewModelFactory {
+            initializer { ServerEditorViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId) }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val existingConfig = MmkvManager.decodeServerConfig(editGuid)
         initialConfig = existingConfig ?: ProfileItem.create(serverConfigType)
+    }
+
+    /**
+     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
+     * it is gone.
+     */
+    override fun finish() {
+        editor.onScreenLeft()
+        super.finish()
     }
 
     @Composable
@@ -473,22 +493,19 @@ abstract class BaseServerActivity : BaseComponentActivity() {
         return true
     }
 
-    protected fun saveServer(state: ServerUiState): Boolean {
-        if (!validateBasicConfig(state)) return false
+    /**
+     * Saves the profile the screen holds once it passes the checks. PattNG: it is stored off the main thread, into the
+     * subscription the screen was opened in when it has none, see [ServerEditorViewModel]; the screen closes once it
+     * is, see [ServerEditorScaffold].
+     */
+    protected fun saveServer(state: ServerUiState) {
+        if (!validateBasicConfig(state)) return
         val config = state.toProfileItem(initialConfig)
-        if (!validateCommonConfig(state, config)) return false
-        if (!validateProtocolConfig(config)) return false
+        if (!validateCommonConfig(state, config)) return
+        if (!validateProtocolConfig(config)) return
 
         config.description = AngConfigManager.generateDescription(config)
-        if (config.subscriptionId.isEmpty() && !subscriptionId.isNullOrEmpty()) {
-            config.subscriptionId = subscriptionId.orEmpty()
-        }
-        val savedGuid = MmkvManager.encodeServerConfig(editGuid, config)
-        toastSuccess(R.string.toast_success)
-        ProfileEditorResult.run {
-            finishSaved(savedGuid, isRunning)
-        }
-        return true
+        editor.save(config)
     }
 
     @Composable
@@ -499,6 +516,19 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     ) {
         var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
         val scrollState = rememberScrollState()
+        EditorOutcomeEffect(
+            viewModel = editor,
+            onSaved = { guid ->
+                ProfileEditorResult.run {
+                    finishSaved(guid, isRunning)
+                }
+            },
+            onDeleted = {
+                ProfileEditorResult.run {
+                    finishDeleted(editGuid)
+                }
+            }
+        )
         Scaffold(
             contentWindowInsets = WindowInsets(0),
             topBar = {
@@ -545,21 +575,10 @@ abstract class BaseServerActivity : BaseComponentActivity() {
                 itemName = initialConfig.remarks,
                 onConfirm = {
                     showDeleteDialog = false
-                    deleteServer(editGuid)
+                    editor.delete()
                 },
                 onDismiss = { showDeleteDialog = false }
             )
-        }
-    }
-
-    private fun deleteServer(guid: String) {
-        if (guid.isEmpty() || guid == MmkvManager.getSelectServer()) {
-            toast(R.string.toast_action_not_allowed)
-            return
-        }
-        MmkvManager.removeServer(guid)
-        ProfileEditorResult.run {
-            finishDeleted(guid)
         }
     }
 }
