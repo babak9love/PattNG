@@ -49,6 +49,7 @@ class MainViewModelServersChangedTest {
         override fun isGroupAllDisplayEnabled() = false
         override fun getString(resId: Int) = ""
         override fun getString(resId: Int, vararg formatArgs: Any) = ""
+        override fun getStringArray(resId: Int) = emptyList<String>()
         override fun getSubscriptions() = listOf(SubscriptionCache(SUB, SubscriptionItem(remarks = "Sub")))
         override fun getSubscriptionItem(id: String): SubscriptionItem? = null
         override fun getServerGuidList(groupId: String) = serverGuids

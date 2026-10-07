@@ -25,6 +25,9 @@ interface MainDataSource : Closeable {
     fun getString(resId: Int): String
     fun getString(resId: Int, vararg formatArgs: Any): String
 
+    /** The items of the string array [resId], as the app's language has them. */
+    fun getStringArray(resId: Int): List<String>
+
     fun getSubscriptions(): List<SubscriptionCache>
     fun getSubscriptionItem(id: String): SubscriptionItem?
 

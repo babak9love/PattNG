@@ -1076,10 +1076,10 @@ object AetherCoreManager {
 
     /**
      * The tunnel [argv] runs, as the names of its parts from the outside in: a carrier around the
-     * tunnel, the WARP protocol, a carrier inside it. A carrier alone is the whole tunnel, and Tor
-     * alone comes before Psiphon alone, as the core runs it before it looks at Psiphon.
+     * tunnel, the WARP protocol, which [label] names, a carrier inside it. A carrier alone is the whole
+     * tunnel, and Tor alone comes before Psiphon alone, as the core runs it before it looks at Psiphon.
      */
-    internal fun pathOf(argv: List<String>): List<String> {
+    internal fun pathOf(argv: List<String>, label: (AetherProtocol) -> String = AetherProtocol::name): List<String> {
         val tor = torModeOf(argv)
         val psiphon = psiphonModeOf(argv)
         if (tor == AetherTor.ONLY) return listOf(TOR_NAME)
@@ -1087,7 +1087,7 @@ object AetherCoreManager {
         return buildList {
             if (tor == AetherTor.REVERSE) add(TOR_NAME)
             if (psiphon == AetherPsiphon.REVERSE) add(PSIPHON_NAME)
-            add(protocolOf(argv).name)
+            add(label(protocolOf(argv)))
             if (psiphon == AetherPsiphon.CHAIN) add(PSIPHON_NAME)
             if (tor == AetherTor.CHAIN) add(TOR_NAME)
         }

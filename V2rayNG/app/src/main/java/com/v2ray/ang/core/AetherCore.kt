@@ -45,6 +45,9 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
     /** The tunnel as the names of its parts from the outside in, carriers included; see [AetherCoreManager.pathOf]. */
     val path: List<String> get() = AetherCoreManager.pathOf(arguments)
 
+    /** [path], with the WARP protocol named by [label], as a screen names it. */
+    fun path(label: (AetherProtocol) -> String): List<String> = AetherCoreManager.pathOf(arguments, label)
+
     /** The command line a profile or a custom configuration carries for this core; [ofCommand] reads it back. */
     val command: String get() = (listOf(COMMAND_NAME) + arguments).joinToString(" ", transform = ::quoted)
 

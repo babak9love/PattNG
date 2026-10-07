@@ -132,6 +132,8 @@ class MainRepository(
     override fun getString(resId: Int, vararg formatArgs: Any): String =
         localizedContext.getString(resId, *formatArgs)
 
+    override fun getStringArray(resId: Int): List<String> = localizedContext.resources.getStringArray(resId).toList()
+
     override fun getSubscriptions(): List<SubscriptionCache> {
         val result = mutableListOf<SubscriptionCache>()
         if (isGroupAllDisplayEnabled()) {
