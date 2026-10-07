@@ -284,11 +284,13 @@ object MmkvManager {
 
             if (!serverList.contains(key)) {
                 serverList.add(0, key)
+                var listed = false
                 try {
                     requireStorageWrite(
                         persistServerList(serverList, subId),
                         "Failed to publish profile index",
                     )
+                    listed = true
                     if (getSelectServer().isNullOrBlank()) {
                         requireStorageWrite(
                             mainStorage.encode(KEY_SELECTED_SERVER, key),
@@ -297,10 +299,14 @@ object MmkvManager {
                     }
                 } catch (e: ProfileStorageException) {
                     // PattNG: a new profile is stored whole or not at all, so that the next try adds it, and selects it,
-                    // anew: out of its list again, and its payload as it was.
+                    // anew: out of its list again, and then its payload as it was. Should the list refuse that too, the
+                    // payload stays, so that no list names a profile without one.
                     serverList.remove(key)
-                    persistServerList(serverList, subId)
-                    if (previousPayload == null) profileFullStorage.removeValueForKey(key) else profileFullStorage.encode(key, previousPayload)
+                    if (!listed || persistServerList(serverList, subId)) {
+                        if (previousPayload == null) profileFullStorage.removeValueForKey(key) else profileFullStorage.encode(key, previousPayload)
+                    } else {
+                        LogUtil.e(TAG, "MmkvManager: the storage refused profile $key out of its list again; it stays listed")
+                    }
                     throw e
                 }
             }
@@ -406,14 +412,14 @@ object MmkvManager {
             return
         }
 
-        if (!tryRemoveServer(guid)) LogUtil.e(TAG, "MmkvManager: the storage refused the list without profile $guid")
+        tryRemoveServer(guid)
     }
 
     /**
      * PattNG: removes the profile [guid] names, as [removeServer] does, under the profile index lock, so that a list
      * written meanwhile, as by a subscription update, is not written back without its change: out of its list first,
      * then its payloads, its raw configuration among them, which [removeServer] used to leave behind. False, with
-     * nothing removed, when the storage refused the list without it.
+     * nothing removed, when the storage refused the list without it, which is logged.
      */
     fun tryRemoveServer(guid: String): Boolean {
         if (guid.isBlank()) return true
@@ -424,7 +430,10 @@ object MmkvManager {
 
             // Remove from appropriate server list
             val serverList = decodeServerList(subId)
-            if (serverList.remove(guid) && !persistServerList(serverList, subId)) return@withProfileIndexLock false
+            if (serverList.remove(guid) && !persistServerList(serverList, subId)) {
+                LogUtil.e(TAG, "MmkvManager: the storage refused the list without profile $guid")
+                return@withProfileIndexLock false
+            }
 
             // Clean up storage
             if (getSelectServer() == guid) {
