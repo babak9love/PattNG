@@ -96,6 +96,9 @@ object CoreConfigManager {
             unresolvedNameFailure(context, guid, configContext.resolvedOutbounds.take(1).firstNotNullOfOrNull { it.unresolvedHop })?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }
+            // PattNG: what the session refuses for the cores of the fallback beside the primary is refused here too, as a
+            // chain with another Aether profile: the hop it would tag exit-node would pass for the tested core's.
+            aetherFailure(context, guid, AetherDependency.of(configContext.resolvedOutbounds))?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
