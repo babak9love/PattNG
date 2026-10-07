@@ -53,10 +53,13 @@ object SettingsManager {
      * @param context The application context.
      */
     private fun initRoutingRulesets(context: Context) {
-        val exist = MmkvManager.decodeRoutingRulesets()
-        if (exist.isNullOrEmpty()) {
-            val rulesetList = getPresetRoutingRulesets(context, RoutingType.WHITE_IRAN)
-            MmkvManager.encodeRoutingRulesets(rulesetList)
+        // PattNG: one change of the stored rules at a time, see changeRoutingRulesets.
+        changeRoutingRulesets {
+            val exist = MmkvManager.decodeRoutingRulesets()
+            if (exist.isNullOrEmpty()) {
+                val rulesetList = getPresetRoutingRulesets(context, RoutingType.WHITE_IRAN)
+                MmkvManager.encodeRoutingRulesets(rulesetList)
+            }
         }
     }
 

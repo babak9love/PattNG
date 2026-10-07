@@ -71,6 +71,12 @@ class RoutingSettingsViewModel(
         store { source.moveRule(fromId, toId) }
     }
 
+    /**
+     * PattNG: the rules as stored once what the screen asked to store before is, read off the main thread, see
+     * [RoutingSettingsSource.loadRules]: for an export, which the list shown may lag behind, while it is read anew.
+     */
+    suspend fun storedRules(): List<RulesetItem> = storage.withLock { source.loadRules() }
+
     private val isReloading: Boolean
         get() = reloadJob?.isActive == true
 

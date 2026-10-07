@@ -104,10 +104,7 @@ class ProfileEditorRepository : ProfileEditorSource {
     override suspend fun isSelected(guid: String): Boolean =
         withContext(Dispatchers.IO) { MmkvManager.getSelectServer() == guid }
 
+    // A refusal is logged by tryRemoveServer, which every delete goes through.
     override suspend fun deleteProfile(guid: String): Boolean =
-        withContext(Dispatchers.IO) {
-            MmkvManager.tryRemoveServer(guid).also { removed ->
-                if (!removed) LogUtil.e(AppConfig.TAG, "Profile editor: the storage refused the list without profile $guid")
-            }
-        }
+        withContext(Dispatchers.IO) { MmkvManager.tryRemoveServer(guid) }
 }

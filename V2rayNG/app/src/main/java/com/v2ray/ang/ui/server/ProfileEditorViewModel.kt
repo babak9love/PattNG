@@ -81,8 +81,8 @@ abstract class ProfileEditorViewModel(
     }
 
     /**
-     * Deletes the profile, off the main thread, unless it is the profile the app runs on, which is told rather than
-     * deleted, a save that runs going on; see [EditorViewModel.launchDelete]. A delete the storage refused is told, see
+     * Deletes the profile, off the main thread, once a save that runs has ended, unless it is the profile the app runs on,
+     * which is told rather than deleted; see [EditorViewModel.launchDelete]. A delete the storage refused is told, see
      * [WRITE_REFUSED]. A new one, never saved, has none to delete.
      */
     fun delete() {

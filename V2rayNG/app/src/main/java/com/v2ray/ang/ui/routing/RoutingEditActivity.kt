@@ -103,7 +103,6 @@ class RoutingEditActivity : BaseComponentActivity() {
             onDeleted = { finish() }
         )
         RoutingEditScreen(
-            position = position,
             initial = initial,
             outboundSuggestions = outboundSuggestions,
             canUseProcess = canUseProcess,
@@ -129,7 +128,6 @@ class RoutingEditActivity : BaseComponentActivity() {
 
 @Composable
 fun RoutingEditScreen(
-    position: Int,
     initial: RulesetItem?,
     outboundSuggestions: List<String>,
     canUseProcess: Boolean,
@@ -205,7 +203,9 @@ fun RoutingEditScreen(
                 title = stringResource(R.string.routing_settings_rule_title),
                 onBackClick = onBackClick,
                 actions = {
-                    if (position >= 0) {
+                    // PattNG: a rule the editor found, by its id, or at its position before rules had ids; one gone by
+                    // then opens as a new one, with none to delete.
+                    if (initial != null) {
                         IconButton(onClick = { showDeleteConfirm = true }) {
                             Icon(
                                 painterResource(R.drawable.ic_delete_24dp),

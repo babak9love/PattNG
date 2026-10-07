@@ -186,13 +186,15 @@ class RoutingSettingActivity : HelperBaseComponentActivity() {
     }
 
     private fun export2Clipboard() {
-        // PattNG: the rules as the list shows them, read off the main thread, a change still being stored included.
-        val rulesetList = viewModel.getAll()
-        if (rulesetList.isEmpty()) {
-            toastError(R.string.toast_failure)
-        } else {
-            Utils.setClipboard(this, JsonUtil.toJson(rulesetList))
-            toastSuccess(R.string.toast_success)
+        // PattNG: the rules as stored, read off the main thread once the changes the list asked for are stored.
+        lifecycleScope.launch {
+            val rulesetList = viewModel.storedRules()
+            if (rulesetList.isEmpty()) {
+                toastError(R.string.toast_failure)
+            } else {
+                Utils.setClipboard(this@RoutingSettingActivity, JsonUtil.toJson(rulesetList))
+                toastSuccess(R.string.toast_success)
+            }
         }
     }
 }

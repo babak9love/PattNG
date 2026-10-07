@@ -6,7 +6,9 @@ import com.v2ray.ang.dto.entities.RulesetItem
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -180,5 +182,23 @@ class RoutingSettingsViewModelTest {
         gate.complete(Unit)
 
         assertEquals(listOf("update a", "move a"), source.done)
+    }
+
+    @Test
+    fun theStoredRulesAreReadOnceWhatTheListAskedToStoreIsStored() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.reload()
+        val gate = CompletableDeferred<Unit>()
+        source.writeGate = gate
+        viewModel.update(a.copy(enabled = false))
+
+        val read = async(Dispatchers.Unconfined) { viewModel.storedRules() }
+        assertTrue(source.done.isEmpty())
+        assertEquals(1, source.loads)
+        gate.complete(Unit)
+
+        assertEquals(listOf(a, b), read.await())
+        assertEquals(listOf("update a"), source.done)
+        assertEquals(2, source.loads)
     }
 }

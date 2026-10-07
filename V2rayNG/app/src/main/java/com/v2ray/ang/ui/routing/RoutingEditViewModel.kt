@@ -57,11 +57,11 @@ class RoutingEditViewModel(
     }
 
     /**
-     * Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to
-     * delete. A delete the storage refused is told.
+     * Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, or one gone by
+     * the time the editor opened, has none to delete. A delete the storage refused is told.
      */
     fun delete() {
-        if (position < 0) return
+        if (initial == null) return
         launchDelete { WRITE_REFUSED.takeUnless { source.deleteRule(position, ruleId) } }
     }
 

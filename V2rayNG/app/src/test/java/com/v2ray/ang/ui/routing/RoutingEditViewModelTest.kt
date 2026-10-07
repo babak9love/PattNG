@@ -247,4 +247,14 @@ class RoutingEditViewModelTest {
         assertTrue(source.saves.isEmpty())
         assertTrue(source.deletes.isEmpty())
     }
+
+    @Test
+    fun aRuleGoneByTheTimeTheEditorOpenedHasNoneToDelete() {
+        val viewModel = viewModel(position = 3, initial = null)
+
+        viewModel.delete()
+
+        assertTrue(source.deletes.isEmpty())
+        assertNull(viewModel.outcome.value)
+    }
 }
