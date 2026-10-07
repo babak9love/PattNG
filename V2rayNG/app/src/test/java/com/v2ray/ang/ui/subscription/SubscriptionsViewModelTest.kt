@@ -8,8 +8,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -48,6 +50,32 @@ class SubscriptionsViewModelTest {
 
         override fun announceGroupsChanged() {
             announcements++
+        }
+
+        var options = SubscriptionUpdateOptions()
+        var optionLoads = 0
+
+        /** When set, a read of the options waits for it; when set, a write of one waits for it. */
+        var optionLoadGate: CompletableDeferred<Unit>? = null
+        var optionWriteGate: CompletableDeferred<Unit>? = null
+
+        /** Each option write as it started, and as it was done. */
+        val optionsStarted = mutableListOf<String>()
+        val optionsDone = mutableListOf<String>()
+
+        override suspend fun loadUpdateOptions(): SubscriptionUpdateOptions {
+            optionLoads++
+            optionLoadGate?.await()
+            return options
+        }
+
+        override suspend fun saveUpdateOption(option: SubscriptionUpdateOption, value: Boolean): Boolean {
+            optionsStarted += "$option $value"
+            optionWriteGate?.await()
+            if (refuseWrites) return false
+            options = options.with(option, value)
+            optionsDone += "$option $value"
+            return true
         }
 
         override suspend fun loadSubscriptions(): List<SubscriptionCache> {
@@ -401,5 +429,155 @@ class SubscriptionsViewModelTest {
         refusal.onScreenHidden()
         held.complete(Unit)
         assertEquals(0, source.announcements)
+    }
+
+    @Test
+    fun theUpdateOptionsAreShownOnceRead() {
+        source.options = SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE))
+        val gate = CompletableDeferred<Unit>()
+        source.optionLoadGate = gate
+        val viewModel = viewModel()
+
+        viewModel.loadUpdateOptions()
+        assertEquals(null, viewModel.updateOptions.value)
+        gate.complete(Unit)
+
+        assertEquals(SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE)), viewModel.updateOptions.value)
+    }
+
+    @Test
+    fun anUpdateOptionIsShownAtOnceAndStoredInItsTurn() {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        val gate = CompletableDeferred<Unit>()
+        source.optionWriteGate = gate
+
+        viewModel.setUpdateOption(SubscriptionUpdateOption.TEST_AFTER, true)
+        viewModel.setUpdateOption(SubscriptionUpdateOption.SORT_AFTER_TEST, true)
+
+        assertEquals(
+            SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.TEST_AFTER, SubscriptionUpdateOption.SORT_AFTER_TEST)),
+            viewModel.updateOptions.value,
+        )
+        assertTrue(source.optionsDone.isEmpty())
+        // One at a time: the second waits for the first.
+        assertEquals(listOf("TEST_AFTER true"), source.optionsStarted)
+        gate.complete(Unit)
+        assertEquals(listOf("TEST_AFTER true", "SORT_AFTER_TEST true"), source.optionsDone)
+    }
+
+    @Test
+    fun anUpdateOptionTheStorageRefusesIsToldAndTheOptionsReadAgain() {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        source.refuseWrites = true
+
+        viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, true)
+
+        assertTrue(viewModel.refused.value)
+        assertEquals(SubscriptionUpdateOptions(), viewModel.updateOptions.value)
+        assertEquals(2, source.optionLoads)
+    }
+
+    @Test
+    fun anOptionChangeAskedForWhileTheOptionsAreReadIsShownAndTheyAreReadAgainAfterIt() {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        val gate = CompletableDeferred<Unit>()
+        source.optionLoadGate = gate
+        viewModel.loadUpdateOptions()
+
+        viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, true)
+        val changed = SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE))
+        // Everything shown from now on.
+        val seen = mutableListOf<SubscriptionUpdateOptions?>()
+        val collector = CoroutineScope(Dispatchers.Unconfined).launch {
+            viewModel.updateOptions.collect { seen += it }
+        }
+        source.optionLoadGate = null
+        gate.complete(Unit)
+        collector.cancel()
+
+        // The reading taken before the change was stored never showed; the one after it did.
+        assertEquals(listOf("UPDATE true"), source.optionsDone)
+        assertEquals(3, source.optionLoads)
+        assertTrue(seen.all { it == changed }, "shown: $seen")
+        assertEquals(changed, viewModel.updateOptions.value)
+    }
+
+    @Test
+    fun noOptionChangeIsAskedBeforeTheOptionsAreRead() {
+        val viewModel = viewModel()
+
+        viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, true)
+
+        assertEquals(null, viewModel.updateOptions.value)
+        assertTrue(source.optionsDone.isEmpty())
+    }
+
+    @Test
+    fun theOptionsAreReadOnceWhatTheScreenAskedToStoreOfThemIsStored() {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        val gate = CompletableDeferred<Unit>()
+        source.optionWriteGate = gate
+        viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, true)
+
+        viewModel.loadUpdateOptions()
+        // Read after the write, which is held.
+        assertEquals(1, source.optionLoads)
+        gate.complete(Unit)
+
+        assertEquals(2, source.optionLoads)
+        assertEquals(SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE)), viewModel.updateOptions.value)
+    }
+
+    @Test
+    fun anUpdateDoesWhatItsOptionsSayTheTestBeforeTheUpdateAlone() {
+        assertEquals(SubscriptionUpdateKind.NONE, SubscriptionUpdateOptions().kind)
+        assertEquals(SubscriptionUpdateKind.ONLY, SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE)).kind)
+        assertEquals(SubscriptionUpdateKind.WITH_TESTS, SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.TEST_AFTER)).kind)
+        assertEquals(
+            SubscriptionUpdateKind.WITH_TESTS,
+            SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.UPDATE, SubscriptionUpdateOption.TEST_AFTER)).kind,
+        )
+        // Removing and sorting only follow a test.
+        assertEquals(
+            SubscriptionUpdateKind.NONE,
+            SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.REMOVE_INVALID_AFTER_TEST, SubscriptionUpdateOption.SORT_AFTER_TEST)).kind,
+        )
+    }
+
+    @Test
+    fun theStoredUpdateOptionsAreReadOnceTheChangesAskedForAreStored() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        val gate = CompletableDeferred<Unit>()
+        source.optionWriteGate = gate
+        viewModel.setUpdateOption(SubscriptionUpdateOption.TEST_AFTER, true)
+
+        val stored = async(Dispatchers.Unconfined) { viewModel.storedUpdateOptions() }
+        // Read after the change, which is held.
+        assertFalse(stored.isCompleted)
+        gate.complete(Unit)
+
+        assertEquals(SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.TEST_AFTER)), stored.await())
+    }
+
+    @Test
+    fun theStoredUpdateOptionsAreTheStoredOnesNotTheShownAfterARefusal() = runBlocking {
+        val viewModel = viewModel()
+        viewModel.loadUpdateOptions()
+        val gate = CompletableDeferred<Unit>()
+        source.optionWriteGate = gate
+        source.refuseWrites = true
+        viewModel.setUpdateOption(SubscriptionUpdateOption.TEST_AFTER, true)
+        // Shown on, while the write the storage refuses runs.
+        assertEquals(SubscriptionUpdateOptions(setOf(SubscriptionUpdateOption.TEST_AFTER)), viewModel.updateOptions.value)
+
+        val stored = async(Dispatchers.Unconfined) { viewModel.storedUpdateOptions() }
+        gate.complete(Unit)
+
+        assertEquals(SubscriptionUpdateOptions(), stored.await())
     }
 }

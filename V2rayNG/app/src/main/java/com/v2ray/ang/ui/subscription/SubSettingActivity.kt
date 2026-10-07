@@ -40,11 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
-import com.v2ray.ang.handler.MmkvManager.rememberMmkvBool
 import com.v2ray.ang.ui.base.BaseComponentActivity
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -142,6 +140,8 @@ fun SubSettingScreen(
 ) {
     val subscriptions by viewModel.subsFlow.collectAsStateWithLifecycle()
     var showUpdateDialog by remember { mutableStateOf(false) }
+    // PattNG: read off the main thread when the dialog opens, see SubscriptionsViewModel.loadUpdateOptions.
+    val updateOptions by viewModel.updateOptions.collectAsStateWithLifecycle()
     var removeTarget by remember { mutableStateOf<SubscriptionDeleteTarget?>(null) }
     // PattNG: read off the main thread with the subscriptions, see SubscriptionsViewModel.reload.
     val confirmRemove by viewModel.confirmRemove.collectAsStateWithLifecycle()
@@ -166,7 +166,10 @@ fun SubSettingScreen(
                     IconButton(onClick = onAddClick) {
                         Icon(painterResource(R.drawable.ic_add_24dp), contentDescription = stringResource(R.string.acc_add_subscription))
                     }
-                    IconButton(onClick = { showUpdateDialog = true }) {
+                    IconButton(onClick = {
+                        viewModel.loadUpdateOptions()
+                        showUpdateDialog = true
+                    }) {
                         Icon(painterResource(R.drawable.ic_restore_24dp), contentDescription = stringResource(R.string.acc_update_subscriptions))
                     }
                 }
@@ -307,41 +310,36 @@ fun SubSettingScreen(
         )
     }
 
-    if (showUpdateDialog) {
-
-        var updateSubscription by rememberMmkvBool(AppConfig.PREF_UPDATE_SUBSCRIPTION, false)
-        var autoTestAfterUpdateSubscription by rememberMmkvBool(AppConfig.PREF_AUTO_TEST_AFTER_UPDATE_SUBSCRIPTION, false)
-        var autoRemoveInvalidAfterTest by rememberMmkvBool(AppConfig.PREF_AUTO_REMOVE_INVALID_AFTER_TEST, false)
-        var autoSortAfterTest by rememberMmkvBool(AppConfig.PREF_AUTO_SORT_AFTER_TEST, false)
-
+    val options = updateOptions
+    if (showUpdateDialog && options != null) {
         AlertDialog(
             onDismissRequest = { showUpdateDialog = false },
             text = {
                 Column {
                     SettingsSwitchItem(
                         title = stringResource(R.string.title_sub_update),
-                        checked = updateSubscription,
-                        onCheckedChange = { updateSubscription = it }
+                        checked = options[SubscriptionUpdateOption.UPDATE],
+                        onCheckedChange = { viewModel.setUpdateOption(SubscriptionUpdateOption.UPDATE, it) }
                     )
                     SettingsSwitchItem(
                         title = stringResource(R.string.title_pref_auto_test_after_update_subscription),
                         summary = stringResource(R.string.summary_pref_auto_test_after_update_subscription),
-                        checked = autoTestAfterUpdateSubscription,
-                        onCheckedChange = { autoTestAfterUpdateSubscription = it }
+                        checked = options[SubscriptionUpdateOption.TEST_AFTER],
+                        onCheckedChange = { viewModel.setUpdateOption(SubscriptionUpdateOption.TEST_AFTER, it) }
                     )
                     SettingsSwitchItem(
                         title = stringResource(R.string.title_pref_auto_remove_invalid_after_test),
                         summary = stringResource(R.string.summary_pref_auto_remove_invalid_after_test),
-                        checked = autoRemoveInvalidAfterTest,
-                        enabled = autoTestAfterUpdateSubscription,
-                        onCheckedChange = { autoRemoveInvalidAfterTest = it }
+                        checked = options[SubscriptionUpdateOption.REMOVE_INVALID_AFTER_TEST],
+                        enabled = options[SubscriptionUpdateOption.TEST_AFTER],
+                        onCheckedChange = { viewModel.setUpdateOption(SubscriptionUpdateOption.REMOVE_INVALID_AFTER_TEST, it) }
                     )
                     SettingsSwitchItem(
                         title = stringResource(R.string.title_pref_auto_sort_after_test),
                         summary = stringResource(R.string.summary_pref_auto_sort_after_test),
-                        checked = autoSortAfterTest,
-                        enabled = autoTestAfterUpdateSubscription,
-                        onCheckedChange = { autoSortAfterTest = it }
+                        checked = options[SubscriptionUpdateOption.SORT_AFTER_TEST],
+                        enabled = options[SubscriptionUpdateOption.TEST_AFTER],
+                        onCheckedChange = { viewModel.setUpdateOption(SubscriptionUpdateOption.SORT_AFTER_TEST, it) }
                     )
                 }
             },

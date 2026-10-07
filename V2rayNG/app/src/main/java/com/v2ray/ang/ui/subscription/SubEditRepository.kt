@@ -15,6 +15,7 @@ import com.v2ray.ang.helper.MessageHelper
 import com.v2ray.ang.ui.server.ProfileNameSource
 import com.v2ray.ang.ui.server.storedProfileNames
 import com.v2ray.ang.ui.server.withStoredProfileNames
+import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,10 +45,46 @@ interface SubEditSource : ProfileNameSource {
     suspend fun deleteSubscription(subId: String): Boolean
 }
 
+/** PattNG: an option of an update of the subscriptions the list starts, by the setting that holds it. */
+enum class SubscriptionUpdateOption(val key: String) {
+    UPDATE(AppConfig.PREF_UPDATE_SUBSCRIPTION),
+    TEST_AFTER(AppConfig.PREF_AUTO_TEST_AFTER_UPDATE_SUBSCRIPTION),
+    REMOVE_INVALID_AFTER_TEST(AppConfig.PREF_AUTO_REMOVE_INVALID_AFTER_TEST),
+    SORT_AFTER_TEST(AppConfig.PREF_AUTO_SORT_AFTER_TEST),
+}
+
+/** PattNG: what an update of the subscriptions the list starts does, see [SubscriptionUpdateOptions.kind]. */
+enum class SubscriptionUpdateKind {
+    /** The subscriptions are updated, then their profiles tested, in the background, by the update service. */
+    WITH_TESTS,
+
+    /** The subscriptions are updated while the list shows that it runs. */
+    ONLY,
+
+    /** Nothing: neither the update nor the test is on. */
+    NONE,
+}
+
+/** PattNG: the options of an update of the subscriptions: those [on]; the others are off. */
+data class SubscriptionUpdateOptions(val on: Set<SubscriptionUpdateOption> = emptySet()) {
+    operator fun get(option: SubscriptionUpdateOption): Boolean = option in on
+
+    /** These options with [option] turned on or off, as [value] says. */
+    fun with(option: SubscriptionUpdateOption, value: Boolean) = copy(on = if (value) on + option else on - option)
+
+    /** What an update does with these options: with the test on, it runs in the background, with the update alone, here. */
+    val kind: SubscriptionUpdateKind
+        get() = when {
+            this[SubscriptionUpdateOption.TEST_AFTER] -> SubscriptionUpdateKind.WITH_TESTS
+            this[SubscriptionUpdateOption.UPDATE] -> SubscriptionUpdateKind.ONLY
+            else -> SubscriptionUpdateKind.NONE
+        }
+}
+
 /**
  * PattNG: where the subscription list reads the subscriptions and stores what it changes of them, each off the main
- * thread and by the key of the subscription: deletes one, turns one on or off, or moves one; a change the storage
- * refused is told.
+ * thread and by the key of the subscription: deletes one, turns one on or off, or moves one; and the options of an
+ * update it starts. A change the storage refused is told.
  */
 interface SubscriptionListSource {
     /** The subscriptions, in their order. */
@@ -76,6 +113,15 @@ interface SubscriptionListSource {
      * stored after the list closed, which the list's return to it no longer reports.
      */
     fun announceGroupsChanged()
+
+    /** The options of an update of the subscriptions, as the settings have them. */
+    suspend fun loadUpdateOptions(): SubscriptionUpdateOptions
+
+    /**
+     * Stores [value] as the setting of [option], as a switch of the settings does, the screens that depend on it told.
+     * False, with nothing written, when the storage refused it.
+     */
+    suspend fun saveUpdateOption(option: SubscriptionUpdateOption, value: Boolean): Boolean
 }
 
 /**
@@ -136,4 +182,21 @@ class SubEditRepository : SubEditSource, SubscriptionListSource {
     override fun announceGroupsChanged() {
         MessageHelper.sendMsg2UI(AngApplication.application, AppConfig.MSG_SERVERS_CHANGED, "")
     }
+
+    override suspend fun loadUpdateOptions(): SubscriptionUpdateOptions =
+        withContext(Dispatchers.IO) {
+            SubscriptionUpdateOptions(SubscriptionUpdateOption.entries.filter { MmkvManager.decodeSettingsBool(it.key, false) }.toSet())
+        }
+
+    // As MmkvManager.rememberMmkvBool stores a switch of the settings, which the dialog used before.
+    override suspend fun saveUpdateOption(option: SubscriptionUpdateOption, value: Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            MmkvManager.encodeSettings(option.key, value).also { taken ->
+                if (taken) {
+                    SettingsChangeManager.notifySettingChanged(option.key)
+                } else {
+                    LogUtil.e(AppConfig.TAG, "Subscriptions: the storage refused the update option ${option.key}")
+                }
+            }
+        }
 }

@@ -9,7 +9,6 @@ import com.v2ray.ang.dto.SubscriptionUpdateMessage
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.handler.AngConfigManager
-import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.helper.MessageHelper
 import com.v2ray.ang.ui.base.BaseViewModel
@@ -67,6 +66,19 @@ class SubscriptionsViewModel(
 
     /** PattNG: whether a delete or a move stored while the screen was out of sight is still to be told, see [store]. */
     private var groupsChangedWhileHidden = false
+
+    /** PattNG: the options of an update of the subscriptions, read off the main thread, see [loadUpdateOptions]; null until then. */
+    private val _updateOptions = MutableStateFlow<SubscriptionUpdateOptions?>(null)
+    val updateOptions: StateFlow<SubscriptionUpdateOptions?> = _updateOptions.asStateFlow()
+
+    /** PattNG: the reads and writes of the update options, off the main thread, one at a time, in the order asked for. */
+    private val optionsStorage = Mutex()
+
+    /** PattNG: how many option changes the screen has asked for, so that a reading one of them overtook is not shown. */
+    private var optionChanges = 0
+
+    /** PattNG: the updates run here, which the screen shows its progress line for, see [showingProgress]. */
+    private var updatesRunning = 0
 
     fun getAll(): List<SubscriptionCache> = subscriptions.toList()
 
@@ -190,28 +202,75 @@ class SubscriptionsViewModel(
         }
     }
 
-    fun updateSubscriptions() {
-        val updateSubscription = MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUBSCRIPTION, false)
-        val autoTestAfterUpdateSubscription = MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_TEST_AFTER_UPDATE_SUBSCRIPTION, false)
-
-        when {
-            // If auto test is enabled, trigger background service for long-running task
-            autoTestAfterUpdateSubscription -> updateSubscriptionsMore()
-            // If only update is enabled, perform local update with UI loading state
-            updateSubscription -> updateSubscriptionsOnly()
+    /**
+     * PattNG: reads the options of an update off the main thread, once what the screen asked to store of them before is
+     * stored, and shows them, see [updateOptions]; a reading an option change overtook is not shown, but done again.
+     */
+    fun loadUpdateOptions() {
+        val asked = optionChanges
+        viewModelScope.launch {
+            val loaded = optionsStorage.withLock { source.loadUpdateOptions() }
+            if (optionChanges != asked) {
+                loadUpdateOptions()
+                return@launch
+            }
+            _updateOptions.value = loaded
         }
     }
 
-    fun updateSubscriptionsOnly() {
-        launchLoading {
+    /**
+     * PattNG: turns the update option [option] on or off, as [value] says: shown at once, and stored so, in its turn,
+     * even when the screen closes right after; a change the storage refused is told, see [refused], and the options
+     * are read anew.
+     */
+    fun setUpdateOption(option: SubscriptionUpdateOption, value: Boolean) {
+        val shown = _updateOptions.value ?: return
+        optionChanges++
+        _updateOptions.value = shown.with(option, value)
+        viewModelScope.launch {
+            val taken = withContext(NonCancellable) { optionsStorage.withLock { source.saveUpdateOption(option, value) } }
+            if (!taken) {
+                _refused.value = true
+                loadUpdateOptions()
+            }
+        }
+    }
+
+    /**
+     * PattNG: the update options as stored once what the screen asked to store of them is, read off the main thread:
+     * those an update reads, which the options shown differ from while a change is stored, or after one was refused.
+     */
+    suspend fun storedUpdateOptions(): SubscriptionUpdateOptions = optionsStorage.withLock { source.loadUpdateOptions() }
+
+    /**
+     * Updates the subscriptions as their options say, see [SubscriptionUpdateOptions.kind]. PattNG: by the options as
+     * stored, see [storedUpdateOptions], since the update reads them too; the update chosen starts, and one run here
+     * ends, even when the screen closes meanwhile, as one started at once did before.
+     */
+    fun updateSubscriptions() {
+        viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    AngConfigManager.updateConfigViaSubAll().also {
-                        // The main screen reloads the configs. Sent from here, the message also goes out when this
-                        // page closes before the update ends.
-                        if (it.configCount > 0) MessageHelper.sendMsg2UI(app, AppConfig.MSG_SERVERS_CHANGED, "")
+                val result = withContext(NonCancellable) {
+                    when (storedUpdateOptions().kind) {
+                        // If auto test is enabled, trigger background service for long-running task
+                        SubscriptionUpdateKind.WITH_TESTS -> {
+                            startUpdateWithTests()
+                            null
+                        }
+                        // If only update is enabled, perform local update with UI loading state
+                        SubscriptionUpdateKind.ONLY -> showingProgress {
+                            withContext(Dispatchers.IO) {
+                                AngConfigManager.updateConfigViaSubAll().also {
+                                    // The main screen reloads the configs. Sent from here, the message also goes out when
+                                    // this page closes before the update ends.
+                                    if (it.configCount > 0) MessageHelper.sendMsg2UI(app, AppConfig.MSG_SERVERS_CHANGED, "")
+                                }
+                            }
+                        }
+
+                        SubscriptionUpdateKind.NONE -> null
                     }
-                }
+                } ?: return@launch
 
                 when {
                     result.successCount + result.failureCount + result.skipCount == 0 ->
@@ -239,14 +298,36 @@ class SubscriptionsViewModel(
         }
     }
 
-    fun updateSubscriptionsMore() {
+    /**
+     * PattNG: runs [work] while the screen shows its progress line, counted, so that an update ending, or a start that
+     * shows none, does not hide the line of another that runs.
+     */
+    private suspend fun <T> showingProgress(work: suspend () -> T): T {
+        updatesRunning++
+        _isLoading.value = true
+        try {
+            return work()
+        } finally {
+            if (--updatesRunning == 0) _isLoading.value = false
+        }
+    }
+
+    /**
+     * Has the update service update, then test, the subscriptions that are on and have a URL, in the background. PattNG:
+     * a start the system refused, as from the background, is told rather than said to run.
+     */
+    private suspend fun startUpdateWithTests() {
         SettingsChangeManager.makeSetupGroupTab()
-        val subIds = MmkvManager.decodeSubscriptions()
+        // PattNG: read off the main thread, once what the list asked to store before is stored.
+        val subIds = storage.withLock { source.loadSubscriptions() }
             .filter { it.subscription.enabled && it.subscription.url.isNotEmpty() }
             .map { it.guid }
 
-        if (subIds.isNotEmpty()) {
-            MessageHelper.sendMsg2SubscriptionService(app, SubscriptionUpdateMessage(AppConfig.MSG_SUB_UPDATE_START, false, subIds))
+        if (subIds.isNotEmpty() &&
+            !MessageHelper.sendMsg2SubscriptionService(app, SubscriptionUpdateMessage(AppConfig.MSG_SUB_UPDATE_START, false, subIds))
+        ) {
+            toastError(R.string.toast_failure)
+            return
         }
 
         toast(R.string.subscription_updater_job_tips)
