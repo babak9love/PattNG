@@ -33,18 +33,14 @@ abstract class ProfileEditorViewModel(
 
     /**
      * Deletes the profile, off the main thread, unless it is the profile the app runs on, which is told rather than
-     * deleted; a save that runs stops first, see [EditorViewModel.launchDelete]. A new one, never stored, has none to
+     * deleted, a save that runs going on; see [EditorViewModel.launchDelete]. A new one, never stored, has none to
      * delete.
      */
     fun delete() {
         val stored = guid.takeIf { it.isNotEmpty() } ?: return
-        launchDelete {
-            if (source.isSelected(stored)) {
-                EditorOutcome.Refused(R.string.toast_action_not_allowed)
-            } else {
-                source.deleteProfile(stored)
-                EditorOutcome.Deleted
-            }
-        }
+        launchDelete(
+            refuse = { EditorOutcome.Refused(R.string.toast_action_not_allowed).takeIf { source.isSelected(stored) } },
+            delete = { source.deleteProfile(stored) },
+        )
     }
 }

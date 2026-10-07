@@ -22,7 +22,7 @@ class EditorViewModelTest {
 
     private class Editor : EditorViewModel(mock<Application>()) {
         fun save(work: suspend () -> EditorOutcome?) = launchSave(work)
-        fun delete(work: suspend () -> EditorOutcome) = launchDelete(work)
+        fun delete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, work: suspend () -> Unit) = launchDelete(refuse, work)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -97,7 +97,7 @@ class EditorViewModelTest {
         editor.save { lookup.await(); written = true; EditorOutcome.Saved("guid") }
 
         // Confirmed while the save looks names up: the delete is not dropped, and the save does not write after it.
-        editor.delete { deleted = true; EditorOutcome.Deleted }
+        editor.delete { deleted = true }
         lookup.complete(Unit)
 
         assertTrue(deleted)
@@ -116,7 +116,7 @@ class EditorViewModelTest {
             EditorOutcome.Saved("guid")
         }
 
-        editor.delete { order += "deleted"; EditorOutcome.Deleted }
+        editor.delete { order += "deleted" }
         assertTrue(order.isEmpty())
         write.complete(Unit)
 
@@ -127,15 +127,37 @@ class EditorViewModelTest {
     @Test
     fun aRefusedDeleteLeavesTheScreenOpenForSavesAndDeletes() {
         val editor = Editor()
-        editor.delete { EditorOutcome.Refused(1) }
+        var deleted = false
+        editor.delete(refuse = { EditorOutcome.Refused(1) }) { deleted = true }
         assertEquals(EditorOutcome.Refused(1), editor.outcome.value)
+        assertFalse(deleted)
 
         editor.onOutcomeHandled()
         editor.save { EditorOutcome.Saved("guid") }
         assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
         editor.onOutcomeHandled()
-        editor.delete { EditorOutcome.Deleted }
+        editor.delete(refuse = { null }) { deleted = true }
+        assertTrue(deleted)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+    }
+
+    @Test
+    fun aRefusedDeleteLeavesASaveThatRunsToGoOn() {
+        val editor = Editor()
+        val lookup = CompletableDeferred<Unit>()
+        var written = false
+        editor.save { lookup.await(); written = true; EditorOutcome.Saved("guid") }
+
+        editor.delete(refuse = { EditorOutcome.Refused(1) }) { error("a refused delete does not run") }
+        assertEquals(EditorOutcome.Refused(1), editor.outcome.value)
+        // The save still runs, so another save waits for it.
+        assertTrue(editor.isBusy)
+
+        editor.onOutcomeHandled()
+        lookup.complete(Unit)
+        assertTrue(written)
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+        assertFalse(editor.isBusy)
     }
 
     @Test
@@ -144,17 +166,17 @@ class EditorViewModelTest {
         val gate = CompletableDeferred<Unit>()
         var deletes = 0
         var saved = false
-        editor.delete { deletes++; gate.await(); EditorOutcome.Deleted }
+        editor.delete { deletes++; gate.await() }
 
         editor.save { saved = true; EditorOutcome.Saved("guid") }
-        editor.delete { deletes++; EditorOutcome.Deleted }
+        editor.delete { deletes++ }
         gate.complete(Unit)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
 
         // Not after it either: the save would write back what it deleted.
         editor.onOutcomeHandled()
         editor.save { saved = true; EditorOutcome.Saved("guid") }
-        editor.delete { deletes++; EditorOutcome.Deleted }
+        editor.delete { deletes++ }
 
         assertFalse(saved)
         assertEquals(1, deletes)
@@ -181,7 +203,7 @@ class EditorViewModelTest {
 
         var started = false
         editor.save { started = true; EditorOutcome.Saved("guid") }
-        editor.delete { started = true; EditorOutcome.Deleted }
+        editor.delete { started = true }
         assertFalse(started)
         assertNull(editor.outcome.value)
     }
@@ -194,7 +216,6 @@ class EditorViewModelTest {
         editor.delete {
             gate.await()
             deleted = true
-            EditorOutcome.Deleted
         }
 
         editor.onScreenLeft()

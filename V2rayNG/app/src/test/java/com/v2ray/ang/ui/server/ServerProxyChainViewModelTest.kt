@@ -227,4 +227,23 @@ class ServerProxyChainViewModelTest {
         assertNull(viewModel.outcome.value)
         assertTrue(source.deletes.isEmpty())
     }
+
+    @Test
+    fun aDeleteRefusedWhileTheMembersAreLookedUpLeavesTheSaveToGoOn() {
+        source.stored["chain-guid"] = ProfileItem.create(EConfigType.PROXYCHAIN)
+        source.selected = "chain-guid"
+        val gate = CompletableDeferred<Unit>()
+        source.names.gate = gate
+        val viewModel = viewModel(guid = "chain-guid")
+
+        viewModel.save("chain", listOf("entry", "exit"))
+        viewModel.delete()
+        assertEquals(refused(R.string.toast_action_not_allowed), viewModel.outcome.value)
+
+        viewModel.onOutcomeHandled()
+        gate.complete(Unit)
+        assertEquals(EditorOutcome.Saved("chain-guid"), viewModel.outcome.value)
+        assertEquals(listOf("chain-guid"), source.saves)
+        assertTrue(source.deletes.isEmpty())
+    }
 }

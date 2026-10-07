@@ -37,13 +37,14 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     /** The outcome the screen has not acted on yet, see [onOutcomeHandled]; null while there is none. */
     val outcome: StateFlow<EditorOutcome?> = _outcome.asStateFlow()
 
-    private var job: Job? = null
+    private var saveJob: Job? = null
+    private var deleteJob: Job? = null
     private var deleting = false
     private var left = false
 
     /** Whether a save or a delete runs. */
     val isBusy: Boolean
-        get() = job?.isActive == true
+        get() = saveJob?.isActive == true || deleteJob?.isActive == true
 
     /**
      * Runs [save], unless a save or a delete runs, a delete has started, or the screen is left. What it ends with goes
@@ -51,24 +52,27 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
      */
     protected fun launchSave(save: suspend () -> EditorOutcome?) {
         if (isBusy || deleting || left) return
-        job = viewModelScope.launch { save()?.let { _outcome.value = it } }
+        saveJob = viewModelScope.launch { save()?.let { _outcome.value = it } }
     }
 
     /**
-     * Runs [delete], unless a delete has started or the screen is left. A save that runs is stopped first: one that has
-     * not written does not, and one that writes ends its write before [delete] starts, so that it cannot write back what
-     * is deleted. What [delete] ends with goes to [outcome]: [EditorOutcome.Deleted], or a refusal, after which the
-     * screen stays open and saves again.
+     * Runs [delete], unless a delete has started or the screen is left; then [outcome] is [EditorOutcome.Deleted]. A
+     * delete [refuse] gives a refusal for is not run: the refusal goes to [outcome], a save that runs goes on, and the
+     * screen stays open for saves and deletes. Otherwise a save that runs is stopped first: one that has not written
+     * does not, and one that writes ends its write before [delete] starts, so that it cannot write back what is deleted.
      */
-    protected fun launchDelete(delete: suspend () -> EditorOutcome) {
+    protected fun launchDelete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, delete: suspend () -> Unit) {
         if (deleting || left) return
         deleting = true
-        val save = job
-        job = viewModelScope.launch {
-            save?.cancelAndJoin()
-            val result = delete()
-            if (result != EditorOutcome.Deleted) deleting = false
-            _outcome.value = result
+        deleteJob = viewModelScope.launch {
+            refuse?.invoke()?.let { refusal ->
+                deleting = false
+                _outcome.value = refusal
+                return@launch
+            }
+            saveJob?.cancelAndJoin()
+            delete()
+            _outcome.value = EditorOutcome.Deleted
         }
     }
 
@@ -78,7 +82,8 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
      */
     fun onScreenLeft() {
         left = true
-        job?.cancel()
+        saveJob?.cancel()
+        deleteJob?.cancel()
     }
 
     /** The screen has acted on [outcome]. */

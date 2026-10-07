@@ -54,9 +54,6 @@ class RoutingEditViewModel(
     /** Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to delete. */
     fun delete() {
         if (position < 0) return
-        launchDelete {
-            source.deleteRule(position, id)
-            EditorOutcome.Deleted
-        }
+        launchDelete { source.deleteRule(position, id) }
     }
 }
