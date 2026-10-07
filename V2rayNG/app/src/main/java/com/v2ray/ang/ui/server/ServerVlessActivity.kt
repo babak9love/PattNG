@@ -16,7 +16,7 @@ class ServerVlessActivity : BaseServerActivity() {
     override val serverConfigType: EConfigType = EConfigType.VLESS
 
     @Composable
-    override fun ScreenContent() {
+    override fun EditorContent() {
         val options = rememberFieldOptions()
         val scope = rememberCoroutineScope()
         val uiState = rememberSaveable(saver = ServerUiState.Saver) {

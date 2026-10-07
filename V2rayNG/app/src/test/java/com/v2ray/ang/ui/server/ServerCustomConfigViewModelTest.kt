@@ -167,4 +167,28 @@ class ServerCustomConfigViewModelTest {
         const val GUID = "custom-guid"
         const val CONTENT = "{\"outbounds\": []}"
     }
+
+    @Test
+    fun theProfileAndItsConfigurationAreReadOffTheMainThreadBeforeTheScreenShowsThem() {
+        source.raws[GUID] = CONTENT
+        val gate = CompletableDeferred<Unit>()
+        source.openGate = gate
+
+        val viewModel = viewModel()
+        assertNull(viewModel.opened.value)
+        gate.complete(Unit)
+
+        assertEquals(CustomConfigOpening("old", CONTENT), viewModel.opened.value)
+
+        // A profile stored without its configuration opens on none.
+        source.openGate = null
+        source.raws.clear()
+        assertEquals(CustomConfigOpening("old", ""), viewModel().opened.value)
+    }
+
+    @Test
+    fun aCustomProfileGoneOrNewOpensOnEmptyFields() {
+        assertEquals(CustomConfigOpening("", ""), ServerCustomConfigViewModel(mock<Application>(), source, "gone").opened.value)
+        assertEquals(CustomConfigOpening("", ""), ServerCustomConfigViewModel(mock<Application>(), source, "").opened.value)
+    }
 }

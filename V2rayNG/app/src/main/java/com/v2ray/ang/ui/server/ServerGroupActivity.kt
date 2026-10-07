@@ -1,6 +1,5 @@
 package com.v2ray.ang.ui.server
 
-import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -27,14 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.v2ray.ang.AppConfig.BUILTIN_OUTBOUND_TAGS
-import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
 import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorLoading
 import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -47,15 +43,6 @@ class ServerGroupActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
     private val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
-    private lateinit var subscriptions: List<PolicyGroupSubscription>
-    private lateinit var fallbackSuggestions: List<String>
-
-    private lateinit var initialRemarks: String
-    private lateinit var initialFilter: String
-    private var initialType: Int = 0
-    private lateinit var initialSubscriptionId: String
-    private var initialTestOutbounds: Boolean = false
-    private lateinit var initialFallbackTag: String
 
     /** PattNG: the save, which outlives this activity when it is recreated, see [ServerGroupViewModel]. */
     private val viewModel: ServerGroupViewModel by viewModels {
@@ -66,32 +53,11 @@ class ServerGroupActivity : BaseComponentActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val config = MmkvManager.decodeServerConfig(editGuid)
-        populateSubscriptionSpinner()
-        fallbackSuggestions = (
-                BUILTIN_OUTBOUND_TAGS + SettingsManager.getProfileRemarks(
-                    excludeConfigTypes = setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP)
-                )
-                ).filter { it != TAG_PROXY }
-
-        initialRemarks = config?.remarks ?: ""
-        initialFilter = config?.policyGroupFilter ?: ""
-        initialType = config?.policyGroupType?.toIntOrNull() ?: 0
-        initialTestOutbounds = config == null || config.policyGroupTestOutbounds != false ||
-                !BalancerStrategyType.from(config.policyGroupType).supportsObservatory
-        initialFallbackTag = config?.policyGroupFallbackTag.orEmpty()
-        // PattNG: the subscription is picked by its key: a group of a subscription gone, or a new one, starts on all.
-        val picked = if (config != null) config.policyGroupSubscriptionId.orEmpty() else subscriptionId.orEmpty()
-        initialSubscriptionId = subscriptions.pick(picked).id
-    }
-
     @Composable
     override fun ScreenContent() {
         // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
         val running by viewModel.isRunning.collectAsStateWithLifecycle()
+        val opened by viewModel.opened.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
@@ -108,20 +74,33 @@ class ServerGroupActivity : BaseComponentActivity() {
                 }
             }
         )
+        // PattNG: the group, the subscriptions and the names of the profiles are read off the main thread; until they are,
+        // the screen waits.
+        val group = opened
+        if (group == null) {
+            EditorLoading(EConfigType.POLICYGROUP.toString()) { finish() }
+            return
+        }
+        val all = stringResource(R.string.filter_config_all)
+        val numbered = stringResource(R.string.label_numbered)
+        val subscriptions = remember(group, all, numbered) {
+            policyGroupSubscriptions(all = all, subscriptions = group.subscriptions, numbered = { name, number -> numbered.format(name, number) })
+        }
         ServerGroupScreen(
             editGuid = editGuid,
             isRunning = running != false,
             subscriptions = subscriptions,
-            initialRemarks = initialRemarks,
-            initialFilter = initialFilter,
-            initialType = initialType,
-            initialSubscriptionId = initialSubscriptionId,
-            initialTestOutbounds = initialTestOutbounds,
-            initialFallbackTag = initialFallbackTag,
-            fallbackSuggestions = fallbackSuggestions,
+            initialRemarks = group.remarks,
+            initialFilter = group.filter,
+            initialType = group.type,
+            // PattNG: the subscription is picked by its key: a group of a subscription gone, or a new one, starts on all.
+            initialSubscriptionId = subscriptions.pick(group.pickedSubscription).id,
+            initialTestOutbounds = group.testOutbounds,
+            initialFallbackTag = group.fallbackTag,
+            fallbackSuggestions = group.fallbackSuggestions,
             onBackClick = { finish() },
             onSave = { remarks, filter, typeIdx, subscription, testOutbounds, fallbackTag ->
-                saveServer(remarks, filter, typeIdx, subscription, testOutbounds, fallbackTag)
+                saveServer(subscriptions, remarks, filter, typeIdx, subscription, testOutbounds, fallbackTag)
             },
             onDelete = { viewModel.delete() }
         )
@@ -136,6 +115,7 @@ class ServerGroupActivity : BaseComponentActivity() {
     }
 
     private fun saveServer(
+        subscriptions: List<PolicyGroupSubscription>,
         remarks: String,
         filter: String,
         typeIdx: Int,
@@ -155,14 +135,6 @@ class ServerGroupActivity : BaseComponentActivity() {
                 testOutbounds = testOutbounds,
                 fallbackTag = fallbackTag,
             )
-        )
-    }
-
-    private fun populateSubscriptionSpinner() {
-        subscriptions = policyGroupSubscriptions(
-            all = getString(R.string.filter_config_all),
-            subscriptions = MmkvManager.decodeSubscriptions().map { sub -> sub.guid to sub.subscription.remarks.ifBlank { sub.guid } },
-            numbered = { name, number -> getString(R.string.label_numbered, name, number) },
         )
     }
 

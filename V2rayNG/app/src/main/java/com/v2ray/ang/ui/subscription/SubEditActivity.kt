@@ -1,6 +1,5 @@
 package com.v2ray.ang.ui.subscription
 
-import android.os.Bundle
 import android.text.TextUtils
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
@@ -25,17 +24,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.SubscriptionItem
-import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.toLongEx
 import com.v2ray.ang.extension.toast
-import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorLoading
 import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -48,8 +46,6 @@ import com.v2ray.ang.util.Utils
 
 class SubEditActivity : BaseComponentActivity() {
     private val editSubId by lazy { intent.getStringExtra("subId").orEmpty() }
-    private lateinit var suggestions: List<String>
-    private lateinit var subItem: SubscriptionItem
 
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [SubEditViewModel]. */
     private val viewModel: SubEditViewModel by viewModels {
@@ -58,30 +54,26 @@ class SubEditActivity : BaseComponentActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        suggestions = SettingsManager.getProfileRemarks(
-            excludeConfigTypes = setOf(
-                EConfigType.CUSTOM,
-                EConfigType.POLICYGROUP,
-                EConfigType.PROXYCHAIN,
-            )
-        )
-        subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()
-    }
-
     @Composable
     override fun ScreenContent() {
+        val opened by viewModel.opened.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { finish() },
             onDeleted = { finish() }
         )
+        // PattNG: the subscription, the names of the profiles and whether a delete is confirmed first are read off the
+        // main thread; until they are, the screen waits.
+        val subscription = opened
+        if (subscription == null) {
+            EditorLoading(stringResource(R.string.title_sub_setting)) { finish() }
+            return
+        }
         SubEditScreen(
             editSubId = editSubId,
-            initial = subItem,
-            profileSuggestions = suggestions,
+            initial = subscription.subscription,
+            profileSuggestions = subscription.profileNames,
+            confirmRemove = subscription.confirmRemove,
             onBackClick = { finish() },
             onSave = { saveServer(it) },
             onDelete = { viewModel.delete() }
@@ -128,6 +120,7 @@ fun SubEditScreen(
     editSubId: String,
     initial: SubscriptionItem,
     profileSuggestions: List<String>,
+    confirmRemove: Boolean,
     onBackClick: () -> Unit,
     onSave: ((SubscriptionItem) -> Unit) -> Unit,
     onDelete: () -> Unit
@@ -151,7 +144,6 @@ fun SubEditScreen(
     var nextProfile by rememberSaveable { mutableStateOf(initial.nextProfile ?: "") }
 
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
-    val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
     val scrollState = rememberScrollState()
 
     // What this screen edits, read at the tap, as a change to make on a subscription; null, with the reason told, when

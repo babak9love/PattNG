@@ -6,6 +6,13 @@ import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * PattNG: what the proxy chain editor opens on: the chain's [remarks] and [members], two blank ones for a new chain, and
+ * the [profileNames] it offers for them.
+ */
+data class ProxyChainOpening(val remarks: String, val members: List<String>, val profileNames: List<String>)
 
 /** PattNG: the save and the delete of the proxy chain editor, see [ProfileEditorViewModel]. */
 class ServerProxyChainViewModel(
@@ -15,6 +22,17 @@ class ServerProxyChainViewModel(
     subscriptionId: String?,
     serviceRunning: Boolean = false,
 ) : ProfileEditorViewModel(application, source, guid, subscriptionId, serviceRunning) {
+
+    /** What the screen opened on, read off the main thread, see [openedWith]. */
+    val opened: StateFlow<ProxyChainOpening?> = openedWith {
+        val config = guid.takeIf { it.isNotEmpty() }?.let { source.loadProfile(it) }
+        ProxyChainOpening(
+            remarks = config?.remarks ?: "",
+            members = config?.proxyChainProfiles?.let { text -> ProfileItem.proxyChainMembersOf(text).map { it.trim() }.filter { it.isNotEmpty() } }
+                ?: listOf("", ""),
+            profileNames = source.profileNames(setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)),
+        )
+    }
 
     /**
      * Saves the chain as [remarks] with [members], the names of its profiles in its order. Every member has to be

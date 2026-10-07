@@ -1,6 +1,5 @@
 package com.v2ray.ang.ui.server
 
-import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,12 +40,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
-import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.moveItem
-import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorLoading
 import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -63,10 +60,6 @@ class ServerProxyChainActivity : BaseComponentActivity() {
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
     private val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
 
-    private lateinit var allRemarks: List<String>
-    private lateinit var initialRemarks: String
-    private lateinit var initialMembers: List<String>
-
     /** PattNG: the save, which outlives this activity when it is recreated, see [ServerProxyChainViewModel]. */
     private val viewModel: ServerProxyChainViewModel by viewModels {
         viewModelFactory {
@@ -76,21 +69,11 @@ class ServerProxyChainActivity : BaseComponentActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        allRemarks = SettingsManager.getProfileRemarks(
-            excludeConfigTypes = setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)
-        )
-        val config = MmkvManager.decodeServerConfig(editGuid)
-        initialRemarks = config?.remarks ?: ""
-        initialMembers = config?.proxyChainProfiles?.let { text -> ProfileItem.proxyChainMembersOf(text).map { it.trim() }.filter { it.isNotEmpty() } } ?: listOf("", "")
-    }
-
     @Composable
     override fun ScreenContent() {
         // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
         val running by viewModel.isRunning.collectAsStateWithLifecycle()
+        val opened by viewModel.opened.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
@@ -107,12 +90,18 @@ class ServerProxyChainActivity : BaseComponentActivity() {
                 }
             }
         )
+        // PattNG: the chain and the names of the profiles are read off the main thread; until they are, the screen waits.
+        val chain = opened
+        if (chain == null) {
+            EditorLoading(EConfigType.PROXYCHAIN.toString()) { finish() }
+            return
+        }
         ProxyChainScreen(
             editGuid = editGuid,
             isRunning = running != false,
-            initialRemarks = initialRemarks,
-            initialMembers = initialMembers,
-            allRemarks = allRemarks,
+            initialRemarks = chain.remarks,
+            initialMembers = chain.members,
+            allRemarks = chain.profileNames,
             onBackClick = { finish() },
             onSave = { remarks, members -> viewModel.save(remarks, members) },
             onDelete = { viewModel.delete() }

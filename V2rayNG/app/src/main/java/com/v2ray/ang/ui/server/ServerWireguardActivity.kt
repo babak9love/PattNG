@@ -14,7 +14,7 @@ class ServerWireguardActivity : BaseServerActivity() {
     override val serverConfigType: EConfigType = EConfigType.WIREGUARD
 
     @Composable
-    override fun ScreenContent() {
+    override fun EditorContent() {
         val scope = rememberCoroutineScope()
         val uiState = rememberSaveable(saver = ServerUiState.Saver) {
             ServerUiState.from(

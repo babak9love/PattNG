@@ -15,7 +15,7 @@ class ServerHysteria2Activity : BaseServerActivity() {
     override val serverConfigType: EConfigType = EConfigType.HYSTERIA2
 
     @Composable
-    override fun ScreenContent() {
+    override fun EditorContent() {
         val uiState = rememberSaveable(saver = ServerUiState.Saver) {
             ServerUiState.from(
                 initialConfig = initialConfig

@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui.server
 
 import android.app.Application
+import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.BalancerStrategyType
@@ -222,5 +223,68 @@ class ServerGroupViewModelTest {
 
         assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
         assertTrue(source.stored.isEmpty())
+    }
+
+    @Test
+    fun theGroupTheSubscriptionsAndTheFallbacksAreReadOffTheMainThreadBeforeTheScreenShowsThem() {
+        source.names.add("custom", EConfigType.CUSTOM)
+        source.names.add("group", EConfigType.POLICYGROUP)
+        source.names.add("chain", EConfigType.PROXYCHAIN)
+        source.names.add(AppConfig.TAG_DIRECT)
+        source.subscriptions = listOf("sub-a" to "A", "sub-b" to "B")
+        source.stored["group-id"] = ProfileItem.create(EConfigType.POLICYGROUP).apply {
+            remarks = "group"
+            policyGroupFilter = "us"
+            policyGroupType = tested.toString()
+            policyGroupSubscriptionId = "sub-b"
+            policyGroupTestOutbounds = false
+            policyGroupFallbackTag = "exit"
+        }
+        val gate = CompletableDeferred<Unit>()
+        source.openGate = gate
+
+        val viewModel = viewModel(guid = "group-id", subscriptionId = "sub-a")
+        assertNull(viewModel.opened.value)
+        gate.complete(Unit)
+
+        assertEquals(
+            PolicyGroupOpening(
+                remarks = "group",
+                filter = "us",
+                type = tested,
+                testOutbounds = false,
+                fallbackTag = "exit",
+                // The subscription the group was stored with, not the one the screen was opened in.
+                pickedSubscription = "sub-b",
+                subscriptions = listOf("sub-a" to "A", "sub-b" to "B"),
+                // The built-in outbounds but the proxy, each once, then the profiles a group can fall back to.
+                fallbackSuggestions = listOf(AppConfig.TAG_DIRECT, AppConfig.TAG_BLOCKED, "exit", "chain"),
+            ),
+            viewModel.opened.value,
+        )
+    }
+
+    @Test
+    fun aNewGroupDrawsFromTheSubscriptionTheScreenWasOpenedInAndTestsItsMembers() {
+        val opened = viewModel(subscriptionId = "sub-a").opened.value
+
+        assertEquals("sub-a", opened?.pickedSubscription)
+        assertEquals(true, opened?.testOutbounds)
+        assertEquals(0, opened?.type)
+        assertEquals("", opened?.remarks)
+        assertEquals("", opened?.fallbackTag)
+        // All, when the screen was opened in none.
+        assertEquals("", viewModel().opened.value?.pickedSubscription)
+    }
+
+    @Test
+    fun aGroupThatCannotTestItsMembersOpensAsTestingThem() {
+        source.stored["group-id"] = ProfileItem.create(EConfigType.POLICYGROUP).apply {
+            remarks = "group"
+            policyGroupType = BalancerStrategyType.LEAST_LOAD.policyGroupTypeValue
+            policyGroupTestOutbounds = false
+        }
+
+        assertEquals(true, viewModel(guid = "group-id").opened.value?.testOutbounds)
     }
 }

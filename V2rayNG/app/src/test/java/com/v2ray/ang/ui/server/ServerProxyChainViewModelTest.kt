@@ -263,4 +263,36 @@ class ServerProxyChainViewModelTest {
         assertEquals(refused(R.string.toast_failure), viewModel.outcome.value)
         assertTrue(source.stored.isEmpty())
     }
+
+    @Test
+    fun theChainAndTheNamesOfTheProfilesAreReadOffTheMainThreadBeforeTheScreenShowsThem() {
+        source.names.add("custom", EConfigType.CUSTOM)
+        source.names.add("group", EConfigType.POLICYGROUP)
+        source.names.add("chain", EConfigType.PROXYCHAIN)
+        source.stored["chain-id"] = ProfileItem.create(EConfigType.PROXYCHAIN).apply {
+            remarks = "chain"
+            proxyChainProfiles = ProfileItem.proxyChainProfilesOf(listOf(" entry ", "", "a\\b,c"))
+        }
+        val gate = CompletableDeferred<Unit>()
+        source.openGate = gate
+
+        val viewModel = viewModel(guid = "chain-id")
+        assertNull(viewModel.opened.value)
+        gate.complete(Unit)
+
+        // Its members trimmed, a blank one left out; the profiles a chain can hold, neither custom ones nor groups nor chains.
+        assertEquals(ProxyChainOpening("chain", listOf("entry", "a\\b,c"), listOf("entry", "exit")), viewModel.opened.value)
+    }
+
+    @Test
+    fun aNewChainOpensOnTwoBlankMembers() {
+        assertEquals(ProxyChainOpening("", listOf("", ""), listOf("entry", "exit")), viewModel().opened.value)
+    }
+
+    @Test
+    fun aStoredChainWithoutMembersOpensOnTwoBlankOnes() {
+        source.stored["chain-id"] = ProfileItem.create(EConfigType.PROXYCHAIN).apply { remarks = "chain" }
+
+        assertEquals(ProxyChainOpening("chain", listOf("", ""), listOf("entry", "exit")), viewModel(guid = "chain-id").opened.value)
+    }
 }

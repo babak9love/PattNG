@@ -16,7 +16,7 @@ class ServerVmessActivity : BaseServerActivity() {
     override val serverConfigType: EConfigType = EConfigType.VMESS
 
     @Composable
-    override fun ScreenContent() {
+    override fun EditorContent() {
         val options = rememberFieldOptions()
         val scope = rememberCoroutineScope()
         val uiState = rememberSaveable(saver = ServerUiState.Saver) {

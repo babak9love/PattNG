@@ -8,30 +8,51 @@ import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.ui.base.EditorOutcome
 import com.v2ray.ang.ui.base.EditorViewModel
+import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
 /**
+ * PattNG: what the routing rule editor opens on: the [rule], null for a new one or one gone, the [outboundSuggestions]
+ * it offers, the built-in outbounds and the names of the profiles, and whether a rule can match the app a connection
+ * comes from, [canUseProcess].
+ */
+data class RuleOpening(val rule: RulesetItem?, val outboundSuggestions: List<String>, val canUseProcess: Boolean)
+
+/**
  * PattNG: the save and the delete of the routing rule editor, see [EditorViewModel]. The screen was opened at
- * [position], a negative one for a new rule, on [initial]. The rule is written where it is found again by its id, see
- * [RoutingEditSource.saveRule]: the list may have changed while the editor was open.
+ * [position], a negative one for a new rule, on the rule of [reopenedId] when it kept one, see [openedRule]. The rule is
+ * written where it is found again by its id, see [RoutingEditSource.saveRule]: the list may have changed while the
+ * editor was open.
  */
 class RoutingEditViewModel(
     application: Application,
     private val source: RoutingEditSource,
     private val position: Int,
-    /**
-     * The rule the screen opened on, read once when the editor opened, see [openedRule], and kept while the activity is
-     * recreated: a recreated screen reads no position again, where another rule may stand by then. Null for a new rule,
-     * or one gone by the time the editor came back.
-     */
-    val initial: RulesetItem?,
+    reopenedId: String?,
 ) : EditorViewModel(application) {
 
     /**
-     * The id the rule is saved and deleted by: the one it is stored with, or one given once to a new rule, or to one
-     * gone, which every save keeps. Blank for a stored rule from before rules had ids, which goes by its position.
+     * What the screen opened on, read off the main thread, see [openedWith], once when the editor opened, and kept while
+     * the activity is recreated: a recreated screen reads no position again, where another rule may stand by then.
      */
-    val ruleId: String = initial?.id ?: UUID.randomUUID().toString()
+    val opened: StateFlow<RuleOpening?> = openedWith {
+        RuleOpening(
+            rule = source.loadRule(position, reopenedId),
+            outboundSuggestions = (BUILTIN_OUTBOUND_TAGS.toList() + source.profileNames()).distinct(),
+            canUseProcess = source.canUseProcessRouting(),
+        )
+    }
+
+    /** The id given to the rule should it be new, or gone. */
+    private val newRuleId = UUID.randomUUID().toString()
+
+    /**
+     * The id the rule is saved and deleted by: the one it is stored with, or one given once to a new rule, or to one
+     * gone, which every save keeps; null while the rule is read. Blank for a stored rule from before rules had ids, which
+     * goes by its position.
+     */
+    val ruleId: String?
+        get() = opened.value?.let { it.rule?.id ?: newRuleId }
 
     /**
      * Saves [rule]. A rule that sends to a profile names it, and the name has to find that one profile, as at the start:
@@ -39,6 +60,8 @@ class RoutingEditViewModel(
      * at enabled rules alone, and so does this.
      */
     fun save(rule: RulesetItem) = launchSave {
+        // Nothing to save by before the rule is read; the screen shows no form until then.
+        val id = ruleId ?: return@launchSave null
         if (rule.remarks.isNullOrEmpty()) return@launchSave null
         val tag = rule.outboundTag
         if (rule.enabled && tag !in BUILTIN_OUTBOUND_TAGS) {
@@ -49,8 +72,8 @@ class RoutingEditViewModel(
             }
         }
 
-        if (ruleId.isNotEmpty()) {
-            rule.id = ruleId
+        if (id.isNotEmpty()) {
+            rule.id = id
         }
         if (!source.saveRule(position, rule)) return@launchSave WRITE_REFUSED
         EditorOutcome.Saved(rule.id)
@@ -61,8 +84,8 @@ class RoutingEditViewModel(
      * the time the editor opened, has none to delete. A delete the storage refused is told.
      */
     fun delete() {
-        if (initial == null) return
-        launchDelete { WRITE_REFUSED.takeUnless { source.deleteRule(position, ruleId) } }
+        val rule = opened.value?.rule ?: return
+        launchDelete { WRITE_REFUSED.takeUnless { source.deleteRule(position, rule.id) } }
     }
 
     private companion object {

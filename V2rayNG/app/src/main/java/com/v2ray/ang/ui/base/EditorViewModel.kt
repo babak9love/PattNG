@@ -108,6 +108,17 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
         watch(deleteJob)
     }
 
+    /**
+     * PattNG: what [load] reads as the screen opens, off the main thread, for the screen to show its form on; null until
+     * then, while the screen shows that it waits, see [EditorLoading]. Read once, and kept while the activity is
+     * recreated.
+     */
+    protected fun <T : Any> openedWith(load: suspend () -> T): StateFlow<T?> {
+        val opened = MutableStateFlow<T?>(null)
+        viewModelScope.launch { opened.value = load() }
+        return opened.asStateFlow()
+    }
+
     /** Keeps [busy] as [isBusy] says, now that [job] has started, and once it ends. */
     private fun watch(job: Job?) {
         _busy.value = isBusy

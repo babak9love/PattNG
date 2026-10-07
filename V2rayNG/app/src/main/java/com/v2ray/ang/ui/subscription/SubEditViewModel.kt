@@ -4,10 +4,18 @@ import android.app.Application
 import com.v2ray.ang.R
 import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
 import com.v2ray.ang.ui.base.EditorViewModel
 import com.v2ray.ang.ui.server.ProxyChainProblem
 import com.v2ray.ang.ui.server.proxyChainProblem
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * PattNG: what the subscription editor opens on: the [subscription] as stored, a new one otherwise, the [profileNames]
+ * it offers for the previous and the next profile, and whether a delete is confirmed first, [confirmRemove].
+ */
+data class SubEditOpening(val subscription: SubscriptionItem, val profileNames: List<String>, val confirmRemove: Boolean)
 
 /**
  * PattNG: the save and the delete of the subscription editor, see [EditorViewModel]. The subscription is stored as
@@ -19,6 +27,17 @@ class SubEditViewModel(
     private val source: SubEditSource,
     private var subId: String,
 ) : EditorViewModel(application) {
+
+    /** What the screen opened on, read off the main thread, see [openedWith]: the subscription the screen was opened on. */
+    val opened: StateFlow<SubEditOpening?> = subId.let { opening ->
+        openedWith {
+            SubEditOpening(
+                subscription = source.loadSubscription(opening) ?: SubscriptionItem(),
+                profileNames = source.profileNames(setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)),
+                confirmRemove = source.confirmsRemove(),
+            )
+        }
+    }
 
     /**
      * Saves the subscription with [edits], the edits of the screen read at the tap, made on the subscription as stored

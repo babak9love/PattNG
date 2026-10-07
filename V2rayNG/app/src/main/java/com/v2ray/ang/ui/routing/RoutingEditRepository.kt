@@ -4,17 +4,31 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.RulesetItem
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.server.ProfileNameSource
+import com.v2ray.ang.ui.server.storedProfileNames
 import com.v2ray.ang.ui.server.withStoredProfileNames
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** PattNG: where the routing rule editor finds the profile a rule sends to and stores, or deletes, the rule. */
+/**
+ * PattNG: where the routing rule editor reads what it opens on, finds the profile a rule sends to and stores, or
+ * deletes, the rule.
+ */
 interface RoutingEditSource : ProfileNameSource {
+    /** The rule the editor opens on, read off the main thread, see [openedRule]. */
+    suspend fun loadRule(position: Int, reopenedId: String?): RulesetItem?
+
+    /** The names of the stored profiles but custom ones, read off the main thread, see [storedProfileNames]. */
+    suspend fun profileNames(): List<String>
+
+    /** Whether a rule can match the app a connection comes from, see [SettingsManager.canUseProcessRouting], read off the main thread. */
+    suspend fun canUseProcessRouting(): Boolean
+
     /**
      * Stores [rule] where the rule of its id is stored now, see [storedAt]; first when no rule has the id any more, or
      * when the rule is new, as [SettingsManager.saveRoutingRuleset] does. [position] is where the screen was opened on it.
@@ -74,6 +88,13 @@ class RoutingEditRepository : RoutingEditSource, RoutingSettingsSource {
 
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         withStoredProfileNames(takes, check)
+
+    override suspend fun loadRule(position: Int, reopenedId: String?): RulesetItem? =
+        withContext(Dispatchers.IO) { openedRule(MmkvManager.decodeRoutingRulesets(), position, reopenedId) }
+
+    override suspend fun profileNames(): List<String> = storedProfileNames(setOf(EConfigType.CUSTOM))
+
+    override suspend fun canUseProcessRouting(): Boolean = withContext(Dispatchers.IO) { SettingsManager.canUseProcessRouting() }
 
     // One read and one write each, as SettingsManager.saveRoutingRuleset and removeRoutingRuleset make them, so that the
     // rule found is the rule written however the list changes meanwhile.

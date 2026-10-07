@@ -37,8 +37,8 @@ class ServerEditorViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(guid: String = "", subscriptionId: String? = null, serviceRunning: Boolean = false) =
-        ServerEditorViewModel(mock<Application>(), source, guid, subscriptionId, serviceRunning)
+    private fun viewModel(guid: String = "", subscriptionId: String? = null, serviceRunning: Boolean = false, type: EConfigType = EConfigType.VLESS) =
+        ServerEditorViewModel(mock<Application>(), source, guid, subscriptionId, type, serviceRunning)
 
     private fun vless(name: String, subscription: String = "") = ProfileItem.create(EConfigType.VLESS).apply {
         remarks = name
@@ -228,5 +228,29 @@ class ServerEditorViewModelTest {
         assertNull(viewModel.isRunning.value)
         gate.complete(Unit)
         assertEquals(true, viewModel.isRunning.value)
+    }
+
+    @Test
+    fun theProfileIsReadOffTheMainThreadBeforeTheScreenShowsIt() {
+        source.stored["stored"] = vless("stored", subscription = "sub")
+        val gate = CompletableDeferred<Unit>()
+        source.openGate = gate
+
+        val viewModel = viewModel(guid = "stored")
+        assertNull(viewModel.opened.value)
+        gate.complete(Unit)
+
+        assertEquals(source.stored.getValue("stored"), viewModel.opened.value)
+    }
+
+    @Test
+    fun aNewProfileOrOneGoneOpensAsANewOneOfTheScreensType() {
+        val new = viewModel(type = EConfigType.TROJAN).opened.value
+        assertEquals(EConfigType.TROJAN, new?.configType)
+        assertEquals("", new?.remarks)
+
+        val gone = viewModel(guid = "gone", type = EConfigType.SOCKS).opened.value
+        assertEquals(EConfigType.SOCKS, gone?.configType)
+        assertEquals("", gone?.remarks)
     }
 }

@@ -26,8 +26,30 @@ interface ProfileNameSource {
 internal suspend fun <T> withStoredProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
     withContext(Dispatchers.IO) { check { SettingsManager.findServerViaRemarks(it, takes) } }
 
-/** PattNG: where the profile editors find the profiles they name, read a custom configuration, and store, or delete, their own. */
+/**
+ * PattNG: the names of the profiles stored on this device but those of [excluded] types, as
+ * [SettingsManager.getProfileRemarks] gives them, read off the main thread, for an editor to offer.
+ */
+internal suspend fun storedProfileNames(excluded: Set<EConfigType>): List<String> =
+    withContext(Dispatchers.IO) { SettingsManager.getProfileRemarks(excluded) }
+
+/**
+ * PattNG: where the profile editors read what they open on, find the profiles they name, read a custom configuration,
+ * and store, or delete, their own.
+ */
 interface ProfileEditorSource : ProfileNameSource {
+    /** The profile [guid] names, read off the main thread; null when [guid] is blank or names none. */
+    suspend fun loadProfile(guid: String): ProfileItem?
+
+    /** The configuration in full stored with the custom profile [guid] names, read off the main thread. */
+    suspend fun loadRaw(guid: String): String?
+
+    /** The names of the stored profiles but those of [excluded] types, read off the main thread, see [storedProfileNames]. */
+    suspend fun profileNames(excluded: Set<EConfigType>): List<String>
+
+    /** The subscriptions, their keys with their names, the key standing for a blank name, read off the main thread. */
+    suspend fun subscriptions(): List<Pair<String, String>>
+
     /**
      * Stores the profile [guid] names with [edit] made on it as stored then, or, when [guid] is blank or names none any
      * more, a new profile of [type] with [edit] made on it, and with it [raw], when given, as the configuration in full
@@ -66,6 +88,17 @@ class ProfileEditorRepository : ProfileEditorSource {
 
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         withStoredProfileNames(takes, check)
+
+    override suspend fun loadProfile(guid: String): ProfileItem? =
+        withContext(Dispatchers.IO) { MmkvManager.decodeServerConfig(guid) }
+
+    override suspend fun loadRaw(guid: String): String? =
+        withContext(Dispatchers.IO) { MmkvManager.decodeServerRaw(guid) }
+
+    override suspend fun profileNames(excluded: Set<EConfigType>): List<String> = storedProfileNames(excluded)
+
+    override suspend fun subscriptions(): List<Pair<String, String>> =
+        withContext(Dispatchers.IO) { MmkvManager.decodeSubscriptions().map { sub -> sub.guid to sub.subscription.remarks.ifBlank { sub.guid } } }
 
     // The profile and its configuration are written in one go, which a cancelled save does not cut in two.
     override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String? =

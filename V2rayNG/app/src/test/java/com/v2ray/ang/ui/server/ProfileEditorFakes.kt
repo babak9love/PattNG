@@ -66,6 +66,34 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     override suspend fun <T> withProfileNames(takes: (ProfileItem) -> Boolean, check: (find: (String) -> ByName<ProfileItem>) -> T): T =
         names.withProfileNames(takes, check)
 
+    /** When set, the reads a screen opens on wait for it, as reads off the main thread take their time. */
+    var openGate: CompletableDeferred<Unit>? = null
+
+    /** The subscriptions, their keys with their names, as the policy group editor offers them. */
+    var subscriptions: List<Pair<String, String>> = emptyList()
+
+    // Fresh copies, as real reads give.
+    override suspend fun loadProfile(guid: String): ProfileItem? {
+        openGate?.await()
+        return stored[guid]?.copy()
+    }
+
+    override suspend fun loadRaw(guid: String): String? {
+        openGate?.await()
+        return raws[guid]
+    }
+
+    // As SettingsManager.getProfileRemarks gives them.
+    override suspend fun profileNames(excluded: Set<EConfigType>): List<String> {
+        openGate?.await()
+        return names.profiles.filter { it.configType !in excluded }.map { it.remarks.trim() }.filter { it.isNotEmpty() }.distinct()
+    }
+
+    override suspend fun subscriptions(): List<Pair<String, String>> {
+        openGate?.await()
+        return subscriptions.toList()
+    }
+
     override suspend fun saveProfile(guid: String, type: EConfigType, raw: String?, edit: (ProfileItem) -> Unit): String? {
         saves += guid
         saveGate?.await()

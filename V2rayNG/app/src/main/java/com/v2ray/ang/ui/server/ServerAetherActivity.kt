@@ -103,7 +103,7 @@ class ServerAetherActivity : BaseServerActivity() {
     }
 
     @Composable
-    override fun ScreenContent() {
+    override fun EditorContent() {
         val uiState = rememberSaveable(saver = ServerUiState.Saver) {
             ServerUiState.from(initialConfig = initialConfig)
         }.apply {

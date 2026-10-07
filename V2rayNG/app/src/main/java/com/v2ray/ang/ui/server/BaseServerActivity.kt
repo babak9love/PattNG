@@ -1,6 +1,5 @@
 package com.v2ray.ang.ui.server
 
-import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,8 +43,8 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.CertificateFingerprintManager
-import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorLoading
 import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -67,22 +66,34 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     protected val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
     protected val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
 
-    protected lateinit var initialConfig: ProfileItem
+    /**
+     * The profile the screen opened on. PattNG: read off the main thread by the view model, see
+     * [ServerEditorViewModel.opened]; the screen shows its form, which reads this, only once it is.
+     */
+    protected val initialConfig: ProfileItem
+        get() = checkNotNull(editor.opened.value) { "the profile is read before the screen shows its form" }
 
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [ServerEditorViewModel]. */
     private val editor: ServerEditorViewModel by viewModels {
         viewModelFactory {
             initializer {
-                ServerEditorViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId, intent.getBooleanExtra("isRunning", false))
+                ServerEditorViewModel(
+                    application, ProfileEditorRepository(), editGuid, subscriptionId, serverConfigType, intent.getBooleanExtra("isRunning", false)
+                )
             }
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val existingConfig = MmkvManager.decodeServerConfig(editGuid)
-        initialConfig = existingConfig ?: ProfileItem.create(serverConfigType)
+    /** PattNG: the form once the profile it opens on is read, see [initialConfig]; until then, that the screen waits. */
+    @Composable
+    final override fun ScreenContent() {
+        val opened by editor.opened.collectAsStateWithLifecycle()
+        if (opened == null) EditorLoading(serverConfigType.toString()) { finish() } else EditorContent()
     }
+
+    /** PattNG: the screen's form, shown once the profile it opened on is read, see [initialConfig]. */
+    @Composable
+    protected abstract fun EditorContent()
 
     /**
      * PattNG: the screen closes only once the save or the delete that runs has written, telling the screen it returns

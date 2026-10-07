@@ -1,6 +1,5 @@
 package com.v2ray.ang.ui.server
 
-import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
@@ -59,8 +58,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
 import com.v2ray.ang.enums.EConfigType
-import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
+import com.v2ray.ang.ui.base.EditorLoading
 import com.v2ray.ang.ui.base.EditorOutcomeEffect
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.DeleteConfirmDialog
@@ -74,9 +73,6 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
 
-    private var initialRemarks: String = ""
-    private var initialContent: String = ""
-
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [ServerCustomConfigViewModel]. */
     private val viewModel: ServerCustomConfigViewModel by viewModels {
         viewModelFactory {
@@ -86,17 +82,11 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val config = MmkvManager.decodeServerConfig(editGuid)
-        initialRemarks = config?.remarks ?: ""
-        initialContent = MmkvManager.decodeServerRaw(editGuid).orEmpty()
-    }
-
     @Composable
     override fun ScreenContent() {
         // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
         val running by viewModel.isRunning.collectAsStateWithLifecycle()
+        val opened by viewModel.opened.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
@@ -113,11 +103,17 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
                 }
             }
         )
+        // PattNG: the profile and its configuration are read off the main thread; until they are, the screen waits.
+        val custom = opened
+        if (custom == null) {
+            EditorLoading(EConfigType.CUSTOM.toString()) { finish() }
+            return
+        }
         ServerCustomConfigScreen(
             editGuid = editGuid,
             isRunning = running != false,
-            initialRemarks = initialRemarks,
-            initialContent = initialContent,
+            initialRemarks = custom.remarks,
+            initialContent = custom.content,
             onBackClick = { finish() },
             onSave = { remarks, content -> viewModel.save(remarks, content) },
             onDelete = { viewModel.delete() }
