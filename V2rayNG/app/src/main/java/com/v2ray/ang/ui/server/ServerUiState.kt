@@ -245,9 +245,10 @@ class ServerUiState(
     /**
      * The profile the editor holds, built on [initialConfig]. An Aether profile's command line counts
      * as one of its own only when it says something else than its settings would on [aetherListenPort],
-     * the Aether listen port of the settings when null.
+     * the Aether listen port of the settings when null. PattNG: [keepCommand] keeps it as typed, unweighed,
+     * as the screen's saved state does, which has no port of its own to weigh it on.
      */
-    fun toProfileItem(initialConfig: ProfileItem, aetherListenPort: Int? = null): ProfileItem {
+    fun toProfileItem(initialConfig: ProfileItem, aetherListenPort: Int? = null, keepCommand: Boolean = false): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
         val isVless = configType == EConfigType.VLESS
         val isShadowsocks = configType == EConfigType.SHADOWSOCKS
@@ -354,7 +355,9 @@ class ServerUiState(
         )
         // A command that says what the settings say is no command of its own: the profile follows the settings.
         val command = aetherCommand.trim()
-        val built = if (!isAether || command.isEmpty() || command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command) {
+        val built = if (!isAether || command.isEmpty() ||
+            !keepCommand && command == AetherCore.of(profile, aetherListenPort ?: AetherCoreManager.socksPort).command
+        ) {
             profile
         } else {
             profile.copy(aetherCommand = command)
@@ -459,7 +462,8 @@ class ServerUiState(
         ): ServerUiState = fromProfileItem(initialConfig)
 
         val Saver: Saver<ServerUiState, String> = Saver(
-            save = { JsonUtil.toJson(it.toProfileItem(ProfileItem.create(it.configType))) },
+            // PattNG: kept as typed, see toProfileItem: weighing it would read the listen port of the settings.
+            save = { JsonUtil.toJson(it.toProfileItem(ProfileItem.create(it.configType), keepCommand = true)) },
             restore = { saved ->
                 JsonUtil.fromJsonSafe(saved, ProfileItem::class.java)?.let {
                     fromProfileItem(it)

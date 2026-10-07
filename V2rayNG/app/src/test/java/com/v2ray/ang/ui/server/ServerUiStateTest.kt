@@ -429,4 +429,18 @@ class ServerUiStateTest {
         state.remarks = "edited"
         assertNotEquals(held, state.toProfileItem(initial, 20808))
     }
+
+    @Test
+    fun theSavedStateKeepsACommandAsTypedWithoutWeighingIt() {
+        val profile = ProfileItem.create(EConfigType.AETHER)
+        val state = ServerUiState.from(profile)
+        val built = com.v2ray.ang.core.AetherCore.of(state.toProfileItem(profile, 10819), 10819).command
+        state.aetherCommand = built
+
+        // Weighed, the command the settings build is none of its own; kept as typed, it stays, and reads back the same.
+        assertNull(state.toProfileItem(profile, 10819).aetherCommand)
+        val saved = state.toProfileItem(ProfileItem.create(EConfigType.AETHER), keepCommand = true)
+        assertEquals(built, saved.aetherCommand)
+        assertEquals(built, ServerUiState.from(saved).aetherCommand)
+    }
 }
