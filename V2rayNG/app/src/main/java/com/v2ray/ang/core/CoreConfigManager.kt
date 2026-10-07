@@ -80,7 +80,9 @@ object CoreConfigManager {
      */
     fun getV2rayConfig4Speedtest(context: Context, guid: String): ConfigResult {
         try {
-            val configContext = CoreConfigContextBuilder.build(context, guid)
+            // PattNG: the profiles routing rules send to are left out, which a test does not measure and whose chains
+            // could lend the core under test an exit-node of theirs.
+            val configContext = CoreConfigContextBuilder.build(context, guid, routingTargets = false)
                 ?: return ConfigResult(
                     status = false,
                     guid = guid,
@@ -89,7 +91,7 @@ object CoreConfigManager {
             if (configContext.isCustom) {
                 return buildV2rayCustomConfig(configContext)
             }
-            // Only the primary outbound is measured; the routing outbounds lose their rules below.
+            // Only the primary outbound is measured, beside the fallback a group that is the primary names.
             unresolvedNameFailure(context, guid, configContext.resolvedOutbounds.take(1).firstNotNullOfOrNull { it.unresolvedHop })?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }

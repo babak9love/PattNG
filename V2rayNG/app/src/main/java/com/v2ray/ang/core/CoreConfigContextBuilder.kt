@@ -27,9 +27,11 @@ object CoreConfigContextBuilder {
     /**
      * Load one profile and produce a fully analyzed context.
      *
-     * Null is returned only when the selected profile cannot be loaded.
+     * Null is returned only when the selected profile cannot be loaded. PattNG: without [routingTargets], as for a
+     * latency test, which measures the profile alone, the profiles the routing rules send to are left out; the
+     * fallback of a group that is the profile stays, which its balancer names.
      */
-    fun build(context: Context, guid: String): CoreConfigContext? {
+    fun build(context: Context, guid: String, routingTargets: Boolean = true): CoreConfigContext? {
         val config = MmkvManager.decodeServerConfig(guid) ?: return null
 
         // CUSTOM: return immediately — CoreConfigManager handles this path on its own.
@@ -44,7 +46,8 @@ object CoreConfigContextBuilder {
         }
 
         // Step 2: Resolve all non-builtin routing outbound tags.
-        val (routingResolvedOutbounds, unresolvedRoutingTarget) = resolveRoutingOutbounds()
+        val (routingResolvedOutbounds, unresolvedRoutingTarget) =
+            if (routingTargets) resolveRoutingOutbounds() else emptyList<CoreConfigContext.ResolvedOutbound>() to null
         val resolvedOutbounds = listOf(primaryResolvedOutbound) + routingResolvedOutbounds
         val (fallbackResolvedOutbounds, unresolvedFallback) = resolveFallbackOutbounds(resolvedOutbounds)
         val routingDomainRules = collectRoutingDomainRulesForDns()
