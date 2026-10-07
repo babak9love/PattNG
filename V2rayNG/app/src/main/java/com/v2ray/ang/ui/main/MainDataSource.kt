@@ -37,7 +37,8 @@ interface MainDataSource : Closeable {
 
     fun encodeServerList(guids: List<String>, groupId: String)
 
-    fun removeServer(guid: String)
+    /** PattNG: removes the profile [guid] names; false when the storage refused it, which leaves the profile as it was. */
+    fun removeServer(guid: String): Boolean
     fun removeAllServer(): Int
     fun removeInvalidServerByGuid(guid: String): Int
     fun removeInvalidServersInGroup(groupId: String): Int

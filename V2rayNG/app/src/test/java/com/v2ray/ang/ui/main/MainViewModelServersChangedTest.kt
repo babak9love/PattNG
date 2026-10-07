@@ -62,7 +62,7 @@ class MainViewModelServersChangedTest {
 
         override fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo? = null
         override fun encodeServerList(guids: List<String>, groupId: String) = Unit
-        override fun removeServer(guid: String) = Unit
+        override fun removeServer(guid: String) = true
         override fun removeAllServer() = 0
         override fun removeInvalidServerByGuid(guid: String) = 0
         override fun removeInvalidServersInGroup(groupId: String) = 0

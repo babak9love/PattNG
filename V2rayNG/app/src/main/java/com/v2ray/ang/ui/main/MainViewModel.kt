@@ -631,9 +631,8 @@ class MainViewModel(
                         if (uiState.value.selectedGroupId.isEmpty() && keywordFilter.isEmpty()) {
                             dataSource.removeAllServer()
                         } else {
-                            val guids = currentServers().map { it.guid }
-                            guids.forEach { dataSource.removeServer(it) }
-                            guids.size
+                            // PattNG: what the storage removed, a profile it refused to remove staying.
+                            currentServers().count { dataSource.removeServer(it.guid) }
                         }
                     viewModelScope.launch(ioDispatcher) {
                         cacheMutex.withLock { groupDataCache.clear() }
@@ -663,9 +662,10 @@ class MainViewModel(
                             if (!seen.add(identity)) duplicates += server.guid
                         }
                     }
-                    duplicates.forEach { dataSource.removeServer(it) }
+                    // PattNG: what the storage removed, a profile it refused to remove staying.
+                    val removed = duplicates.count { dataSource.removeServer(it) }
                     setupGroupTab(forceRefresh = true)
-                    toast(dataSource.getString(R.string.title_del_duplicate_config_count, duplicates.size))
+                    toast(dataSource.getString(R.string.title_del_duplicate_config_count, removed))
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (e: Exception) {
@@ -807,7 +807,8 @@ class MainViewModel(
             return
         }
         viewModelScope.launch(ioDispatcher) {
-            dataSource.removeServer(guid)
+            // PattNG: a removal the storage refused is told; the list, shown anew, keeps the profile.
+            if (!dataSource.removeServer(guid)) toastError(R.string.toast_failure)
             cacheMutex.withLock { groupDataCache.clear() }
             setupGroupTab(forceRefresh = true).join()
         }

@@ -167,7 +167,7 @@ class MainRepository(
     override fun encodeServerList(guids: List<String>, groupId: String) =
         MmkvManager.encodeServerList(ArrayList(guids), groupId)
 
-    override fun removeServer(guid: String) = MmkvManager.removeServer(guid)
+    override fun removeServer(guid: String) = MmkvManager.tryRemoveServer(guid)
 
     override fun removeAllServer(): Int = MmkvManager.removeAllServer()
 

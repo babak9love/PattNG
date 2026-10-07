@@ -27,6 +27,7 @@ import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.dto.entities.WebDavConfig
 import com.v2ray.ang.util.JsonUtil
+import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -270,6 +271,8 @@ object MmkvManager {
     fun encodeServerConfig(guid: String, config: ProfileItem): String {
         val key = guid.ifBlank { Utils.getUuid() }
         withProfileIndexLock {
+            // PattNG: the payload as it was, put back when a write after it is refused.
+            val previousPayload = profileFullStorage.decodeString(key)
             requireStorageWrite(
                 profileFullStorage.encode(key, JsonUtil.toJson(config)),
                 "Failed to save profile payload",
@@ -281,15 +284,24 @@ object MmkvManager {
 
             if (!serverList.contains(key)) {
                 serverList.add(0, key)
-                requireStorageWrite(
-                    persistServerList(serverList, subId),
-                    "Failed to publish profile index",
-                )
-                if (getSelectServer().isNullOrBlank()) {
+                try {
                     requireStorageWrite(
-                        mainStorage.encode(KEY_SELECTED_SERVER, key),
-                        "Failed to update selected profile",
+                        persistServerList(serverList, subId),
+                        "Failed to publish profile index",
                     )
+                    if (getSelectServer().isNullOrBlank()) {
+                        requireStorageWrite(
+                            mainStorage.encode(KEY_SELECTED_SERVER, key),
+                            "Failed to update selected profile",
+                        )
+                    }
+                } catch (e: ProfileStorageException) {
+                    // PattNG: a new profile is stored whole or not at all, so that the next try adds it, and selects it,
+                    // anew: out of its list again, and its payload as it was.
+                    serverList.remove(key)
+                    persistServerList(serverList, subId)
+                    if (previousPayload == null) profileFullStorage.removeValueForKey(key) else profileFullStorage.encode(key, previousPayload)
+                    throw e
                 }
             }
         }
@@ -394,7 +406,7 @@ object MmkvManager {
             return
         }
 
-        tryRemoveServer(guid)
+        if (!tryRemoveServer(guid)) LogUtil.e(TAG, "MmkvManager: the storage refused the list without profile $guid")
     }
 
     /**
@@ -543,16 +555,14 @@ object MmkvManager {
         var count = 0
         if (guid.isNotEmpty()) {
             decodeServerAffiliationInfo(guid)?.let { aff ->
-                if (aff.testDelayMillis < 0L) {
-                    removeServer(guid)
+                if (aff.testDelayMillis < 0L && tryRemoveServer(guid)) {
                     count++
                 }
             }
         } else {
             serverAffStorage.allKeys()?.forEach { key ->
                 decodeServerAffiliationInfo(key)?.let { aff ->
-                    if (aff.testDelayMillis < 0L) {
-                        removeServer(key)
+                    if (aff.testDelayMillis < 0L && tryRemoveServer(key)) {
                         count++
                     }
                 }
@@ -573,11 +583,11 @@ object MmkvManager {
 
     /**
      * PattNG: saves [config] as [encodeServerConfig] does, with [raw], the configuration in full a custom profile is,
-     * under the guid it gives: the raw configuration first, then the profile. When the profile's write is refused, the
-     * raw configuration is put back as it was, or removed, and the failure is thrown; what encodeServerConfig wrote
-     * before it was refused, as the index entry of a new profile, stays, as when it is called alone. Both go under the
-     * profile index lock, which encodeServerConfig takes again, MMKV counting the holds of one process: a subscription
-     * update, which removes the payloads of the profiles it replaces, cannot come in between.
+     * under the guid it gives: the raw configuration first, then the profile, which encodeServerConfig stores whole or
+     * not at all. When the profile's write is refused, the raw configuration is put back as it was, or removed, and the
+     * failure is thrown. Both go under the profile index lock, which encodeServerConfig takes again, MMKV counting the
+     * holds of one process: a subscription update, which removes the payloads of the profiles it replaces, cannot come in
+     * between.
      */
     fun encodeServerConfigWithRaw(guid: String, config: ProfileItem, raw: String): String {
         val key = guid.ifBlank { Utils.getUuid() }
@@ -832,8 +842,8 @@ object MmkvManager {
      *
      * @param rulesetList The list of routing rulesets.
      */
-    fun encodeRoutingRulesets(rulesetList: MutableList<RulesetItem>?) {
-        if (rulesetList.isNullOrEmpty())
+    fun encodeRoutingRulesets(rulesetList: MutableList<RulesetItem>?): Boolean {
+        return if (rulesetList.isNullOrEmpty())
             encodeSettings(PREF_ROUTING_RULESET, "")
         else
             encodeSettings(PREF_ROUTING_RULESET, JsonUtil.toJson(rulesetList))
