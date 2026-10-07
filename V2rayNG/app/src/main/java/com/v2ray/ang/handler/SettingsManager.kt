@@ -120,8 +120,8 @@ object SettingsManager {
     /**
      * The rulesets an import of [imported] leaves: the locked ones of [stored] first, kept as they are, then [imported].
      * PattNG: but for the copy of a locked one, which an export of it brings back with its id: the routing list tells its
-     * rules apart by their ids, and two with one id would make it fail to show. Each gets an id of its own besides, as
-     * one the import repeats, see [rulesetsWithOwnIds].
+     * rules apart by their ids, and two with one id would make it fail to show. Each gets an id of its own besides, see
+     * [rulesetsWithOwnIds], a locked one without an id as well.
      */
     internal fun rulesetsAfterImport(
         stored: List<RulesetItem>?,
@@ -135,30 +135,32 @@ object SettingsManager {
     }
 
     /**
-     * PattNG: [rulesets] with an id of their own each, which the routing list tells them apart by: one without an id gets
-     * a new one from [newId], as does one with the id of a ruleset before it and other content; one that repeats a
-     * ruleset before it whole goes, as the copy of a locked one an import stored before it was left out. Null when each
-     * has its own already.
+     * PattNG: [rulesets] with an id of their own each, which the routing list tells them apart by: one that repeats whole
+     * a ruleset before it, the id it came with included, goes, as the copies of a locked one an import stored before it
+     * was left out; one with the id of a ruleset before it and other content gets a new id from [newId], as does one
+     * without an id. Null when each has its own already.
      */
     internal fun rulesetsWithOwnIds(
         rulesets: List<RulesetItem>,
         newId: () -> String = ::newRulesetId,
     ): MutableList<RulesetItem>? {
-        val firstWithId = HashMap<String, RulesetItem>()
+        // The rulesets kept so far of each id they came with, as they came.
+        val keptWithId = HashMap<String, MutableList<RulesetItem>>()
         val result = ArrayList<RulesetItem>(rulesets.size)
         var changed = false
         for (ruleset in rulesets) {
-            val first = firstWithId[ruleset.id]
+            val kept = keptWithId.getOrPut(ruleset.id) { mutableListOf() }
             when {
-                ruleset.id.isEmpty() || first != null && first != ruleset -> {
+                ruleset in kept -> changed = true
+
+                ruleset.id.isEmpty() || kept.isNotEmpty() -> {
+                    kept += ruleset
                     result += ruleset.copy(id = newId())
                     changed = true
                 }
 
-                first != null -> changed = true
-
                 else -> {
-                    firstWithId[ruleset.id] = ruleset
+                    kept += ruleset
                     result += ruleset
                 }
             }

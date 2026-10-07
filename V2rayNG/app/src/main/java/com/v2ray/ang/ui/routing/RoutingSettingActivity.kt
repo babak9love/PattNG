@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.RulesetItem
@@ -86,7 +88,11 @@ private enum class RoutingPreset(val type: RoutingType, @StringRes val labelRes:
 }
 
 class RoutingSettingActivity : HelperBaseComponentActivity() {
-    private val viewModel: RoutingSettingsViewModel by viewModels()
+    private val viewModel: RoutingSettingsViewModel by viewModels {
+        viewModelFactory {
+            initializer { RoutingSettingsViewModel(application, RoutingSettingsRepository()) }
+        }
+    }
     private val domainStrategyState = MutableStateFlow("")
 
     override fun onCreate(savedInstanceState: Bundle?) {

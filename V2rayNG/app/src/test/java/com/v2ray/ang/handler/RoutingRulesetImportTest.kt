@@ -96,4 +96,18 @@ class RoutingRulesetImportTest {
         // As an import stored it before it left the copy out: the copy, locked as well, goes.
         assertEquals(listOf(locked, unlocked), SettingsManager.rulesetsWithOwnIds(listOf(locked, unlocked, locked)))
     }
+
+    @Test
+    fun aWholeRepeatGoesThoughTheRulesetItRepeatsGotANewId() {
+        val a = RulesetItem(id = "x", remarks = "a")
+        val b = RulesetItem(id = "x", remarks = "b")
+        val noId = RulesetItem(remarks = "no id")
+        val ids = generateSequence(1) { it + 1 }.map { "new-$it" }.iterator()
+
+        // As a locked rule, edited since, with three copies of it as exported: the copies are one.
+        assertEquals(
+            listOf(a, b.copy(id = "new-1"), noId.copy(id = "new-2")),
+            SettingsManager.rulesetsWithOwnIds(listOf(a, b, b, b, noId, noId)) { ids.next() }
+        )
+    }
 }
