@@ -237,4 +237,22 @@ class CoreConfigManagerTest {
 
         assertTrue(outbounds.all { it.mux == null && it.targetStrategy == null })
     }
+
+    @Test
+    fun aLatencyTestRefusesWhatTheSessionRefusesForTheCoresOfItsGroupsFallback() {
+        val member = ProfileItem.create(EConfigType.AETHER).apply { remarks = "member warp"; aetherProtocol = "wg" }
+        val other = ProfileItem.create(EConfigType.AETHER).apply { remarks = "chain warp"; aetherProtocol = "masque" }
+        val entry = ProfileItem.create(EConfigType.VLESS).apply { remarks = "entry"; server = "203.0.113.7"; serverPort = "443" }
+        val group = CoreConfigContext.ResolvedOutbound(AppConfig.TAG_PROXY, member, listOf(member), CoreResolvedType.POLICYGROUP)
+        // The fallback, a chain whose Aether hop dials out through entry: another core.
+        val fallback = CoreConfigContext.ResolvedOutbound("fallback", other, listOf(other, entry), CoreResolvedType.PROXYCHAIN)
+
+        assertEquals(AetherDependency.Conflicting, CoreConfigManager.speedtestCoresRefusal(listOf(group, fallback)))
+        // The primary alone, or a fallback without a core of its own, or on the same core, is measured.
+        assertNull(CoreConfigManager.speedtestCoresRefusal(listOf(group)))
+        val plain = CoreConfigContext.ResolvedOutbound("fallback", entry, listOf(entry), CoreResolvedType.NORMAL)
+        assertNull(CoreConfigManager.speedtestCoresRefusal(listOf(group, plain)))
+        val same = CoreConfigContext.ResolvedOutbound("fallback", member, listOf(member), CoreResolvedType.NORMAL)
+        assertNull(CoreConfigManager.speedtestCoresRefusal(listOf(group, same)))
+    }
 }

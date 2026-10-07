@@ -96,9 +96,7 @@ object CoreConfigManager {
             unresolvedNameFailure(context, guid, configContext.resolvedOutbounds.take(1).firstNotNullOfOrNull { it.unresolvedHop })?.let { return it }
             val dependency = AetherDependency.of(configContext.resolvedOutbounds.take(1))
             aetherFailure(context, guid, dependency)?.let { return it }
-            // PattNG: what the session refuses for the cores of the fallback beside the primary is refused here too, as a
-            // chain with another Aether profile: the hop it would tag exit-node would pass for the tested core's.
-            aetherFailure(context, guid, AetherDependency.of(configContext.resolvedOutbounds))?.let { return it }
+            speedtestCoresRefusal(configContext.resolvedOutbounds)?.let { refusal -> aetherFailure(context, guid, refusal)?.let { return it } }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
             val v2rayConfig = buildUnifiedConfig(configContext)
             postProcessForSpeedtest(v2rayConfig)
@@ -543,6 +541,15 @@ object CoreConfigManager {
         v2rayConfig.policy = null
         trimOutboundsForSpeedtest(v2rayConfig.outbounds)
     }
+
+    /**
+     * PattNG: what a latency test of [resolvedOutbounds], its primary and the fallback of a group that is the primary,
+     * refuses for their Aether cores, as the session refuses it, though it measures the primary alone: a chain of the
+     * fallback with another Aether profile, say, whose hop tagged exit-node would pass for the tested core's. Null when
+     * it refuses nothing.
+     */
+    internal fun speedtestCoresRefusal(resolvedOutbounds: List<CoreConfigContext.ResolvedOutbound>): AetherDependency? =
+        AetherDependency.of(resolvedOutbounds).takeUnless { it == AetherDependency.None || it is AetherDependency.Single }
 
     /**
      * The outbounds of a latency test, without mux. PattNG: and passing every name on as it is, whatever their

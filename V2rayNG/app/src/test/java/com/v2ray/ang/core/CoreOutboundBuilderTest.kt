@@ -299,6 +299,22 @@ class CoreOutboundBuilderTest {
     }
 
     @Test
+    fun test_nodeOf_digestsTheProfileAsStoredThoughBuildingItsOutboundWritesIntoIt() {
+        val stored = ProfileItem.create(EConfigType.HYSTERIA2).apply { remarks = "hy"; server = "203.0.113.9"; serverPort = "443"; network = "tcp" }
+
+        // As building a Hysteria2 outbound does, the build writes its network and alpn into the profile it builds from.
+        val node = CoreOutboundBuilder.nodeOf(stored.copy()) { profile ->
+            profile.network = "hysteria"
+            profile.alpn = "h3"
+            OutboundBean(protocol = "hysteria")
+        }
+
+        // A test digests the profile as it reads it, unbuilt.
+        assertEquals(AetherExit.contentOf(stored), (node as ExitNodeOutbound.Built).content)
+        assertEquals(ExitNodeOutbound.NoOutbound, CoreOutboundBuilder.nodeOf(stored.copy()) { null })
+    }
+
+    @Test
     fun test_nodeOutboundOf_refusesANodeWhoseEchOutboundCannotGoBesideIt() {
         fun withEch(echOutbound: String?, echConfigList: String? = "cloudflare-ech.com+https://1.1.1.1/dns-query") = OutboundBean(
             tag = AppConfig.TAG_PROXY,
