@@ -86,7 +86,7 @@ class ServerProxyChainActivity : BaseComponentActivity() {
         )
         val config = MmkvManager.decodeServerConfig(editGuid)
         initialRemarks = config?.remarks ?: ""
-        initialMembers = config?.proxyChainProfiles?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: listOf("", "")
+        initialMembers = config?.proxyChainProfiles?.let { text -> ProfileItem.proxyChainMembersOf(text).map { it.trim() }.filter { it.isNotEmpty() } } ?: listOf("", "")
     }
 
     @Composable
@@ -135,13 +135,8 @@ class ServerProxyChainActivity : BaseComponentActivity() {
                 proxyChainProblem(chainMembers) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
             }
             when (problem) {
-                is ProxyChainProblem.NotFound -> {
-                    toast(getString(R.string.toast_profile_name_not_found, problem.name))
-                    return@launch
-                }
-
-                is ProxyChainProblem.SameName -> {
-                    toast(getString(R.string.toast_profile_name_duplicate, problem.name))
+                is ProxyChainProblem.Unresolved -> {
+                    toast(getString(problem.message, problem.name))
                     return@launch
                 }
 
@@ -161,7 +156,7 @@ class ServerProxyChainActivity : BaseComponentActivity() {
 
                 config.remarks = remarks.trim()
                 config.proxyChainProfiles =
-                    chainMembers.joinToString(",")
+                    ProfileItem.proxyChainProfilesOf(chainMembers)
 
                 config.description =
                     chainMembers.joinToString(" -> ")

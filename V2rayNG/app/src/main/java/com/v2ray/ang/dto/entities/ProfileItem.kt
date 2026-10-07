@@ -169,6 +169,42 @@ data class ProfileItem(
             EConfigType.AETHER, EConfigType.WIREGUARD -> AppConfig.TARGET_STRATEGY_FORCE_IPV4V6
             else -> AppConfig.TARGET_STRATEGY_AS_IS
         }
+
+        /**
+         * PattNG: the names of the members of a proxy chain, as [proxyChainProfilesOf] writes them into
+         * [proxyChainProfiles], in their order: separated by commas, a comma or a backslash that is part of a name
+         * written after a backslash. A chain written before, whose names had no backslash, reads as it did.
+         */
+        fun proxyChainMembersOf(text: String?): List<String> {
+            if (text.isNullOrEmpty()) return emptyList()
+            val members = mutableListOf<String>()
+            val member = StringBuilder()
+            var index = 0
+            while (index < text.length) {
+                val char = text[index]
+                val next = text.getOrNull(index + 1)
+                when {
+                    char == '\\' && (next == ',' || next == '\\') -> {
+                        member.append(next)
+                        index++
+                    }
+
+                    char == ',' -> {
+                        members += member.toString()
+                        member.clear()
+                    }
+
+                    else -> member.append(char)
+                }
+                index++
+            }
+            members += member.toString()
+            return members
+        }
+
+        /** PattNG: [members], the names of the members of a proxy chain in their order, as [proxyChainProfiles] holds them. */
+        fun proxyChainProfilesOf(members: List<String>): String =
+            members.joinToString(",") { it.replace("\\", "\\\\").replace(",", "\\,") }
     }
 
     fun getServerAddressAndPort(): String {

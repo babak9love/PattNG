@@ -693,20 +693,17 @@ object CoreConfigManager {
     /**
      * PattNG: [unresolved], a name by which a proxy chain, the subscription around a profile, a routing rule or the
      * fallback of a policy group names a profile, and which no profile has any more, as after it was renamed or
-     * deleted, or several have, see
+     * deleted, several have, or, as a chain's hop, one without a server address has, see
      * [CoreConfigContext.UnresolvedName], as a failure whose message, which names it, is meant for the screen; null when
      * there is none.
      */
     private fun unresolvedNameFailure(context: Context, guid: String, unresolved: CoreConfigContext.UnresolvedName?): ConfigResult? {
         val name = unresolved ?: return null
-        LogUtil.w(AppConfig.TAG, "A chain or a routing rule names a profile that ${if (name.several) "several profiles have" else "no profile has"}, guid=$guid")
+        LogUtil.w(AppConfig.TAG, "A chain or a routing rule names a profile it cannot use (${name.reason}), guid=$guid")
         return ConfigResult(
             status = false,
             guid = guid,
-            errorMessage = context.getString(
-                if (name.several) R.string.toast_profile_name_duplicate else R.string.toast_profile_name_not_found,
-                name.name,
-            ),
+            errorMessage = context.getString(name.reason.message, name.name),
             localizedError = true,
         )
     }

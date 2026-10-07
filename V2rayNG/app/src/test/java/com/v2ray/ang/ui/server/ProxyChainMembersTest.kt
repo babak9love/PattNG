@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.server
 
+import com.v2ray.ang.R
 import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -12,32 +13,34 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ProxyChainMembersTest {
+    private fun dialled(type: EConfigType) = ProfileItem.create(type).apply { server = "203.0.113.7"; serverPort = "443" }
+
     @Test
     fun aChainIsSavedWhenEachMemberNamesOneProfileAndOneAtMostIsAether() {
         val profiles = mapOf(
-            "entry" to ProfileItem.create(EConfigType.VLESS),
+            "entry" to dialled(EConfigType.VLESS),
             "warp" to ProfileItem.create(EConfigType.AETHER),
-            "exit" to ProfileItem.create(EConfigType.TROJAN),
+            "exit" to dialled(EConfigType.TROJAN),
         )
         assertNull(proxyChainProblem(listOf("entry", "warp", "exit")) { name -> profiles[name]?.let { ByName.One(it) } ?: ByName.None })
     }
 
     @Test
-    fun aMemberNoProfileHasAnyMoreOrSeveralHaveIsToldByItsName() {
+    fun aMemberNoProfileHasAnyMoreOrSeveralHaveOrWithoutAServerIsToldByItsName() {
         val found = mapOf<String, ByName<ProfileItem>>(
-            "entry" to ByName.One(ProfileItem.create(EConfigType.VLESS)),
+            "entry" to ByName.One(dialled(EConfigType.VLESS)),
             "twice" to ByName.Several,
+            "bare" to ByName.One(ProfileItem.create(EConfigType.TROJAN)),
         )
         fun problem(vararg members: String) = proxyChainProblem(members.toList()) { found[it] ?: ByName.None }
         // The first of the members that cannot be told is named, as the chain names it when it runs.
-        assertEquals(ProxyChainProblem.SameName("twice"), problem("entry", "twice", "gone"))
-        assertEquals(ProxyChainProblem.NotFound("gone"), problem("entry", "gone", "twice"))
-        assertEquals(ProxyChainProblem.SameName("twice"), problem("entry", "twice"))
-        // The same name the start names for the chain.
-        for (members in listOf(listOf("entry", "twice", "gone"), listOf("gone", "entry", "twice"))) {
+        assertEquals(ProxyChainProblem.Unresolved("twice", R.string.toast_profile_name_duplicate), problem("entry", "twice", "gone"))
+        assertEquals(ProxyChainProblem.Unresolved("gone", R.string.toast_profile_name_not_found), problem("entry", "gone", "twice"))
+        assertEquals(ProxyChainProblem.Unresolved("bare", R.string.toast_profile_no_server), problem("entry", "bare"))
+        // The same name and message the start gives for the chain.
+        for (members in listOf(listOf("entry", "twice", "gone"), listOf("gone", "entry", "twice"), listOf("bare", "gone"))) {
             val atStart = CoreConfigContextBuilder.proxyChainHops(members) { found[it] ?: ByName.None }.second!!
-            val expected = if (atStart.several) ProxyChainProblem.SameName(atStart.name) else ProxyChainProblem.NotFound(atStart.name)
-            assertEquals(expected, problem(*members.toTypedArray()), members.toString())
+            assertEquals(ProxyChainProblem.Unresolved(atStart.name, atStart.reason.message), problem(*members.toTypedArray()), members.toString())
         }
     }
 
@@ -46,7 +49,7 @@ class ProxyChainMembersTest {
         val found = mapOf<String, ByName<ProfileItem>>(
             "warp" to ByName.One(ProfileItem.create(EConfigType.AETHER)),
             "warp 2" to ByName.One(ProfileItem.create(EConfigType.AETHER)),
-            "entry" to ByName.One(ProfileItem.create(EConfigType.VLESS)),
+            "entry" to ByName.One(dialled(EConfigType.VLESS)),
         )
         assertEquals(ProxyChainProblem.SecondAether, proxyChainProblem(listOf("warp", "entry", "warp 2")) { found.getValue(it) })
     }

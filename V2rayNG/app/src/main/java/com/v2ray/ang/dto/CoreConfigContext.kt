@@ -1,6 +1,8 @@
 package com.v2ray.ang.dto
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.CoreResolvedType
 
@@ -28,8 +30,20 @@ data class CoreConfigContext(
         val unresolvedHop: UnresolvedName? = null,
     )
 
-    /** PattNG: a [name] that finds no profile, or, with [several], more than one, see [ByName]. */
-    data class UnresolvedName(val name: String, val several: Boolean)
+    /** PattNG: a [name] by which a profile is named that cannot be used, for [reason], see [ByName]. */
+    data class UnresolvedName(val name: String, val reason: Reason) {
+        /** Why the name cannot be used, with the [message] that tells it, whose argument is the name. */
+        enum class Reason(@StringRes val message: Int) {
+            /** No profile has the name any more, as after a rename or a delete. */
+            NOT_FOUND(R.string.toast_profile_name_not_found),
+
+            /** Several have it, and the name cannot tell the one meant. */
+            SEVERAL(R.string.toast_profile_name_duplicate),
+
+            /** The one that has it has no server address, so a proxy chain cannot go through it. */
+            NO_SERVER(R.string.toast_profile_no_server),
+        }
+    }
 
     data class RoutingDomainRule(
         val domain: List<String>,

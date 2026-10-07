@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.server
 
+import androidx.annotation.StringRes
 import com.v2ray.ang.core.CoreConfigContextBuilder
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -27,11 +28,11 @@ internal fun hasSecondAetherMember(memberTypes: List<EConfigType?>): Boolean =
 
 /** PattNG: why a proxy chain cannot be saved with its members, see [proxyChainProblem]. */
 internal sealed interface ProxyChainProblem {
-    /** No profile that can be a hop is named [name], or none any more. */
-    data class NotFound(val name: String) : ProxyChainProblem
-
-    /** Several are named [name], and the chain could not tell the one meant. */
-    data class SameName(val name: String) : ProxyChainProblem
+    /**
+     * The member [name] cannot be a hop, for the [message] that tells why, whose argument is the name: no profile that
+     * can be a hop has it, or none any more, several have it, or the one that has it has no server address.
+     */
+    data class Unresolved(val name: String, @StringRes val message: Int) : ProxyChainProblem
 
     /** A second Aether member, see [hasSecondAetherMember]. */
     data object SecondAether : ProxyChainProblem
@@ -40,11 +41,12 @@ internal sealed interface ProxyChainProblem {
 /**
  * PattNG: why a chain of [members], the names of its profiles in its order, cannot be saved, as the chain finds its
  * hops when it runs, see [CoreConfigContextBuilder.proxyChainHops]: the first of the names that [find] finds no profile
- * for, or several, see [ByName], or a second Aether member. Null when it can. The previous and the next profile of a
- * subscription, which chain each of its profiles, are checked alike, in the order the chain finds them.
+ * for, several, or one without a server address, see [ByName], or a second Aether member. Null when it can. The
+ * previous and the next profile of a subscription, which chain each of its profiles, are checked alike, in the order
+ * the chain finds them.
  */
 internal fun proxyChainProblem(members: List<String>, find: (String) -> ByName<ProfileItem>): ProxyChainProblem? {
     val (hops, unresolved) = CoreConfigContextBuilder.proxyChainHops(members, find)
-    unresolved?.let { return if (it.several) ProxyChainProblem.SameName(it.name) else ProxyChainProblem.NotFound(it.name) }
+    unresolved?.let { return ProxyChainProblem.Unresolved(it.name, it.reason.message) }
     return ProxyChainProblem.SecondAether.takeIf { hasSecondAetherMember(hops.map { it.configType }) }
 }

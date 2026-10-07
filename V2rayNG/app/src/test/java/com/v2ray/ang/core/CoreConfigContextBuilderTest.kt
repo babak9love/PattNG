@@ -1,7 +1,11 @@
 package com.v2ray.ang.core
 
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.CoreConfigContext
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.NO_SERVER
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.SEVERAL
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherProtocol
 import com.v2ray.ang.enums.EConfigType
@@ -65,9 +69,48 @@ class CoreConfigContextBuilderTest {
         fun hops(vararg names: String) = CoreConfigContextBuilder.proxyChainHops(names.toList()) { found[it] ?: ByName.None }
 
         // Renamed or deleted: the chain does not run without that hop.
-        assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("gone", several = false), hops("gone", "vless", "twice"))
+        assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("gone", NOT_FOUND), hops("gone", "vless", "twice"))
         // The name of two profiles: the chain does not guess which one it means.
-        assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("twice", several = true), hops("vless", "twice", "gone"))
+        assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("twice", SEVERAL), hops("vless", "twice", "gone"))
+    }
+
+    @Test
+    fun aChainGoesThroughAHopWithAnyServerAddressButRefusesOneWithNone() {
+        val local = vless.copy(remarks = "local", server = "localhost")
+        val nas = vless.copy(remarks = "nas", server = "nas")
+        val blank = vless.copy(remarks = "blank", server = " ")
+        val none = vless.copy(remarks = "none", server = null)
+        val warp = aether("warp", AetherProtocol.WIREGUARD)
+        val profiles = listOf(vless, local, nas, blank, none, warp).associateBy { it.remarks }
+        fun hops(vararg names: String) = CoreConfigContextBuilder.proxyChainHops(names.toList()) { name ->
+            profiles[name]?.let { ByName.One(it) } ?: ByName.None
+        }
+
+        // Any address goes, a name without a dot as well, which Xray dials; an Aether profile has none of its own.
+        assertEquals(listOf(local, nas, warp, vless) to null, hops("local", "nas", "warp", "vless"))
+        // None at all: the chain is refused, rather than run without that hop as it used to.
+        assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("blank", NO_SERVER), hops("vless", "blank", "none"))
+        assertEquals(CoreConfigContext.UnresolvedName("none", NO_SERVER), hops("none").second)
+        assertEquals(R.string.toast_profile_no_server, NO_SERVER.message)
+    }
+
+    @Test
+    fun aChainKeepsACommaOrABackslashInsideTheNameOfAHop() {
+        val names = listOf("US, Dallas", "Exit", """back\slash""", """a\,b""", "")
+        assertEquals(names, ProfileItem.proxyChainMembersOf(ProfileItem.proxyChainProfilesOf(names)))
+        // A name with neither is written as before, and a chain written before reads as it did.
+        assertEquals("entry,warp,exit", ProfileItem.proxyChainProfilesOf(listOf("entry", "warp", "exit")))
+        assertEquals(listOf("entry", " warp", "exit"), ProfileItem.proxyChainMembersOf("entry, warp,exit"))
+        assertEquals(listOf("""a\b"""), ProfileItem.proxyChainMembersOf("""a\b"""))
+        assertEquals(emptyList<String>(), ProfileItem.proxyChainMembersOf(null))
+        assertEquals(emptyList<String>(), ProfileItem.proxyChainMembersOf(""))
+        // The hops of such a chain are found by their whole names.
+        val dallas = vless.copy(remarks = "US, Dallas")
+        val profiles = listOf(vless, dallas).associateBy { it.remarks }
+        val stored = ProfileItem.proxyChainProfilesOf(listOf("US, Dallas", "vless"))
+        assertEquals(listOf(dallas, vless) to null, CoreConfigContextBuilder.proxyChainHops(ProfileItem.proxyChainMembersOf(stored)) { name ->
+            profiles[name]?.let { ByName.One(it) } ?: ByName.None
+        })
     }
 
     @Test

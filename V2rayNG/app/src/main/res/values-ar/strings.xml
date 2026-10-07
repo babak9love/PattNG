@@ -594,6 +594,7 @@
     <string name="aether_exit_node_ech_unusable">لا يمكن استخدام echOutbound لملف exit-node «%1$s»؛ أصلحه في ذلك الملف، أو اختر ملفًا آخر، أو freedom</string>
     <string name="toast_profile_name_not_found">لم يُعثر على أي ملف باسم «%1$s»</string>
     <string name="toast_profile_name_duplicate">عُثر على ملفين باسم «%1$s»؛ يرجى إعادة تسمية أحدهما</string>
+    <string name="toast_profile_no_server">الملف «%1$s» ليس له عنوان خادم، لذا لا يمكن لسلسلة الوكيل أن تمر عبره</string>
     <string name="aether_keys_hint_fragment">يرسل ClientHello لطلبات WARP API على أجزاء، للشبكات التي ترشّح اسم الـ API</string>
     <string name="aether_lab_fragment">تجزئة ClientHello</string>
     <string name="aether_lab_fragment_size">حجم الأجزاء (بايت)</string>

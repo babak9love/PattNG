@@ -130,7 +130,7 @@ object CoreConfigContextBuilder {
                             ByName.None, ByName.Several -> {
                                 val several = found == ByName.Several
                                 LogUtil.w(AppConfig.TAG, "Routing tag '$tag' has ${if (several) "several matching profiles" else "no matching profile"}; the session is refused")
-                                if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), several)
+                                if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), reasonOf(several))
                                 return@forEach
                             }
                         }
@@ -203,8 +203,8 @@ object CoreConfigContextBuilder {
 
     /**
      * PattNG: the hops of the proxy chain [config], from the exit to the entry hop, found by their names, see
-     * [proxyChainHops], and the first name that finds no profile, or several, beside them: the configuration is
-     * refused for it, rather than run without that hop, or through one it may not mean.
+     * [proxyChainHops], and the first name that finds no profile, several, or one without a server address beside
+     * them: the configuration is refused for it, rather than run without that hop, or through one it may not mean.
      */
     private fun resolveProxyChainProfiles(config: ProfileItem): Pair<List<ProfileItem>, CoreConfigContext.UnresolvedName?> {
         if (config.proxyChainProfiles.isNullOrBlank()) {
@@ -212,10 +212,10 @@ object CoreConfigContextBuilder {
         }
 
         try {
-            val (hops, unresolved) = proxyChainHops(config.proxyChainProfiles.orEmpty().split(",")) { name ->
+            val (hops, unresolved) = proxyChainHops(ProfileItem.proxyChainMembersOf(config.proxyChainProfiles)) { name ->
                 SettingsManager.findServerViaRemarks(name, ::takesAsHop)
             }
-            return hops.filter { it.hasDialableServer() }.reversed() to unresolved
+            return hops.reversed() to unresolved
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain profiles for '${config.remarks}'", e)
             return listOf(config) to null
@@ -227,7 +227,8 @@ object CoreConfigContextBuilder {
 
     /**
      * PattNG: the profiles [names], the hops of a proxy chain in the order it lists them, find through [find], see
-     * [ByName], and the first of the names that finds none, or several. A blank name names no hop.
+     * [ByName], and the first of the names that finds none, several, or one a chain cannot go through, see
+     * [hasServerAddress]. A blank name names no hop.
      */
     internal fun proxyChainHops(
         names: List<String>,
@@ -236,14 +237,33 @@ object CoreConfigContextBuilder {
         val hops = mutableListOf<ProfileItem>()
         var unresolved: CoreConfigContext.UnresolvedName? = null
         for (name in names.map(String::trim).filter(String::isNotEmpty)) {
-            when (val found = find(name)) {
-                is ByName.One -> hops += found.value
-                ByName.None -> if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, several = false)
-                ByName.Several -> if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, several = true)
+            val reason = when (val found = find(name)) {
+                is ByName.One -> if (hasServerAddress(found.value)) {
+                    hops += found.value
+                    null
+                } else {
+                    CoreConfigContext.UnresolvedName.Reason.NO_SERVER
+                }
+
+                ByName.None -> CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
+                ByName.Several -> CoreConfigContext.UnresolvedName.Reason.SEVERAL
             }
+            if (reason != null && unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, reason)
         }
         return hops to unresolved
     }
+
+    /**
+     * PattNG: whether a proxy chain can go through [profile]: an Aether one, whose core it reaches on the loopback, or
+     * one with a server address, whatever it is: Xray dials localhost or a name without a dot as well, and tells when it
+     * cannot. A chain used to leave a hop out without a word when its address did not look like a web address.
+     */
+    internal fun hasServerAddress(profile: ProfileItem): Boolean =
+        profile.configType == EConfigType.AETHER || !profile.server.isNullOrBlank()
+
+    /** PattNG: why a name that finds no profile, or [several], cannot be used, see [ByName]. */
+    private fun reasonOf(several: Boolean): CoreConfigContext.UnresolvedName.Reason =
+        if (several) CoreConfigContext.UnresolvedName.Reason.SEVERAL else CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
 
     /**
      * PattNG: true when [profile], selected, runs as a chain with the hops its subscription puts
@@ -330,7 +350,7 @@ object CoreConfigContextBuilder {
                     is ByName.One -> resolveOutbound(tag, found.value)
                     ByName.None, ByName.Several -> {
                         LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' has ${if (found == ByName.Several) "several matching profiles" else "no matching profile"}; the session is refused")
-                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), found == ByName.Several)
+                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), reasonOf(found == ByName.Several))
                         null
                     }
                 }

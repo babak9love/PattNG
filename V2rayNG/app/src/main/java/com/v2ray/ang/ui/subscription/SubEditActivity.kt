@@ -124,13 +124,8 @@ class SubEditActivity : BaseComponentActivity() {
                 proxyChainProblem(neighbors) { SettingsManager.findServerViaRemarks(it, CoreConfigContextBuilder::takesAsHop) }
             }
             when (problem) {
-                is ProxyChainProblem.NotFound -> {
-                    toast(getString(R.string.toast_profile_name_not_found, problem.name))
-                    return@launch
-                }
-
-                is ProxyChainProblem.SameName -> {
-                    toast(getString(R.string.toast_profile_name_duplicate, problem.name))
+                is ProxyChainProblem.Unresolved -> {
+                    toast(getString(problem.message, problem.name))
                     return@launch
                 }
 
