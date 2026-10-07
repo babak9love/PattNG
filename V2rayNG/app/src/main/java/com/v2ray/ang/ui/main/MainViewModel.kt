@@ -124,12 +124,11 @@ class MainViewModel(
     private val groupShowLock = Any()
 
     /**
-     * PattNG: per group, the number the last reading got, in the order the readings were taken, the number of the reading
-     * the cached list is, and that of the reading shown last: a reading older than the one shown is not shown over it,
-     * see [updateGroupUi].
+     * PattNG: per group, the number the last reading got, in the order the readings were taken, which the cached list,
+     * written with it, is too, and the number of the reading shown last: a reading older than the one shown is not
+     * shown over it, see [updateGroupUi].
      */
     private val readingNumbers = ConcurrentHashMap<String, Int>()
-    private val cachedReadings = ConcurrentHashMap<String, Int>()
     private val shownReadings = ConcurrentHashMap<String, Int>()
 
     private var setupGroupJob: Job? = null
@@ -435,7 +434,6 @@ class MainViewModel(
             cacheMutex.withLock {
                 groupDataCache[groupId] = servers
                 val number = readingNumbers.merge(groupId, 1, Int::plus)!!
-                cachedReadings[groupId] = number
                 GroupReading(servers, settledMoves.getOrDefault(groupId, 0), number)
             }
         }
@@ -866,7 +864,7 @@ class MainViewModel(
             // is, see [updateGroupUi].
             val snapshot = cacheMutex.withLock {
                 groupDataCache.mapValues { (groupId, servers) ->
-                    GroupReading(servers, settledMoves.getOrDefault(groupId, 0), cachedReadings.getOrDefault(groupId, 0))
+                    GroupReading(servers, settledMoves.getOrDefault(groupId, 0), readingNumbers.getOrDefault(groupId, 0))
                 }
             }
             ensureActive()

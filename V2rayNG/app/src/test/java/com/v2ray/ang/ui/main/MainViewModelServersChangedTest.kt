@@ -108,7 +108,19 @@ class MainViewModelServersChangedTest {
             }
             return null
         }
-        override fun getServerGuidList(groupId: String) = serverGuids
+        /** Shut by a test, the next reading of a list waits on it, holding the group's load lock, see [listReadHeld]. */
+        @Volatile
+        var holdNextListRead: CountDownLatch? = null
+        val listReadHeld = CompletableDeferred<Unit>()
+
+        override fun getServerGuidList(groupId: String): List<String> {
+            holdNextListRead?.let { gate ->
+                holdNextListRead = null
+                listReadHeld.complete(Unit)
+                gate.await(5, TimeUnit.SECONDS)
+            }
+            return serverGuids
+        }
         override fun decodeServerConfig(guid: String): ProfileItem? =
             ProfileItem.create(EConfigType.VLESS).apply {
                 subscriptionId = SUB
@@ -353,27 +365,22 @@ class MainViewModelServersChangedTest {
         source.serverGuids = listOf("a", "b", "c")
         val viewModel = MainViewModel(mock<Application>(), source)
         viewModel.awaitServers("a", "b", "c")
-        source.hold(0)
-        source.hold(1)
+        val readGate = CountDownLatch(1)
+        source.holdNextListRead = readGate
 
+        // The groups are read anew, the reading held while it holds the group's load lock; two moves are shown meanwhile,
+        // their stores waiting behind it, and an update stores another profile.
+        val reload = viewModel.setupGroupTab(forceRefresh = true)
+        withTimeout(5_000) { source.listReadHeld.await() }
         viewModel.moveServer(SUB, "c", "a")
-        withTimeout(5_000) { source.entered(0).await() }
         val last = viewModel.moveServer(SUB, "b", "c")!!
         assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
-        // An update stores another profile meanwhile, and the groups are read anew: after the first move, before the second.
         source.serverGuids = source.serverGuids + "d"
-        val reload = viewModel.setupGroupTab(forceRefresh = true)
-        // The reload waits for the group's load lock, which the first move's store holds, before that store ends.
-        delay(200)
-        source.release(0)
-        withTimeout(5_000) {
-            source.entered(1).await()
-            reload.join()
-        }
+        readGate.countDown()
+        withTimeout(5_000) { reload.join() }
 
-        // That reading, which would undo the second move on the screen, is not shown.
+        // That reading, taken before the moves were stored, would undo them on the screen: it is not shown.
         assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
-        source.release(1)
         withTimeout(5_000) { last.join() }
         // Shown anew once both moves are stored: with the profile the update stored.
         viewModel.awaitServers("b", "c", "a", "d")
@@ -424,23 +431,19 @@ class MainViewModelServersChangedTest {
         val viewModel = MainViewModel(mock<Application>(), source)
         viewModel.awaitServers("a", "b", "c")
         source.refusals.set(1)
-        source.hold(0)
-        source.hold(1)
+        val readGate = CountDownLatch(1)
+        source.holdNextListRead = readGate
 
+        // A reading held while it holds the group's load lock, two moves queued behind it, the first to be refused.
+        val reload = viewModel.setupGroupTab(forceRefresh = true)
+        withTimeout(5_000) { source.listReadHeld.await() }
         viewModel.moveServer(SUB, "c", "a")
-        withTimeout(5_000) { source.entered(0).await() }
         val last = viewModel.moveServer(SUB, "b", "c")!!
         source.serverGuids = source.serverGuids + "d"
-        val reload = viewModel.setupGroupTab(forceRefresh = true)
-        delay(200)
-        // The first move is refused; the reading taken after it, before the second, is held back.
-        source.release(0)
-        withTimeout(5_000) {
-            source.entered(1).await()
-            reload.join()
-        }
+        readGate.countDown()
+        withTimeout(5_000) { reload.join() }
+        // The reading, taken before the moves were settled, is held back.
         assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
-        source.release(1)
         withTimeout(5_000) { last.join() }
 
         // Told once both are settled, and the groups shown as stored: the second move made, the first one not.
@@ -459,14 +462,16 @@ class MainViewModelServersChangedTest {
 
         val move = viewModel.moveServer(SUB, "c", "a")!!
         withTimeout(5_000) { source.entered(0).await() }
-        // The filter shows the cached lists after a pause; the cached list of the group is from before the move.
-        viewModel.filterConfig("^(a|b|c)$")
+        // The filter shows the cached lists after a pause; the cached list of the group is from before the move. Shown,
+        // it would put [a, c] up, the move undone.
+        viewModel.filterConfig("^(a|c)$")
         delay(1_000)
         assertEquals(listOf("c", "a", "b"), viewModel.shownServers())
 
         source.release(0)
         withTimeout(5_000) { move.join() }
-        viewModel.awaitServers("c", "a", "b")
+        // Shown anew once the move is stored, filtered: the move kept, b filtered out.
+        viewModel.awaitServers("c", "a")
         assertEquals(listOf("c", "a", "b"), source.serverGuids)
     }
 
