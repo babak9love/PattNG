@@ -11,22 +11,27 @@ import com.v2ray.ang.ui.base.EditorViewModel
 import java.util.UUID
 
 /**
- * PattNG: the save and the delete of the routing rule editor, see [EditorViewModel]. The screen was opened on the rule
- * at [position], whose id is [storedId], or on a new rule, at a negative position. The rule is written where it is
- * found again by its id, see [RoutingEditSource.saveRule]: the list may have changed while the editor was open.
+ * PattNG: the save and the delete of the routing rule editor, see [EditorViewModel]. The screen was opened at
+ * [position], a negative one for a new rule, on [initial]. The rule is written where it is found again by its id, see
+ * [RoutingEditSource.saveRule]: the list may have changed while the editor was open.
  */
 class RoutingEditViewModel(
     application: Application,
     private val source: RoutingEditSource,
     private val position: Int,
-    storedId: String,
+    /**
+     * The rule the screen opened on, read once when the editor opened, see [openedRule], and kept while the activity is
+     * recreated: a recreated screen reads no position again, where another rule may stand by then. Null for a new rule,
+     * or one gone by the time the editor came back.
+     */
+    val initial: RulesetItem?,
 ) : EditorViewModel(application) {
 
     /**
-     * The id of the rule: the one it is stored with, or, for a new rule, one given once, which every save of it keeps.
-     * Blank for a stored rule from before rules had ids, which goes by its position.
+     * The id the rule is saved and deleted by: the one it is stored with, or one given once to a new rule, or to one
+     * gone, which every save keeps. Blank for a stored rule from before rules had ids, which goes by its position.
      */
-    private val id: String = storedId.ifEmpty { if (position < 0) UUID.randomUUID().toString() else "" }
+    val ruleId: String = initial?.id ?: UUID.randomUUID().toString()
 
     /**
      * Saves [rule]. A rule that sends to a profile names it, and the name has to find that one profile, as at the start:
@@ -44,8 +49,8 @@ class RoutingEditViewModel(
             }
         }
 
-        if (rule.id.isEmpty()) {
-            rule.id = id
+        if (ruleId.isNotEmpty()) {
+            rule.id = ruleId
         }
         source.saveRule(position, rule)
         EditorOutcome.Saved(rule.id)
@@ -54,6 +59,6 @@ class RoutingEditViewModel(
     /** Deletes the rule, found again by its id, see [EditorViewModel.launchDelete]; a new rule, never stored, has none to delete. */
     fun delete() {
         if (position < 0) return
-        launchDelete { source.deleteRule(position, id) }
+        launchDelete { source.deleteRule(position, ruleId) }
     }
 }

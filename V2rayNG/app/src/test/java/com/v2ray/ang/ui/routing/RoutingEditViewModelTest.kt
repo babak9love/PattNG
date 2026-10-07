@@ -60,7 +60,7 @@ class RoutingEditViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(position: Int = -1, storedId: String = "") = RoutingEditViewModel(mock<Application>(), source, position, storedId)
+    private fun viewModel(position: Int = -1, initial: RulesetItem? = null) = RoutingEditViewModel(mock<Application>(), source, position, initial)
 
     private fun rule(tag: String = "exit", enabled: Boolean = true, id: String = "") =
         RulesetItem(id = id, remarks = "rule", outboundTag = tag, enabled = enabled)
@@ -134,18 +134,49 @@ class RoutingEditViewModelTest {
 
     @Test
     fun aStoredRuleIsSavedWithTheIdItIsStoredWith() {
-        val viewModel = viewModel(position = 3, storedId = "rule-id")
+        val viewModel = viewModel(position = 3, initial = RulesetItem(id = "rule-id"))
+        assertEquals("rule-id", viewModel.ruleId)
 
         viewModel.save(rule(id = "rule-id"))
         viewModel.onOutcomeHandled()
         viewModel.save(rule())
+        // A screen recreated on what another rule left at the position builds on that one: the view model's id still wins.
+        viewModel.onOutcomeHandled()
+        viewModel.save(rule(id = "another"))
 
-        assertEquals(listOf(3 to "rule-id", 3 to "rule-id"), source.saves.map { it.first to it.second.id })
+        assertEquals(listOf(3 to "rule-id", 3 to "rule-id", 3 to "rule-id"), source.saves.map { it.first to it.second.id })
 
         // One from before rules had ids keeps none, and goes by its position.
-        val legacy = viewModel(position = 4)
+        val legacy = viewModel(position = 4, initial = RulesetItem())
+        assertEquals("", legacy.ruleId)
         legacy.save(rule())
-        assertEquals(4 to "", source.saves[2].first to source.saves[2].second.id)
+        assertEquals(4 to "", source.saves[3].first to source.saves[3].second.id)
+    }
+
+    @Test
+    fun aRuleGoneByTheTimeTheEditorCameBackIsSavedAsANewOne() {
+        val viewModel = viewModel(position = 3, initial = null)
+
+        viewModel.save(rule())
+
+        val (position, stored) = source.saves.single()
+        assertEquals(3, position)
+        // An id of its own, by which no stored rule is found: the rule is stored first, as a new one.
+        assertTrue(stored.id.isNotEmpty())
+        assertEquals(stored.id, viewModel.ruleId)
+    }
+
+    @Test
+    fun theEditorOpensOnTheRuleAtItsPositionOrOnTheOneOfTheIdItKept() {
+        val rules = listOf(RulesetItem(id = "a"), RulesetItem(id = "b"))
+
+        assertEquals("b", openedRule(rules, 1, null)?.id)
+        assertNull(openedRule(rules, 2, null))
+        assertNull(openedRule(rules, -1, null))
+        assertNull(openedRule(null, 0, null))
+        // Back after its process was gone, the editor finds its rule by the id it kept, wherever the rule stands now.
+        assertEquals("b", openedRule(rules.reversed(), 1, "b")?.id)
+        assertNull(openedRule(rules, 1, "gone"))
     }
 
     @Test
@@ -167,7 +198,7 @@ class RoutingEditViewModelTest {
 
     @Test
     fun aDeleteDeletesTheRuleAtItsPositionAndANewRuleHasNoneToDelete() {
-        val stored = viewModel(position = 3, storedId = "rule-id")
+        val stored = viewModel(position = 3, initial = RulesetItem(id = "rule-id"))
         stored.delete()
         assertEquals(listOf(3 to "rule-id"), source.deletes)
         assertEquals(EditorOutcome.Deleted, stored.outcome.value)

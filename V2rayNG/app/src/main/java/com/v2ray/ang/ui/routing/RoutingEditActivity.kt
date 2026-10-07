@@ -39,6 +39,7 @@ import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.extension.nullIfBlank
+import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.apppicker.AppPickerActivity
 import com.v2ray.ang.ui.base.BaseComponentActivity
@@ -53,6 +54,9 @@ import com.v2ray.ang.ui.compose.verticalScrollbar
 
 private val ROUTING_NETWORK_OPTIONS = listOf("tcp", "udp", "tcp,udp")
 
+/** PattNG: where the editor keeps the id of its rule, to find the rule again should its process be gone before it is back. */
+private const val KEY_RULE_ID = "routing_edit_rule_id"
+
 class RoutingEditActivity : BaseComponentActivity() {
     private val position by lazy { intent.getIntExtra("position", -1) }
 
@@ -60,16 +64,26 @@ class RoutingEditActivity : BaseComponentActivity() {
     private lateinit var outboundSuggestions: List<String>
     private var canUseProcess: Boolean = false
 
-    /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [RoutingEditViewModel]. */
+    /** PattNG: the id of the rule the editor was on, as its saved state kept it, see [onSaveInstanceState]. */
+    private var reopenedRuleId: String? = null
+
+    /**
+     * PattNG: the save and the delete, which outlive this activity when it is recreated, see [RoutingEditViewModel], and
+     * the rule the editor opened on, read once, see [openedRule].
+     */
     private val viewModel: RoutingEditViewModel by viewModels {
         viewModelFactory {
-            initializer { RoutingEditViewModel(application, RoutingEditRepository(), position, initial?.id.orEmpty()) }
+            initializer {
+                RoutingEditViewModel(application, RoutingEditRepository(), position, openedRule(MmkvManager.decodeRoutingRulesets(), position, reopenedRuleId))
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        initial = SettingsManager.getRoutingRuleset(position)
+        reopenedRuleId = savedInstanceState?.getString(KEY_RULE_ID)
+        // PattNG: the rule as the view model keeps it, so that a recreated screen does not read it again at its position.
+        initial = viewModel.initial
         val profileRemarks = SettingsManager.getProfileRemarks()
         outboundSuggestions = (BUILTIN_OUTBOUND_TAGS.toList() + profileRemarks).distinct()
         canUseProcess = SettingsManager.canUseProcessRouting()
@@ -91,6 +105,11 @@ class RoutingEditActivity : BaseComponentActivity() {
             onSave = { viewModel.save(it) },
             onDelete = { viewModel.delete() }
         )
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        viewModel.ruleId.takeIf { it.isNotEmpty() }?.let { outState.putString(KEY_RULE_ID, it) }
     }
 
     /**
