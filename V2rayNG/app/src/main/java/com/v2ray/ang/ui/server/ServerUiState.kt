@@ -245,8 +245,8 @@ class ServerUiState(
     /**
      * The profile the editor holds, built on [initialConfig]. An Aether profile's command line counts
      * as one of its own only when it says something else than its settings would on [aetherListenPort],
-     * the Aether listen port of the settings when null. PattNG: [keepCommand] keeps it as typed, unweighed,
-     * as the screen's saved state does, which has no port of its own to weigh it on.
+     * the Aether listen port of the settings when null. PattNG: [keepCommand] keeps it as typed, trimmed and
+     * unweighed, as the screen's saved state does, which has no port of its own to weigh it on.
      */
     fun toProfileItem(initialConfig: ProfileItem, aetherListenPort: Int? = null, keepCommand: Boolean = false): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
@@ -462,7 +462,7 @@ class ServerUiState(
         ): ServerUiState = fromProfileItem(initialConfig)
 
         val Saver: Saver<ServerUiState, String> = Saver(
-            // PattNG: kept as typed, see toProfileItem: weighing it would read the listen port of the settings.
+            // PattNG: kept as typed, trimmed, see toProfileItem: weighing it would read the listen port of the settings.
             save = { JsonUtil.toJson(it.toProfileItem(ProfileItem.create(it.configType), keepCommand = true)) },
             restore = { saved ->
                 JsonUtil.fromJsonSafe(saved, ProfileItem::class.java)?.let {
