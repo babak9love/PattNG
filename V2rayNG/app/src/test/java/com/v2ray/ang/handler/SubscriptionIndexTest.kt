@@ -2,6 +2,7 @@ package com.v2ray.ang.handler
 
 import android.util.Log
 import com.tencent.mmkv.MMKV
+import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.util.JsonUtil
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,6 +26,9 @@ import org.mockito.kotlin.whenever
 class SubscriptionIndexTest {
     private val mainValues = mutableMapOf<String, String>()
     private val subValues = mutableMapOf<String, String>()
+
+    /** The test results stored, by profile. */
+    private val affiliationValues = mutableMapOf<String, String>()
 
     /** The keys whose writes the storage refuses, as a full device does. */
     private val refusedMainKeys = mutableSetOf<String>()
@@ -62,6 +66,11 @@ class SubscriptionIndexTest {
             }.whenever(storage).removeValueForKey(any())
         }
         reset(profiles, raws, affiliations)
+        whenever(affiliations.decodeString(any())).thenAnswer { affiliationValues[it.getArgument<String>(0)] }
+    }
+
+    private fun tested(guid: String, delayMillis: Long) {
+        affiliationValues[guid] = JsonUtil.toJson(ServerAffiliationInfo(testDelayMillis = delayMillis))
     }
 
     @Test
@@ -462,6 +471,89 @@ class SubscriptionIndexTest {
 
         assertEquals("{", subValues["a"])
         verify(subs, never()).encode(any<String>(), any<String>())
+    }
+
+    @Test
+    fun theSortAfterATestOrdersTheListAsStoredFastestFirstFailedAndUntestedLast() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2","p3","p4"]"""
+        tested("p1", 300)
+        tested("p2", -1)
+        tested("p3", 100)
+
+        AngConfigManager.sortByTestResultsForSub("a")
+
+        assertEquals("""["p3","p1","p2","p4"]""", mainValues["SUB_SERVERS_a"])
+        assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+    }
+
+    @Test
+    fun theSortAfterATestWritesNothingForAListAlreadyInOrderOrEmptiedByADelete() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2"]"""
+        tested("p1", 100)
+        tested("p2", 200)
+        // The subscription was removed during its test: its list is empty, and stays so.
+        mainValues["SUB_SERVERS_b"] = "[]"
+
+        AngConfigManager.sortByTestResultsForSub("a")
+        AngConfigManager.sortByTestResultsForSub("b")
+
+        assertTrue(mainWrites.isEmpty())
+        assertEquals("[]", mainValues["SUB_SERVERS_b"])
+    }
+
+    @Test
+    fun theRemovalAfterATestTakesTheFailedProfilesOfTheListAsStoredOutThenTheirPayloads() {
+        mainValues["SUB_SERVERS_a"] = """["p1","p2","p3"]"""
+        mainValues["SELECTED_SERVER"] = "p2"
+        tested("p1", 100)
+        tested("p2", -1)
+
+        AngConfigManager.removeInvalidServer("a")
+
+        assertEquals("""["p1","p3"]""", mainValues["SUB_SERVERS_a"])
+        assertFalse("SELECTED_SERVER" in mainValues)
+        verify(profiles).removeValuesForKeys(arrayOf("p2"))
+        verify(raws).removeValuesForKeys(arrayOf("p2"))
+        verify(affiliations).removeValuesForKeys(arrayOf("p2"))
+        assertEquals(listOf("SUB_SERVERS_a" to true), mainWrites)
+    }
+
+    @Test
+    fun aRemovalAfterATestTheStorageRefusesLeavesTheProfilesListedAndStored() {
+        val stored = """["p1","p2"]"""
+        mainValues["SUB_SERVERS_a"] = stored
+        tested("p2", -1)
+        refusedMainKeys += "SUB_SERVERS_a"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.tryRemoveServersWhere("a") { it == "p2" })
+        }
+
+        assertEquals(stored, mainValues["SUB_SERVERS_a"])
+        verify(profiles, never()).removeValuesForKeys(any())
+    }
+
+    @Test
+    fun aRemovalAfterATestOfAListEmptiedByADeleteWritesNothing() {
+        mainValues["SUB_SERVERS_a"] = "[]"
+
+        AngConfigManager.removeInvalidServer("a")
+
+        assertTrue(mainWrites.isEmpty())
+        verify(profiles, never()).removeValuesForKeys(any())
+    }
+
+    @Test
+    fun aSortTheStorageRefusesIsToldAndLeavesTheListAsItWas() {
+        val stored = """["p1","p2"]"""
+        mainValues["SUB_SERVERS_a"] = stored
+        refusedMainKeys += "SUB_SERVERS_a"
+
+        mockStatic(Log::class.java).use {
+            assertFalse(MmkvManager.trySortServerList("a") { if (it == "p2") 1L else 2L })
+        }
+
+        assertEquals(stored, mainValues["SUB_SERVERS_a"])
     }
 
     companion object {

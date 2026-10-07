@@ -446,28 +446,47 @@ object MmkvManager {
     }
 
     /**
-     * Removes multiple server configurations from a subscription.
-     *
-     * @param guids The list of server GUIDs.
-     * @param subscriptionId The subscription ID.
+     * PattNG: removes the profiles of [subscriptionId] that [remove] picks, among those listed when the profile index lock
+     * is held, so that a profile listed or removed meanwhile, as by an update or a delete of the subscription, is not
+     * undone: out of the list first, checked, then the selection when it is one of them, and their payloads, their raw
+     * configurations among them. Whether the storage took it: false, with nothing removed, when it refused the list,
+     * which is logged.
      */
-    fun removeServers(guids: List<String>, subscriptionId: String) {
-        if (guids.isEmpty()) return
+    fun tryRemoveServersWhere(subscriptionId: String, remove: (guid: String) -> Boolean): Boolean = withProfileIndexLock {
         val subId = getSubscriptionId(subscriptionId)
         val serverList = decodeServerList(subId)
-        if (serverList.removeAll(guids)) {
-            encodeServerList(serverList, subId)
+        val removed = serverList.filter(remove)
+        if (removed.isEmpty()) return@withProfileIndexLock true
+        if (!persistServerList(serverList - removed.toSet(), subId)) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused the list of group $subId without ${removed.size} of its profiles")
+            return@withProfileIndexLock false
         }
+        val selected = getSelectServer()
+        if (selected != null && selected in removed) {
+            mainStorage.remove(KEY_SELECTED_SERVER)
+        }
+        removeProfilePayloads(removed)
+        true
+    }
 
-        val selectedServer = getSelectServer()
-        guids.forEach { guid ->
-            if (selectedServer == guid) {
-                mainStorage.remove(KEY_SELECTED_SERVER)
-            }
-            profileFullStorage.remove(guid)
-            serverAffStorage.remove(guid)
-            serverRawStorage.remove(guid)
+    /**
+     * PattNG: orders the profiles of [subscriptionId] by [rank], the least first, those of an equal rank as they stood,
+     * the list as stored when the profile index lock is held, so that a profile listed or removed meanwhile, as by an
+     * update or a delete of the subscription, is not undone. [rank] is read once for each profile, so that the sort
+     * holds the lock no longer than it must, and a rank that changes meanwhile, as a test result written, cannot make
+     * the order contradict itself. Written only when the order changes. Whether the storage took it, a refusal logged.
+     */
+    fun trySortServerList(subscriptionId: String, rank: (guid: String) -> Long): Boolean = withProfileIndexLock {
+        val subId = getSubscriptionId(subscriptionId)
+        val serverList = decodeServerList(subId)
+        val ranks = serverList.associateWith(rank)
+        val sorted = serverList.sortedBy { ranks.getValue(it) }
+        if (sorted == serverList) return@withProfileIndexLock true
+        if (!persistServerList(sorted, subId)) {
+            LogUtil.e(TAG, "MmkvManager: the storage refused the list of group $subId sorted")
+            return@withProfileIndexLock false
         }
+        true
     }
 
     /**

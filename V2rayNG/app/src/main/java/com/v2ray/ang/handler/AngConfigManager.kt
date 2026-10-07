@@ -574,12 +574,12 @@ object AngConfigManager {
      * @param subId The subscription ID.
      */
     fun removeInvalidServer(subId: String) {
-        val serverList = MmkvManager.decodeServerList(subId)
-        val invalidServers = serverList.filter {
-            val aff = MmkvManager.decodeServerAffiliationInfo(it)
+        // PattNG: among the profiles listed under the profile index lock, so that a profile an update stored, or a delete
+        // of the subscription removed, meanwhile, is not undone; a refusal is logged there.
+        MmkvManager.tryRemoveServersWhere(subId) { guid ->
+            val aff = MmkvManager.decodeServerAffiliationInfo(guid)
             aff != null && aff.testDelayMillis < 0L
         }
-        MmkvManager.removeServers(invalidServers, subId)
     }
 
     /**
@@ -588,19 +588,12 @@ object AngConfigManager {
      * @param subId The subscription ID.
      */
     fun sortByTestResultsForSub(subId: String) {
-        val serverList = MmkvManager.decodeServerList(subId)
-        if (serverList.isEmpty()) return
-
-        val sorted = serverList
-            .map { guid ->
-                val delay =
-                    MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
-                guid to if (delay <= 0L) Long.MAX_VALUE else delay
-            }
-            .sortedBy { it.second }
-            .map { it.first }
-            .toMutableList()
-        MmkvManager.encodeServerList(sorted, subId)
+        // PattNG: the list as stored under the profile index lock, so that a profile an update stored, or a delete of the
+        // subscription removed, meanwhile, is not undone; a refusal is logged there.
+        MmkvManager.trySortServerList(subId) { guid ->
+            val delay = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
+            if (delay <= 0L) Long.MAX_VALUE else delay
+        }
     }
 
     /**
