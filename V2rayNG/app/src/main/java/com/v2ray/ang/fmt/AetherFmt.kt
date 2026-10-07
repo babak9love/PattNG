@@ -170,9 +170,10 @@ object AetherFmt : FmtBase() {
 
     /**
      * [takenPorts] are loopback ports something else of the app listens on, the local proxy above
-     * all; the core of the profile cannot listen there as well.
+     * all; the core of the profile cannot listen there as well. [listenPort] is the Aether listen
+     * port of the settings, read from storage unless a screen passes the one it holds.
      */
-    fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet()): Problem? =
+    fun normalize(config: ProfileItem, takenPorts: Set<Int> = emptySet(), listenPort: Int = AetherCoreManager.socksPort): Problem? =
         normalizeFragment(config)
             ?: normalizeEndpoints(config)
             ?: normalizeDns(config)
@@ -180,17 +181,16 @@ object AetherFmt : FmtBase() {
             ?: normalizeEch(config)
             ?: normalizePsiphon(config)
             ?: normalizeTor(config)
-            ?: normalizeListenPort(config, takenPorts)
-            ?: normalizeCommand(config, takenPorts)
+            ?: normalizeListenPort(config, takenPorts, listenPort)
+            ?: normalizeCommand(config, takenPorts, listenPort)
 
     /**
      * The core of a profile built from its settings listens on the Aether listen port of the settings,
      * the one port of every such core, which the local proxy may have been moved onto. A command
      * written by hand names its own ports, which [normalizeCommand] checks.
      */
-    private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>): Problem? {
+    private fun normalizeListenPort(config: ProfileItem, takenPorts: Set<Int>, listen: Int): Problem? {
         if (!config.aetherCommand.isNullOrBlank()) return null
-        val listen = AetherCoreManager.socksPort
         if (listen in takenPorts) return Problem.LISTEN_PORT_TAKEN
         // Psiphon inside the tunnel, Tor inside it and Tor around it each take one more port after the
         // one the app dials, as AetherCoreManager.buildArguments hands them out.
@@ -381,11 +381,11 @@ object AetherFmt : FmtBase() {
         text?.split(Regex("[,\\s]+"))?.filter { it.isNotEmpty() }?.joinToString(",")?.ifEmpty { null }
 
     /** A command written in place of the settings has to be one the app can run, on ports nothing else of the app holds. */
-    private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>): Problem? {
+    private fun normalizeCommand(config: ProfileItem, takenPorts: Set<Int>, listenPort: Int): Problem? {
         val text = config.aetherCommand?.trim().orEmpty()
         config.aetherCommand = text.ifEmpty { null }
         if (text.isEmpty()) return null
-        val core = AetherCore.ofCommand(text) ?: return Problem.INVALID_COMMAND
+        val core = AetherCore.ofCommand(text, listenPort) ?: return Problem.INVALID_COMMAND
         return if (core.ports.any { it in takenPorts }) Problem.LISTEN_PORT_TAKEN else null
     }
 

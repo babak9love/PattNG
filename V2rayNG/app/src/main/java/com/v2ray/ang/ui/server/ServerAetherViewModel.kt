@@ -53,15 +53,16 @@ sealed interface AetherKeysCheck {
 
 /**
  * PattNG: whether the screen, holding [current], holds still [checked], the profile a check of its keys was made on, as a
- * save would store them, normalized, see [AetherFmt.normalize]: a field the screen fills back in with its default when
- * its activity is recreated, as a cleared ECH resolver, is no edit, nor is the time a new profile was added, which the
- * screen sets anew then.
+ * save would store them on [listenPort], the Aether listen port the screen holds, normalized, see [AetherFmt.normalize]:
+ * a field the screen fills back in with its default when its activity is recreated, as a cleared ECH resolver, is no
+ * edit, nor is the time a new profile was added, which the screen sets anew then.
  */
-internal fun holdsChecked(current: ProfileItem, checked: ProfileItem): Boolean =
-    savedAs(current) == savedAs(checked.copy(addedTime = current.addedTime))
+internal fun holdsChecked(current: ProfileItem, checked: ProfileItem, listenPort: Int): Boolean =
+    savedAs(current, listenPort) == savedAs(checked.copy(addedTime = current.addedTime), listenPort)
 
-/** [profile] as a save stores it, normalized on a copy, see [AetherFmt.normalize]. */
-private fun savedAs(profile: ProfileItem): ProfileItem = profile.copy().also { AetherFmt.normalize(it) }
+/** [profile] as a save stores it on [listenPort], normalized on a copy, see [AetherFmt.normalize]. */
+private fun savedAs(profile: ProfileItem, listenPort: Int): ProfileItem =
+    profile.copy().also { AetherFmt.normalize(it, listenPort = listenPort) }
 
 sealed interface AetherLogText {
     data class Raw(val value: String) : AetherLogText
@@ -98,6 +99,13 @@ class ServerAetherViewModel(
     private val _listenPort = MutableStateFlow(AppConfig.PORT_AETHER_SOCKS.toInt())
     val listenPort: StateFlow<Int> = _listenPort.asStateFlow()
 
+    /**
+     * The loopback ports the core of a profile cannot listen on, see [AetherEditorSource.takenPorts]; none until they are
+     * read from the settings, in which case a session's start still refuses a port that is taken.
+     */
+    private val _takenPorts = MutableStateFlow<Set<Int>>(emptySet())
+    val takenPorts: StateFlow<Set<Int>> = _takenPorts.asStateFlow()
+
     private val _scanState = MutableStateFlow<AetherScanState>(AetherScanState.Idle)
     val scanState: StateFlow<AetherScanState> = _scanState.asStateFlow()
 
@@ -131,6 +139,7 @@ class ServerAetherViewModel(
         viewModelScope.launch { _isTorTransportsAvailable.value = source.isTorTransportsAvailable() }
         viewModelScope.launch { _psiphonRegions.value = source.psiphonRegions() }
         viewModelScope.launch { _listenPort.value = source.listenPort() }
+        viewModelScope.launch { _takenPorts.value = source.takenPorts() }
         viewModelScope.launch { _exitNodes.value = source.exitNodes() }
         refreshSession()
     }

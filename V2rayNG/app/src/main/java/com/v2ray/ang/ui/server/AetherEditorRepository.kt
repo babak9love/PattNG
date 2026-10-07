@@ -15,6 +15,8 @@ import com.v2ray.ang.core.PsiphonServerList
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.AetherKeyKind
 import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.fmt.AetherFmt
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +63,12 @@ interface AetherEditorSource {
 
     /** The Aether listen port of the settings, which every core of a profile listens on. */
     suspend fun listenPort(): Int
+
+    /**
+     * The loopback ports the core of a profile cannot listen on, see [AetherFmt.normalize]: the local proxy's, and the
+     * port of the inbound the core dials out through.
+     */
+    suspend fun takenPorts(): Set<Int>
 
     /** The names of the profiles a core can dial out through in place of freedom, see [AetherExit.nodes]. */
     suspend fun exitNodes(): List<AetherExitNode>
@@ -113,6 +121,9 @@ class AetherEditorRepository(private val context: Context) : AetherEditorSource 
     }
 
     override suspend fun listenPort(): Int = withContext(Dispatchers.IO) { AetherCoreManager.socksPort }
+
+    override suspend fun takenPorts(): Set<Int> =
+        withContext(Dispatchers.IO) { SettingsManager.getLocalProxyPorts() + AetherCoreManager.secondarySocksPort }
 
     override suspend fun exitNodes(): List<AetherExitNode> = withContext(Dispatchers.IO) { AetherExit.nodes() }
 

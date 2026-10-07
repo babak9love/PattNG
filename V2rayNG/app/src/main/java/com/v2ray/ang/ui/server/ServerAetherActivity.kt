@@ -73,7 +73,6 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.fmt.AetherFmt
-import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.ui.compose.CollapsiblePreferenceGroupHeader
 import com.v2ray.ang.ui.compose.FormDropdownField
 import com.v2ray.ang.ui.compose.FormTextField
@@ -631,7 +630,7 @@ class ServerAetherActivity : BaseServerActivity() {
      */
     private fun saveChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
         if (isFinishing) return
-        if (holdsChecked(state.toProfileItem(initialConfig, listenPort), checked)) saveServer(state) else requestSave(state, listenPort)
+        if (holdsChecked(state.toProfileItem(initialConfig, listenPort), checked, listenPort)) saveServer(state) else requestSave(state, listenPort)
     }
 
     /**
@@ -640,8 +639,12 @@ class ServerAetherActivity : BaseServerActivity() {
      */
     private fun scanChecked(state: ServerUiState, checked: ProfileItem, listenPort: Int) {
         val current = state.toProfileItem(initialConfig, listenPort)
-        viewModel.scan(current, anyway = holdsChecked(current, checked))
+        viewModel.scan(current, anyway = holdsChecked(current, checked, listenPort))
     }
+
+    /** PattNG: the Aether listen port the view model holds, read off the main thread, see [BaseServerActivity.saveServer]. */
+    override val aetherListenPort: Int
+        get() = viewModel.listenPort.value
 
     override fun validateBasicConfig(state: ServerUiState): Boolean {
         if (state.remarks.isBlank()) {
@@ -666,9 +669,8 @@ class ServerAetherActivity : BaseServerActivity() {
     // The profile chosen as the exit-node is looked up when the keys are checked, see ServerAetherViewModel.checkKeysBeforeSave.
     override fun validateProtocolConfig(config: ProfileItem): Boolean {
         // The core cannot listen where the local proxy of the app does, nor where the inbound it dials out
-        // through does; Xray would get the port first.
-        val takenPorts = SettingsManager.getLocalProxyPorts() + AetherCoreManager.secondarySocksPort
-        val problem = AetherFmt.normalize(config, takenPorts) ?: return true
+        // through does; Xray would get the port first. PattNG: the ports are the view model's, read off the main thread.
+        val problem = AetherFmt.normalize(config, viewModel.takenPorts.value, viewModel.listenPort.value) ?: return true
         toast(
             when (problem) {
                 AetherFmt.Problem.INVALID_PEER -> R.string.aether_invalid_endpoint

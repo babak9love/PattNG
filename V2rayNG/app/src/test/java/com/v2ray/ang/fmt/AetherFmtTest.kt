@@ -1002,4 +1002,26 @@ class AetherFmtTest {
         assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }))
         assertNull(AetherFmt.normalize(profile { aetherPsiphon = "chain"; aetherTor = "reverse" }, emptySet()))
     }
+
+    @Test
+    fun aScreenChecksAProfileOnTheListenPortItHolds() {
+        // The setting says 10819; the screen holds 20808, which is what the checks go by.
+        onListenPort(10819) {
+            assertEquals(
+                AetherFmt.Problem.LISTEN_PORT_TAKEN,
+                AetherFmt.normalize(profile { }, takenPorts = setOf(20808), listenPort = 20808)
+            )
+            assertNull(AetherFmt.normalize(profile { }, takenPorts = setOf(10819), listenPort = 20808))
+            assertEquals(
+                AetherFmt.Problem.NEXT_PORT_TAKEN,
+                AetherFmt.normalize(profile { aetherPsiphon = "chain" }, takenPorts = setOf(20809), listenPort = 20808)
+            )
+            // A command naming no listener gets one on that port as well.
+            assertEquals(
+                AetherFmt.Problem.LISTEN_PORT_TAKEN,
+                AetherFmt.normalize(profile { aetherCommand = "aether --wg" }, takenPorts = setOf(20808), listenPort = 20808)
+            )
+            assertNull(AetherFmt.normalize(profile { aetherCommand = "aether --wg" }, takenPorts = setOf(10819), listenPort = 20808))
+        }
+    }
 }

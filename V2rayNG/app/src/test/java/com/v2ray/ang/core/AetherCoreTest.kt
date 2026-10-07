@@ -404,4 +404,17 @@ class AetherCoreTest {
         // Dialling out through Xray keeps its exit-node.
         assertEquals(core.exit, core.through(41236).exit)
     }
+
+    @Test
+    fun aCommandNamingNoListenerGetsOneOnTheListenPortGiven() {
+        onListenPort(10819) {
+            assertEquals(20808, AetherCore.ofCommand("aether --wg", 20808)!!.port)
+            assertEquals(20808, AetherCore.of(profile { aetherCommand = "aether --wg" }, 20808).port)
+            // Without one, on the port of the settings, as before.
+            assertEquals(10819, AetherCore.ofCommand("aether --wg")!!.port)
+            assertEquals(10819, AetherCore.of(profile { aetherCommand = "aether --wg" }).port)
+            // A listener the command names stays.
+            assertEquals(30808, AetherCore.of(profile { aetherCommand = "aether --wg --bind 127.0.0.1:30808" }, 20808).port)
+        }
+    }
 }

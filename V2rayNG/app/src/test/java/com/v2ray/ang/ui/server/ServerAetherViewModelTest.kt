@@ -47,6 +47,7 @@ class ServerAetherViewModelTest {
         var clearer: suspend () -> Boolean = { true }
         var regions: List<String> = emptyList()
         var port = 10819
+        var taken = setOf(10808, 10809, 10822)
         val identities = mutableMapOf<AetherProtocol, AetherIdentityStatus>()
         val missingFiles = mutableSetOf<String>()
 
@@ -70,6 +71,7 @@ class ServerAetherViewModelTest {
         override suspend fun clearPsiphonData() = clearer()
         override suspend fun psiphonRegions() = regions
         override suspend fun listenPort() = port
+        override suspend fun takenPorts() = taken
         override suspend fun exitNodes() = nodes
         override suspend fun findExitNode(name: String) = found[name] ?: ExitNodeOutbound.NotFound
     }
@@ -519,15 +521,16 @@ class ServerAetherViewModelTest {
     fun theScreenHoldsTheProfileCheckedUntilItIsEdited() {
         val checked = profile.copy(remarks = "warp")
 
-        assertTrue(holdsChecked(checked.copy(), checked))
+        val port = source.port
+        assertTrue(holdsChecked(checked.copy(), checked, port))
         // A new profile is added anew when the screen's activity is recreated, as on a rotation: that is no edit.
-        assertTrue(holdsChecked(checked.copy(addedTime = checked.addedTime + 1_000), checked))
-        assertFalse(holdsChecked(checked.copy(remarks = "edited"), checked))
-        assertFalse(holdsChecked(checked.copy(aetherProtocol = AetherProtocol.WIREGUARD.type), checked))
+        assertTrue(holdsChecked(checked.copy(addedTime = checked.addedTime + 1_000), checked, port))
+        assertFalse(holdsChecked(checked.copy(remarks = "edited"), checked, port))
+        assertFalse(holdsChecked(checked.copy(aetherProtocol = AetherProtocol.WIREGUARD.type), checked, port))
         // A cleared ECH resolver comes back as the default once the screen is recreated: saved, the two are one.
         val cleared = checked.copy(aetherEch = true, aetherEchDns = null)
-        assertTrue(holdsChecked(cleared.copy(aetherEchDns = AppConfig.AETHER_ECH_DNS), cleared))
-        assertFalse(holdsChecked(cleared.copy(aetherEchDns = "udp://9.9.9.9"), cleared))
+        assertTrue(holdsChecked(cleared.copy(aetherEchDns = AppConfig.AETHER_ECH_DNS), cleared, port))
+        assertFalse(holdsChecked(cleared.copy(aetherEchDns = "udp://9.9.9.9"), cleared, port))
     }
 
     @Test
@@ -614,5 +617,13 @@ class ServerAetherViewModelTest {
         assertEquals(ServerAetherViewModel.LOG_CAPACITY, entries.size)
         assertEquals(entries.map { it.id }.sorted(), entries.map { it.id })
         assertTrue(entries.none { it.text == AetherLogText.Raw("line 0") })
+    }
+
+    @Test
+    fun thePortsAProfileIsCheckedOnAreReadAsTheScreenOpens() {
+        val viewModel = viewModel()
+
+        assertEquals(source.port, viewModel.listenPort.value)
+        assertEquals(source.taken, viewModel.takenPorts.value)
     }
 }

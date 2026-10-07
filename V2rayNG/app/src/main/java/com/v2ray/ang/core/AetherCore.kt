@@ -80,10 +80,10 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
          * [listenPort], the Aether listen port of the app, dialling out through the exit-node of its
          * settings. The log level is the session's to add. A command the app cannot read is left aside
          * for the settings; the profile editor refuses to store one. A screen passes the port it holds,
-         * since the setting is read from storage.
+         * since the setting is read from storage; a command naming no listener gets one there as well.
          */
         fun of(profile: ProfileItem, listenPort: Int = AetherCoreManager.socksPort): AetherCore {
-            val core = profile.aetherCommand?.takeIf { it.isNotBlank() }?.let(::ofCommand)
+            val core = profile.aetherCommand?.takeIf { it.isNotBlank() }?.let { ofCommand(it, listenPort) }
                 ?: AetherCore(
                     AetherCoreManager.withoutOption(
                         AetherCoreManager.buildArguments(profile, listenPort),
@@ -97,14 +97,14 @@ data class AetherCore(val arguments: List<String>, val exit: AetherExit = Aether
          * The core [command] describes, or null when it names nothing the app can run: no argument
          * at all, or a listener whose port cannot be read. Words are split on whitespace, quotes keep a
          * word together, and a program name in front is dropped. A command that names no listener for
-         * the app to dial gets one on [AetherCoreManager.socksPort], the port the Aether outbounds of
-         * the app dial unless told otherwise; the core's own defaults are other ports, which nothing
-         * in the app dials.
+         * the app to dial gets one on [listenPort], [AetherCoreManager.socksPort] unless a screen passes
+         * the port it holds, the port the Aether outbounds of the app dial unless told otherwise; the
+         * core's own defaults are other ports, which nothing in the app dials.
          */
-        fun ofCommand(command: String): AetherCore? {
+        fun ofCommand(command: String, listenPort: Int = AetherCoreManager.socksPort): AetherCore? {
             val arguments = readableArguments(command) ?: return null
             val listener = AetherCoreManager.listenerFlagOf(arguments)
-            if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, AetherCoreManager.socksPort))
+            if (listener !in arguments) return AetherCore(AetherCoreManager.withListener(arguments, listener, listenPort))
             return AetherCore(arguments)
         }
 
