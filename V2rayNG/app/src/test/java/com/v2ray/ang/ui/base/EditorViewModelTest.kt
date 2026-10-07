@@ -241,4 +241,35 @@ class EditorViewModelTest {
         assertFalse(deleted)
         assertNull(editor.outcome.value)
     }
+
+    @Test
+    fun busyFollowsTheSaveAndTheDeleteThatRun() {
+        val editor = Editor()
+        assertFalse(editor.busy.value)
+
+        val save = CompletableDeferred<Unit>()
+        editor.save { save.await(); EditorOutcome.Saved("guid") }
+        assertTrue(editor.busy.value)
+        save.complete(Unit)
+        assertFalse(editor.busy.value)
+
+        // One that ends at once leaves it as it was.
+        editor.save { null }
+        assertFalse(editor.busy.value)
+
+        // A refused delete leaves a save that runs, which holds it until it ends.
+        val next = CompletableDeferred<Unit>()
+        editor.save { next.await(); EditorOutcome.Saved("guid") }
+        editor.delete(refuse = { EditorOutcome.Refused(1) }) {}
+        assertTrue(editor.busy.value)
+        next.complete(Unit)
+        assertFalse(editor.busy.value)
+
+        // A delete holds it until it has deleted.
+        val delete = CompletableDeferred<Unit>()
+        editor.delete { delete.await() }
+        assertTrue(editor.busy.value)
+        delete.complete(Unit)
+        assertFalse(editor.busy.value)
+    }
 }

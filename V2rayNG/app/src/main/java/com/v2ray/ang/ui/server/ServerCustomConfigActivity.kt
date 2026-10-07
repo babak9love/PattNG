@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui.server
 
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
@@ -97,6 +99,10 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        // PattNG: Back waits for a save or a delete that runs, see finish(); held only meanwhile, so that predictive back
+        // shows where it leads at any other time.
+        val busy by viewModel.busy.collectAsStateWithLifecycle()
+        BackHandler(enabled = busy) {}
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
@@ -125,10 +131,12 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
     }
 
     /**
-     * PattNG: a save or a delete that has not written yet stops as the screen is left, so that it does not write after
-     * it is gone.
+     * PattNG: while a save or a delete runs the screen stays; it closes once that has written, telling the main screen
+     * what it did. Left before, the write would go untold: the main screen would neither show it nor restart the running
+     * profile with it. Once the screen is left, no save or delete starts any more.
      */
     override fun finish() {
+        if (viewModel.isBusy) return
         viewModel.onScreenLeft()
         super.finish()
     }

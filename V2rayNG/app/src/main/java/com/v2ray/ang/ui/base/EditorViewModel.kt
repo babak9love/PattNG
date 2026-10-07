@@ -46,6 +46,11 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     val isBusy: Boolean
         get() = saveJob?.isActive == true || deleteJob?.isActive == true
 
+    private val _busy = MutableStateFlow(false)
+
+    /** [isBusy], for the screen to observe: one that must tell what a write did waits for it before it closes. */
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
     /**
      * Runs [save], unless a save or a delete runs, a delete has started, or the screen is left. What it ends with goes
      * to [outcome]; null, as when the screen shows a field's error itself, goes nowhere.
@@ -53,6 +58,7 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     protected fun launchSave(save: suspend () -> EditorOutcome?) {
         if (isBusy || deleting || left) return
         saveJob = viewModelScope.launch { save()?.let { _outcome.value = it } }
+        watch(saveJob)
     }
 
     /**
@@ -74,11 +80,18 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
             delete()
             _outcome.value = EditorOutcome.Deleted
         }
+        watch(deleteJob)
+    }
+
+    /** Keeps [busy] as [isBusy] says, now that [job] has started, and once it ends. */
+    private fun watch(job: Job?) {
+        _busy.value = isBusy
+        job?.invokeOnCompletion { _busy.value = isBusy }
     }
 
     /**
-     * The screen is left: the save or the delete that runs stops unless it writes already, so nothing is written
-     * after the screen is gone, and none starts any more.
+     * The screen is left: the save or the delete that runs stops unless it writes already, which it ends without an
+     * outcome, and none starts any more. A screen that must tell what a write did waits for it instead, see [busy].
      */
     fun onScreenLeft() {
         left = true
