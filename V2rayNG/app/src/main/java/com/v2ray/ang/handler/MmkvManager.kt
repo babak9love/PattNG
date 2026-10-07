@@ -561,18 +561,23 @@ object MmkvManager {
 
     /**
      * PattNG: saves [config] as [encodeServerConfig] does, with [raw], the configuration in full a custom profile is,
-     * under the guid it gives: both are written, or, when a write fails, neither, the raw configuration put back as it
-     * was, and the failure is thrown.
+     * under the guid it gives: the raw configuration first, then the profile. When the profile's write is refused, the
+     * raw configuration is put back as it was, or removed, and the failure is thrown; what encodeServerConfig wrote
+     * before it was refused, as the index entry of a new profile, stays, as when it is called alone. Both go under the
+     * profile index lock, which encodeServerConfig takes again, MMKV counting the holds of one process: a subscription
+     * update, which removes the payloads of the profiles it replaces, cannot come in between.
      */
     fun encodeServerConfigWithRaw(guid: String, config: ProfileItem, raw: String): String {
         val key = guid.ifBlank { Utils.getUuid() }
-        val previous = serverRawStorage.decodeString(key)
-        requireStorageWrite(serverRawStorage.encode(key, raw), "Failed to save raw profile payload")
-        return try {
-            encodeServerConfig(key, config)
-        } catch (e: ProfileStorageException) {
-            if (previous == null) serverRawStorage.removeValueForKey(key) else serverRawStorage.encode(key, previous)
-            throw e
+        return withProfileIndexLock {
+            val previous = serverRawStorage.decodeString(key)
+            requireStorageWrite(serverRawStorage.encode(key, raw), "Failed to save raw profile payload")
+            try {
+                encodeServerConfig(key, config)
+            } catch (e: ProfileStorageException) {
+                if (previous == null) serverRawStorage.removeValueForKey(key) else serverRawStorage.encode(key, previous)
+                throw e
+            }
         }
     }
 
