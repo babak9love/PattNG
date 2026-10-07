@@ -13,7 +13,8 @@ class ServerProxyChainViewModel(
     source: ProfileEditorSource,
     guid: String,
     subscriptionId: String?,
-) : ProfileEditorViewModel(application, source, guid, subscriptionId) {
+    serviceRunning: Boolean = false,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId, serviceRunning) {
 
     /**
      * Saves the chain as [remarks] with [members], the names of its profiles in its order. Every member has to be

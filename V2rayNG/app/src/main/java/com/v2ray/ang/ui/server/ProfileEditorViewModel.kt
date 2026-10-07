@@ -1,11 +1,16 @@
 package com.v2ray.ang.ui.server
 
 import android.app.Application
+import androidx.lifecycle.viewModelScope
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.ui.base.EditorOutcome
 import com.v2ray.ang.ui.base.EditorViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * PattNG: the save and the delete of the editor of a profile, see [EditorViewModel]: one made of other profiles, a
@@ -19,7 +24,20 @@ abstract class ProfileEditorViewModel(
     protected val source: ProfileEditorSource,
     guid: String,
     private val subscriptionId: String?,
+    serviceRunning: Boolean = false,
 ) : EditorViewModel(application) {
+
+    private val _isRunning = MutableStateFlow(if (serviceRunning && guid.isNotEmpty()) null else false)
+
+    /**
+     * Whether the app runs on the profile the screen was opened on, [serviceRunning] as it was told and the profile the one
+     * selected, read off the main thread; null until read. The screen offers no delete of it, and a save restarts it.
+     */
+    val isRunning: StateFlow<Boolean?> = _isRunning.asStateFlow()
+
+    init {
+        if (_isRunning.value == null) viewModelScope.launch { _isRunning.value = source.isSelected(guid) }
+    }
 
     /** The guid the profile is stored as, see the class; blank for a new one until its first save. */
     protected var guid: String = guid

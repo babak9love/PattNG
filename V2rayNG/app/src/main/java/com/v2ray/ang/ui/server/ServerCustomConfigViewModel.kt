@@ -14,7 +14,8 @@ class ServerCustomConfigViewModel(
     application: Application,
     source: ProfileEditorSource,
     guid: String,
-) : ProfileEditorViewModel(application, source, guid, subscriptionId = null) {
+    serviceRunning: Boolean = false,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId = null, serviceRunning = serviceRunning) {
 
     /**
      * Saves the configuration [content] with its profile, named [remarks], which gets the server and the port the

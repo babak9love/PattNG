@@ -37,8 +37,8 @@ class ServerEditorViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(guid: String = "", subscriptionId: String? = null) =
-        ServerEditorViewModel(mock<Application>(), source, guid, subscriptionId)
+    private fun viewModel(guid: String = "", subscriptionId: String? = null, serviceRunning: Boolean = false) =
+        ServerEditorViewModel(mock<Application>(), source, guid, subscriptionId, serviceRunning)
 
     private fun vless(name: String, subscription: String = "") = ProfileItem.create(EConfigType.VLESS).apply {
         remarks = name
@@ -121,6 +121,8 @@ class ServerEditorViewModelTest {
         gate.complete(Unit)
 
         assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertFalse(viewModel.leaveScreen())
+        viewModel.onOutcomeHandled()
         assertTrue(viewModel.leaveScreen())
     }
 
@@ -144,7 +146,7 @@ class ServerEditorViewModelTest {
     }
 
     @Test
-    fun aDeleteStopsASaveThatHasNotWrittenYetSoThatItDoesNotWriteTheProfileBack() {
+    fun aDeleteWaitsForTheSaveThatRunsSoThatItDoesNotWriteTheProfileBack() {
         source.stored["vless-guid"] = vless("old")
         val gate = CompletableDeferred<Unit>()
         source.saveGate = gate
@@ -153,7 +155,10 @@ class ServerEditorViewModelTest {
         viewModel.save(vless("edited"))
         viewModel.delete()
         gate.complete(Unit)
+        assertEquals(EditorOutcome.Saved("vless-guid"), viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
 
+        viewModel.onOutcomeHandled()
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf("vless-guid"), source.deletes)
         assertTrue(source.stored.isEmpty())
@@ -200,5 +205,31 @@ class ServerEditorViewModelTest {
 
         assertEquals(EditorOutcome.Refused(R.string.toast_failure), viewModel.outcome.value)
         assertEquals(setOf("vless-guid"), source.stored.keys)
+    }
+
+    @Test
+    fun theAppRunsOnTheProfileWhenItRunsAndTheProfileIsTheOneSelected() {
+        source.stored["vless-guid"] = vless("old")
+        source.selected = "vless-guid"
+
+        assertEquals(true, viewModel(guid = "vless-guid", serviceRunning = true).isRunning.value)
+        // Not when the app runs on another, nor when it runs not at all, nor for a new profile.
+        source.selected = "other"
+        assertEquals(false, viewModel(guid = "vless-guid", serviceRunning = true).isRunning.value)
+        source.selected = "vless-guid"
+        assertEquals(false, viewModel(guid = "vless-guid").isRunning.value)
+        assertEquals(false, viewModel(serviceRunning = true).isRunning.value)
+    }
+
+    @Test
+    fun whetherTheAppRunsOnTheProfileIsUnknownUntilRead() {
+        val gate = CompletableDeferred<Unit>()
+        source.selectedGate = gate
+        source.selected = "vless-guid"
+        val viewModel = viewModel(guid = "vless-guid", serviceRunning = true)
+
+        assertNull(viewModel.isRunning.value)
+        gate.complete(Unit)
+        assertEquals(true, viewModel.isRunning.value)
     }
 }

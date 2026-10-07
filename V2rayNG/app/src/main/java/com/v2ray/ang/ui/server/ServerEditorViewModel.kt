@@ -13,7 +13,8 @@ class ServerEditorViewModel(
     source: ProfileEditorSource,
     guid: String,
     subscriptionId: String?,
-) : ProfileEditorViewModel(application, source, guid, subscriptionId) {
+    serviceRunning: Boolean = false,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId, serviceRunning) {
 
     /** Stores [profile], which the screen has built and checked, off the main thread. */
     fun save(profile: ProfileItem) = launchSave { store(profile) }

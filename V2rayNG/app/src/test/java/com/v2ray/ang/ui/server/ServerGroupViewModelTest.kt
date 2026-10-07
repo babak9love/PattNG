@@ -157,6 +157,8 @@ class ServerGroupViewModelTest {
         gate.complete(Unit)
 
         assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertFalse(viewModel.leaveScreen())
+        viewModel.onOutcomeHandled()
         assertTrue(viewModel.leaveScreen())
     }
 

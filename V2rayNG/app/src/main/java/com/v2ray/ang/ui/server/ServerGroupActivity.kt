@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig.BUILTIN_OUTBOUND_TAGS
@@ -45,8 +46,6 @@ import com.v2ray.ang.ui.compose.SettingsSwitchItem
 class ServerGroupActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
-    private var isRunning = false
     private val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
     private lateinit var subscriptions: List<PolicyGroupSubscription>
     private lateinit var fallbackSuggestions: List<String>
@@ -61,15 +60,14 @@ class ServerGroupActivity : BaseComponentActivity() {
     /** PattNG: the save, which outlives this activity when it is recreated, see [ServerGroupViewModel]. */
     private val viewModel: ServerGroupViewModel by viewModels {
         viewModelFactory {
-            initializer { ServerGroupViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId) }
+            initializer {
+                ServerGroupViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId, intent.getBooleanExtra("isRunning", false))
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        isRunning = intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
 
         val config = MmkvManager.decodeServerConfig(editGuid)
         populateSubscriptionSpinner()
@@ -92,13 +90,15 @@ class ServerGroupActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
+        val running by viewModel.isRunning.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
                 ProfileEditorResult.run {
                     finishSaved(
                         guid = guid,
-                        restartService = isRunning
+                        restartService = viewModel.isRunning.value == true
                     )
                 }
             },
@@ -110,7 +110,7 @@ class ServerGroupActivity : BaseComponentActivity() {
         )
         ServerGroupScreen(
             editGuid = editGuid,
-            isRunning = isRunning,
+            isRunning = running != false,
             subscriptions = subscriptions,
             initialRemarks = initialRemarks,
             initialFilter = initialFilter,

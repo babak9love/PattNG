@@ -4,11 +4,9 @@ import android.app.Application
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -96,39 +94,37 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun aDeleteStopsASaveThatHasNotWrittenAndRunsInItsPlace() {
+    fun aDeleteWaitsForTheSaveThatRunsAndForTheScreenToActOnWhatItSaved() {
         val editor = Editor()
-        val lookup = CompletableDeferred<Unit>()
-        var written = false
-        var deleted = false
-        editor.save { lookup.await(); written = true; EditorOutcome.Saved("guid") }
+        val write = CompletableDeferred<Unit>()
+        val order = mutableListOf<String>()
+        editor.save { write.await(); order += "written"; EditorOutcome.Saved("guid") }
 
-        // Confirmed while the save looks names up: the delete is not dropped, and the save does not write after it.
-        editor.delete { deleted = true }
-        lookup.complete(Unit)
+        // Confirmed while the save runs: the delete is not dropped, and runs once the save has ended and the screen has
+        // acted on it, so that the save writes nothing back after it and the screen is told what it saved.
+        editor.delete { order += "deleted" }
+        write.complete(Unit)
+        assertEquals(listOf("written"), order)
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
 
-        assertTrue(deleted)
-        assertFalse(written)
+        editor.onOutcomeHandled()
+        assertEquals(listOf("written", "deleted"), order)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
     }
 
     @Test
-    fun aDeleteWaitsForTheWriteOfASaveAndRunsAfterIt() {
+    fun aDeleteTheStorageRefusesAfterASaveLeavesTheSaveTold() {
         val editor = Editor()
         val write = CompletableDeferred<Unit>()
-        val order = mutableListOf<String>()
-        editor.save {
-            // A write under way ends, as one on Dispatchers.IO does when its coroutine is cancelled.
-            withContext(NonCancellable) { write.await(); order += "written" }
-            EditorOutcome.Saved("guid")
-        }
+        editor.save { write.await(); EditorOutcome.Saved("guid") }
 
-        editor.delete { order += "deleted" }
-        assertTrue(order.isEmpty())
+        editor.deleteOrRefuse { EditorOutcome.Refused(2) }
         write.complete(Unit)
+        // The screen acts on the save, which it tells the screen it returns to, before the delete is refused.
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+        editor.onOutcomeHandled()
 
-        assertEquals(listOf("written", "deleted"), order)
-        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+        assertEquals(EditorOutcome.Refused(2), editor.outcome.value)
     }
 
     @Test
@@ -213,10 +209,12 @@ class EditorViewModelTest {
         val write = CompletableDeferred<Unit>()
         editor.save { write.await(); EditorOutcome.Saved("guid") }
 
-        // Back waits: the save ends in its outcome, which closes the screen telling what it wrote.
+        // Back waits: the save ends in its outcome, which closes the screen telling what it wrote, once acted on.
         assertFalse(editor.leaveScreen())
         write.complete(Unit)
         assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+        assertFalse(editor.leaveScreen())
+        editor.onOutcomeHandled()
         assertTrue(editor.leaveScreen())
 
         var started = false
@@ -234,6 +232,17 @@ class EditorViewModelTest {
         assertFalse(editor.leaveScreen())
         gate.complete(Unit)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+        assertFalse(editor.leaveScreen())
+        editor.onOutcomeHandled()
+        assertTrue(editor.leaveScreen())
+    }
+
+    @Test
+    fun aRefusalWaitingToBeToldDoesNotHoldTheScreen() {
+        val editor = Editor()
+
+        editor.save { EditorOutcome.Refused(1) }
+
         assertTrue(editor.leaveScreen())
     }
 
@@ -278,7 +287,8 @@ class EditorViewModelTest {
         next.complete(Unit)
         assertFalse(editor.busy.value)
 
-        // A delete holds it until it has deleted.
+        // A delete holds it until it has deleted, once the screen has acted on what the save before it saved.
+        editor.onOutcomeHandled()
         val delete = CompletableDeferred<Unit>()
         editor.delete { delete.await() }
         assertTrue(editor.busy.value)

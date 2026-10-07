@@ -181,6 +181,8 @@ class ServerProxyChainViewModelTest {
         gate.complete(Unit)
 
         assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertFalse(viewModel.leaveScreen())
+        viewModel.onOutcomeHandled()
         assertTrue(viewModel.leaveScreen())
     }
 
@@ -203,7 +205,7 @@ class ServerProxyChainViewModelTest {
     }
 
     @Test
-    fun aDeleteConfirmedWhileTheMembersAreLookedUpStopsTheSaveAndDeletes() {
+    fun aDeleteConfirmedWhileTheMembersAreLookedUpWaitsForTheSaveThenDeletes() {
         source.stored["chain-guid"] = ProfileItem.create(EConfigType.PROXYCHAIN)
         val gate = CompletableDeferred<Unit>()
         source.names.gate = gate
@@ -212,10 +214,14 @@ class ServerProxyChainViewModelTest {
         viewModel.save("chain", listOf("entry", "exit"))
         viewModel.delete()
         gate.complete(Unit)
+        // The save ends first, and the screen is told of it, so that it writes nothing back after the delete.
+        assertEquals(EditorOutcome.Saved("chain-guid"), viewModel.outcome.value)
+        assertTrue(source.deletes.isEmpty())
 
+        viewModel.onOutcomeHandled()
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf("chain-guid"), source.deletes)
-        assertTrue(source.saves.isEmpty())
+        assertEquals(listOf("chain-guid"), source.saves)
         assertTrue(source.stored.isEmpty())
     }
 

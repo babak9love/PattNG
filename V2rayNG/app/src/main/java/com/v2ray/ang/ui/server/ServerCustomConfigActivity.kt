@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
@@ -72,8 +73,6 @@ import kotlinx.coroutines.flow.collectLatest
 class ServerCustomConfigActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
-    private var isRunning = false
 
     private var initialRemarks: String = ""
     private var initialContent: String = ""
@@ -81,15 +80,14 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [ServerCustomConfigViewModel]. */
     private val viewModel: ServerCustomConfigViewModel by viewModels {
         viewModelFactory {
-            initializer { ServerCustomConfigViewModel(application, ProfileEditorRepository(), editGuid) }
+            initializer {
+                ServerCustomConfigViewModel(application, ProfileEditorRepository(), editGuid, intent.getBooleanExtra("isRunning", false))
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        isRunning = intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
         val config = MmkvManager.decodeServerConfig(editGuid)
         initialRemarks = config?.remarks ?: ""
         initialContent = MmkvManager.decodeServerRaw(editGuid).orEmpty()
@@ -97,13 +95,15 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
+        val running by viewModel.isRunning.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
                 ProfileEditorResult.run {
                     finishSaved(
                         guid = guid,
-                        restartService = isRunning
+                        restartService = viewModel.isRunning.value == true
                     )
                 }
             },
@@ -115,7 +115,7 @@ class ServerCustomConfigActivity : BaseComponentActivity() {
         )
         ServerCustomConfigScreen(
             editGuid = editGuid,
-            isRunning = isRunning,
+            isRunning = running != false,
             initialRemarks = initialRemarks,
             initialContent = initialContent,
             onBackClick = { finish() },

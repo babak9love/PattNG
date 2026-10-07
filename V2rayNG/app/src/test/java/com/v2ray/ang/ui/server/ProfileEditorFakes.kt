@@ -38,7 +38,7 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
     /** The configurations in full stored with their custom profiles, by guid. */
     val raws = mutableMapOf<String, String>()
 
-    /** The guid each save was asked to store as, blank for a new profile. */
+    /** The guid each save was asked to store as, a new profile's got from [newGuid] before its first. */
     val saves = mutableListOf<String>()
 
     /** When set, a save waits for it before it writes, as one off the main thread takes its time. */
@@ -94,7 +94,13 @@ internal class FakeProfileEditorSource(val names: FakeProfileNames = FakeProfile
 
     override fun newGuid(): String = "guid-${++newGuids}"
 
-    override suspend fun isSelected(guid: String): Boolean = guid == selected
+    /** When set, a look at the profile selected waits for it, as one off the main thread takes its time. */
+    var selectedGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun isSelected(guid: String): Boolean {
+        selectedGate?.await()
+        return guid == selected
+    }
 
     override suspend fun deleteProfile(guid: String): Boolean {
         if (refuseDeletes) return false

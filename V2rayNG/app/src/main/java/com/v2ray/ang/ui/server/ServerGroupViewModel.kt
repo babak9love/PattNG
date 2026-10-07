@@ -50,7 +50,8 @@ class ServerGroupViewModel(
     source: ProfileEditorSource,
     guid: String,
     subscriptionId: String?,
-) : ProfileEditorViewModel(application, source, guid, subscriptionId) {
+    serviceRunning: Boolean = false,
+) : ProfileEditorViewModel(application, source, guid, subscriptionId, serviceRunning) {
 
     /**
      * Saves the group as [edit] has it. The fallback of a group that tests its members names a profile, and the name has

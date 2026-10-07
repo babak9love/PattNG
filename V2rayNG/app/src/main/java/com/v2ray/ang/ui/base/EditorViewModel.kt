@@ -4,10 +4,10 @@ import android.app.Application
 import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** PattNG: what the save or the delete of an editor screen ends with, for the screen to act on once, see [EditorViewModel.outcome]. */
@@ -22,14 +22,18 @@ sealed interface EditorOutcome {
     data object Deleted : EditorOutcome
 }
 
+/** PattNG: whether the screen closes on this outcome, telling the screen it returns to what was written. */
+val EditorOutcome?.closesScreen: Boolean
+    get() = this is EditorOutcome.Saved || this == EditorOutcome.Deleted
+
 /**
  * PattNG: the save and the delete of an editor screen that reads and writes off the main thread. They run here rather
  * than in the activity's lifecycle scope, which ends when the activity is recreated, as on a rotation: a save cut off
  * there was lost, or written with nothing told, and the screen, still open on what it was opened with, stored a second
- * copy at the next tap. Here one runs at a time, a delete stops a save first, nothing starts once a delete has, and the
- * [outcome] reaches whichever activity shows the screen when it comes. A view model of a screen keeps what its saves
- * stored as, for the next one to write over. The screen waits for the save or the delete that runs before it closes,
- * see [leaveScreen].
+ * copy at the next tap. Here one runs at a time, a delete waits for a save that runs and what the screen did with it,
+ * nothing starts once a delete has unless it is refused, and the [outcome] reaches whichever activity shows the screen
+ * when it comes. A view model of a screen keeps what its saves stored as, for the next one to write over. The screen
+ * waits for the save or the delete that runs, and for the outcome it closes on, before it closes, see [leaveScreen].
  */
 abstract class EditorViewModel(application: Application) : BaseViewModel(application) {
 
@@ -65,17 +69,18 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     /**
      * Runs [delete], unless a delete has started or the screen is left; then [outcome] is [EditorOutcome.Deleted]. A
      * delete [refuse] gives a refusal for is not run: the refusal goes to [outcome], a save that runs goes on, and the
-     * screen stays open for saves and deletes. Otherwise a save that runs is stopped first: one that has not written
-     * does not, and one that writes ends its write before [delete] starts, so that it cannot write back what is deleted.
-     * A delete the storage refuses gives the refusal it ends with, which goes to [outcome] in place of
-     * [EditorOutcome.Deleted]; the screen stays open as well.
+     * screen stays open for saves and deletes. Otherwise a save that runs ends first, so that it cannot write back what
+     * is deleted, and the screen acts on what it saved, which it is told of even should the delete be refused. A delete
+     * the storage refuses gives the refusal it ends with, which goes to [outcome] in place of [EditorOutcome.Deleted];
+     * the screen stays open as well.
      */
     protected fun launchDelete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, delete: suspend () -> EditorOutcome.Refused?) {
         if (deleting || left) return
         deleting = true
         deleteJob = viewModelScope.launch {
             val refusal = refuse?.invoke() ?: run {
-                saveJob?.cancelAndJoin()
+                saveJob?.join()
+                _outcome.first { it !is EditorOutcome.Saved }
                 delete()
             }
             if (refusal != null) {
@@ -96,11 +101,12 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
 
     /**
      * Whether the screen may close now: not while a save or a delete runs, which closes it once it has written, with
-     * what it did for the screen it returns to; left before, the write would go untold, and that screen would neither
-     * show it nor restart the running profile with it. Once the screen may close, no save or delete starts any more.
+     * what it did for the screen it returns to, nor while the outcome it closes on waits for the screen to act on it;
+     * left before, the write would go untold, and that screen would neither show it nor restart the running profile
+     * with it. Once the screen may close, no save or delete starts any more.
      */
     fun leaveScreen(): Boolean {
-        if (isBusy) return false
+        if (isBusy || _outcome.value.closesScreen) return false
         left = true
         return true
     }

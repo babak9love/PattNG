@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.AppConfig.REALITY
@@ -64,9 +65,6 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     protected abstract val serverConfigType: EConfigType
 
     protected val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
-    protected var isRunning = false
-        private set
     protected val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
 
     protected lateinit var initialConfig: ProfileItem
@@ -74,15 +72,14 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     /** PattNG: the save and the delete, which outlive this activity when it is recreated, see [ServerEditorViewModel]. */
     private val editor: ServerEditorViewModel by viewModels {
         viewModelFactory {
-            initializer { ServerEditorViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId) }
+            initializer {
+                ServerEditorViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId, intent.getBooleanExtra("isRunning", false))
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        isRunning = intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
         val existingConfig = MmkvManager.decodeServerConfig(editGuid)
         initialConfig = existingConfig ?: ProfileItem.create(serverConfigType)
     }
@@ -522,11 +519,13 @@ abstract class BaseServerActivity : BaseComponentActivity() {
     ) {
         var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
         val scrollState = rememberScrollState()
+        // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
+        val running by editor.isRunning.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = editor,
             onSaved = { guid ->
                 ProfileEditorResult.run {
-                    finishSaved(guid, isRunning)
+                    finishSaved(guid, editor.isRunning.value == true)
                 }
             },
             onDeleted = {
@@ -542,7 +541,7 @@ abstract class BaseServerActivity : BaseComponentActivity() {
                     title = title,
                     onBackClick = { finish() },
                     actions = {
-                        if (editGuid.isNotEmpty() && !isRunning) {
+                        if (editGuid.isNotEmpty() && running == false) {
                             IconButton(onClick = { showDeleteDialog = true }) {
                                 Icon(
                                     painterResource(R.drawable.ic_delete_24dp),

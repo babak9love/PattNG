@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.v2ray.ang.R
@@ -60,8 +61,6 @@ import java.util.UUID
 class ServerProxyChainActivity : BaseComponentActivity() {
 
     private val editGuid by lazy { intent.getStringExtra("guid").orEmpty() }
-    /** PattNG: whether the app runs on the profile edited; read as the screen opens, see onCreate, not first in its composition. */
-    private var isRunning = false
     private val subscriptionId by lazy { intent.getStringExtra("subscriptionId") }
 
     private lateinit var allRemarks: List<String>
@@ -71,15 +70,14 @@ class ServerProxyChainActivity : BaseComponentActivity() {
     /** PattNG: the save, which outlives this activity when it is recreated, see [ServerProxyChainViewModel]. */
     private val viewModel: ServerProxyChainViewModel by viewModels {
         viewModelFactory {
-            initializer { ServerProxyChainViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId) }
+            initializer {
+                ServerProxyChainViewModel(application, ProfileEditorRepository(), editGuid, subscriptionId, intent.getBooleanExtra("isRunning", false))
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        isRunning = intent.getBooleanExtra("isRunning", false)
-                && editGuid.isNotEmpty()
-                && editGuid == MmkvManager.getSelectServer()
 
         allRemarks = SettingsManager.getProfileRemarks(
             excludeConfigTypes = setOf(EConfigType.CUSTOM, EConfigType.POLICYGROUP, EConfigType.PROXYCHAIN)
@@ -91,13 +89,15 @@ class ServerProxyChainActivity : BaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
+        // PattNG: read off the main thread, see ProfileEditorViewModel.isRunning; no delete is offered until it is known.
+        val running by viewModel.isRunning.collectAsStateWithLifecycle()
         EditorOutcomeEffect(
             viewModel = viewModel,
             onSaved = { guid ->
                 ProfileEditorResult.run {
                     finishSaved(
                         guid = guid,
-                        restartService = isRunning
+                        restartService = viewModel.isRunning.value == true
                     )
                 }
             },
@@ -109,7 +109,7 @@ class ServerProxyChainActivity : BaseComponentActivity() {
         )
         ProxyChainScreen(
             editGuid = editGuid,
-            isRunning = isRunning,
+            isRunning = running != false,
             initialRemarks = initialRemarks,
             initialMembers = initialMembers,
             allRemarks = allRemarks,

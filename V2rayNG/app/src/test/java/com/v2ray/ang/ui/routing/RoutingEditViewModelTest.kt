@@ -221,6 +221,8 @@ class RoutingEditViewModelTest {
         gate.complete(Unit)
 
         assertEquals(EditorOutcome.Saved(source.saves.single().second.id), viewModel.outcome.value)
+        assertFalse(viewModel.leaveScreen())
+        viewModel.onOutcomeHandled()
         assertTrue(viewModel.leaveScreen())
     }
 }
