@@ -4,6 +4,7 @@ import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.CoreConfigContext
 import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.util.JsonUtil
@@ -254,5 +255,31 @@ class CoreConfigManagerTest {
         assertNull(CoreConfigManager.speedtestCoresRefusal(listOf(group, plain)))
         val same = CoreConfigContext.ResolvedOutbound("fallback", member, listOf(member), CoreResolvedType.NORMAL)
         assertNull(CoreConfigManager.speedtestCoresRefusal(listOf(group, same)))
+    }
+
+    @Test
+    fun aLeastPingOrLeastLoadGroupFallsBackToItsOwnFirstMember() {
+        val group = ProfileItem.create(EConfigType.POLICYGROUP).apply { policyGroupFallbackTag = "other" }
+        val first = "proxy-group-1-a"
+        // Their own first member, whatever fallback the group names, so that a probe missing or failing does not send a
+        // matched rule through the main profile.
+        assertEquals(first, CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.LEAST_PING, group, first))
+        assertEquals(first, CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.LEAST_LOAD, group, first))
+        // Random and round robin that test their members: the fallback the group names, or else their first member.
+        assertEquals("other", CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.RANDOM, group, first))
+        assertEquals(first, CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.ROUND_ROBIN, group.copy(policyGroupFallbackTag = ""), first))
+        assertEquals(first, CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.RANDOM, group.copy(policyGroupFallbackTag = AppConfig.TAG_PROXY), first))
+        // Random or round robin that do not test their members: none.
+        assertNull(CoreConfigManager.resolvePolicyGroupFallbackTag(BalancerStrategyType.RANDOM, group.copy(policyGroupTestOutbounds = false), first))
+    }
+
+    @Test
+    fun onlyLeastPingAndCheckedRandomOrRoundRobinGroupsGetTheStandardObservatory() {
+        assertTrue(CoreConfigManager.shouldUseStandardObservatory(BalancerStrategyType.LEAST_PING, "proxy-group-1-a"))
+        assertTrue(CoreConfigManager.shouldUseStandardObservatory(BalancerStrategyType.LEAST_PING, null))
+        // Least load keeps its burst observatory alone, its fallback set now.
+        assertFalse(CoreConfigManager.shouldUseStandardObservatory(BalancerStrategyType.LEAST_LOAD, "proxy-group-1-a"))
+        assertTrue(CoreConfigManager.shouldUseStandardObservatory(BalancerStrategyType.RANDOM, "proxy-group-1-a"))
+        assertFalse(CoreConfigManager.shouldUseStandardObservatory(BalancerStrategyType.ROUND_ROBIN, null))
     }
 }
