@@ -214,11 +214,8 @@ class ServerProxyChainViewModelTest {
         viewModel.save("chain", listOf("entry", "exit"))
         viewModel.delete()
         gate.complete(Unit)
-        // The save ends first, and the screen is told of it, so that it writes nothing back after the delete.
-        assertEquals(EditorOutcome.Saved("chain-guid"), viewModel.outcome.value)
-        assertTrue(source.deletes.isEmpty())
 
-        viewModel.onOutcomeHandled()
+        // The save ends first, so that it writes nothing back after the delete, which closes the screen.
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf("chain-guid"), source.deletes)
         assertEquals(listOf("chain-guid"), source.saves)
@@ -236,7 +233,7 @@ class ServerProxyChainViewModelTest {
     }
 
     @Test
-    fun aDeleteRefusedWhileTheMembersAreLookedUpLeavesTheSaveToGoOn() {
+    fun aDeleteRefusedWhileTheMembersAreLookedUpLetsTheSaveEndAndTheScreenCloseOnIt() {
         source.stored["chain-guid"] = ProfileItem.create(EConfigType.PROXYCHAIN)
         source.selected = "chain-guid"
         val gate = CompletableDeferred<Unit>()
@@ -245,10 +242,12 @@ class ServerProxyChainViewModelTest {
 
         viewModel.save("chain", listOf("entry", "exit"))
         viewModel.delete()
+        // The delete waits for the save, then is refused; told so, the screen closes on what the save saved.
+        assertNull(viewModel.outcome.value)
+        gate.complete(Unit)
         assertEquals(refused(R.string.toast_action_not_allowed), viewModel.outcome.value)
 
         viewModel.onOutcomeHandled()
-        gate.complete(Unit)
         assertEquals(EditorOutcome.Saved("chain-guid"), viewModel.outcome.value)
         assertEquals(listOf("chain-guid"), source.saves)
         assertTrue(source.deletes.isEmpty())

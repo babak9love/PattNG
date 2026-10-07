@@ -155,10 +155,7 @@ class ServerEditorViewModelTest {
         viewModel.save(vless("edited"))
         viewModel.delete()
         gate.complete(Unit)
-        assertEquals(EditorOutcome.Saved("vless-guid"), viewModel.outcome.value)
-        assertTrue(source.deletes.isEmpty())
 
-        viewModel.onOutcomeHandled()
         assertEquals(EditorOutcome.Deleted, viewModel.outcome.value)
         assertEquals(listOf("vless-guid"), source.deletes)
         assertTrue(source.stored.isEmpty())

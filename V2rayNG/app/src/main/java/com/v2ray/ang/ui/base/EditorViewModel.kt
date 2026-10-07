@@ -30,9 +30,9 @@ val EditorOutcome?.closesScreen: Boolean
  * PattNG: the save and the delete of an editor screen that reads and writes off the main thread. They run here rather
  * than in the activity's lifecycle scope, which ends when the activity is recreated, as on a rotation: a save cut off
  * there was lost, or written with nothing told, and the screen, still open on what it was opened with, stored a second
- * copy at the next tap. Here one runs at a time, a delete waits for a save that runs and what the screen did with it,
- * nothing starts once a delete has unless it is refused, and the [outcome] reaches whichever activity shows the screen
- * when it comes. A view model of a screen keeps what its saves stored as, for the next one to write over. The screen
+ * copy at the next tap. Here one runs at a time, a delete waits for a save that runs and says what the screen closes
+ * on, nothing starts once a delete has unless it is refused, and the [outcome] reaches whichever activity shows the
+ * screen when it comes. A view model of a screen keeps what its saves stored as, for the next one to write over. The screen
  * waits for the save or the delete that runs, and for the outcome it closes on, before it closes, see [leaveScreen].
  */
 abstract class EditorViewModel(application: Application) : BaseViewModel(application) {
@@ -46,6 +46,9 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
     private var deleteJob: Job? = null
     private var deleting = false
     private var left = false
+
+    /** A save that ended once a delete was asked for, held for the delete to say what the screen closes on, see [launchDelete]. */
+    private var heldSave: EditorOutcome.Saved? = null
 
     /** Whether a save or a delete runs. */
     val isBusy: Boolean
@@ -62,32 +65,44 @@ abstract class EditorViewModel(application: Application) : BaseViewModel(applica
      */
     protected fun launchSave(save: suspend () -> EditorOutcome?) {
         if (isBusy || deleting || left) return
-        saveJob = viewModelScope.launch { save()?.let { _outcome.value = it } }
+        saveJob = viewModelScope.launch {
+            val result = save() ?: return@launch
+            if (deleting && result is EditorOutcome.Saved) heldSave = result else _outcome.value = result
+        }
         watch(saveJob)
     }
 
     /**
-     * Runs [delete], unless a delete has started or the screen is left; then [outcome] is [EditorOutcome.Deleted]. A
-     * delete [refuse] gives a refusal for is not run: the refusal goes to [outcome], a save that runs goes on, and the
-     * screen stays open for saves and deletes. Otherwise a save that runs ends first, so that it cannot write back what
-     * is deleted, and the screen acts on what it saved, which it is told of even should the delete be refused. A delete
-     * the storage refuses gives the refusal it ends with, which goes to [outcome] in place of [EditorOutcome.Deleted];
-     * the screen stays open as well.
+     * Runs [delete], unless a delete has started or the screen is left; then [outcome] is [EditorOutcome.Deleted]. A save
+     * that runs ends first, so that it cannot write back what is deleted; what it saved, or what a save before it saved
+     * and the screen has not acted on yet, is held meanwhile. A delete [refuse] gives a refusal for, or one the storage
+     * refuses, which gives the refusal it ends with, goes to [outcome] in place of [EditorOutcome.Deleted]: the screen
+     * stays open for saves and deletes, unless a save was held, which the screen closes on once it has acted on the
+     * refusal, telling the screen it returns to what was saved. The outcomes live here, so a rotation meanwhile loses none.
      */
     protected fun launchDelete(refuse: (suspend () -> EditorOutcome.Refused?)? = null, delete: suspend () -> EditorOutcome.Refused?) {
         if (deleting || left) return
         deleting = true
+        (_outcome.value as? EditorOutcome.Saved)?.let { pending -> if (_outcome.compareAndSet(pending, null)) heldSave = pending }
         deleteJob = viewModelScope.launch {
-            val refusal = refuse?.invoke() ?: run {
-                saveJob?.join()
-                _outcome.first { it !is EditorOutcome.Saved }
-                delete()
-            }
-            if (refusal != null) {
-                deleting = false
-                _outcome.value = refusal
-            } else {
-                _outcome.value = EditorOutcome.Deleted
+            saveJob?.join()
+            val refusal = refuse?.invoke() ?: delete()
+            val saved = heldSave
+            heldSave = null
+            when {
+                refusal == null -> _outcome.value = EditorOutcome.Deleted
+
+                saved == null -> {
+                    deleting = false
+                    _outcome.value = refusal
+                }
+
+                else -> {
+                    _outcome.value = refusal
+                    _outcome.first { it == null }
+                    deleting = false
+                    _outcome.value = saved
+                }
             }
         }
         watch(deleteJob)

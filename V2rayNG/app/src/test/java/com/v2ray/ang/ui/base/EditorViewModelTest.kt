@@ -94,37 +94,54 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun aDeleteWaitsForTheSaveThatRunsAndForTheScreenToActOnWhatItSaved() {
+    fun aDeleteWaitsForTheSaveThatRunsAndClosesTheScreenItself() {
         val editor = Editor()
         val write = CompletableDeferred<Unit>()
         val order = mutableListOf<String>()
         editor.save { write.await(); order += "written"; EditorOutcome.Saved("guid") }
 
-        // Confirmed while the save runs: the delete is not dropped, and runs once the save has ended and the screen has
-        // acted on it, so that the save writes nothing back after it and the screen is told what it saved.
+        // Confirmed while the save runs: the delete is not dropped, and runs once the save has ended, so that the save
+        // writes nothing back after it; what the save saved is held, the delete closing the screen.
         editor.delete { order += "deleted" }
         write.complete(Unit)
-        assertEquals(listOf("written"), order)
-        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
 
-        editor.onOutcomeHandled()
         assertEquals(listOf("written", "deleted"), order)
         assertEquals(EditorOutcome.Deleted, editor.outcome.value)
     }
 
     @Test
-    fun aDeleteTheStorageRefusesAfterASaveLeavesTheSaveTold() {
+    fun aDeleteTheStorageRefusesAfterASaveLeavesTheSaveToCloseTheScreenOn() {
         val editor = Editor()
         val write = CompletableDeferred<Unit>()
         editor.save { write.await(); EditorOutcome.Saved("guid") }
 
         editor.deleteOrRefuse { EditorOutcome.Refused(2) }
         write.complete(Unit)
-        // The screen acts on the save, which it tells the screen it returns to, before the delete is refused.
-        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
-        editor.onOutcomeHandled()
-
         assertEquals(EditorOutcome.Refused(2), editor.outcome.value)
+        assertFalse(editor.leaveScreen())
+
+        editor.onOutcomeHandled()
+        assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
+    }
+
+    @Test
+    fun aDeleteAskedWhileASavedWaitsForTheScreenHoldsIt() {
+        val editor = Editor()
+        editor.save { EditorOutcome.Saved("guid") }
+
+        // Asked for before the screen acted on the save: the save is held, and the delete closes the screen.
+        var deleted = false
+        editor.delete { deleted = true }
+        assertTrue(deleted)
+        assertEquals(EditorOutcome.Deleted, editor.outcome.value)
+
+        // Refused, the save it held is what the screen closes on, once it has told the refusal.
+        val other = Editor()
+        other.save { EditorOutcome.Saved("guid") }
+        other.delete(refuse = { EditorOutcome.Refused(1) }) { error("a refused delete does not run") }
+        assertEquals(EditorOutcome.Refused(1), other.outcome.value)
+        other.onOutcomeHandled()
+        assertEquals(EditorOutcome.Saved("guid"), other.outcome.value)
     }
 
     @Test
@@ -147,13 +164,11 @@ class EditorViewModelTest {
     @Test
     fun anOutcomeThatCameAfterTheOneActedOnStaysForTheScreen() {
         val editor = Editor()
-        val lookup = CompletableDeferred<Unit>()
-        editor.save { lookup.await(); EditorOutcome.Saved("guid") }
         editor.delete(refuse = { EditorOutcome.Refused(1) }) { error("a refused delete does not run") }
         val shown = editor.outcome.value
 
-        // The save ends before the screen has acted on the refusal it was shown: acting on it leaves the save's outcome.
-        lookup.complete(Unit)
+        // A save ends before the screen has acted on the refusal it was shown: acting on it leaves the save's outcome.
+        editor.save { EditorOutcome.Saved("guid") }
         editor.onOutcomeHandled(shown)
         assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
 
@@ -162,20 +177,22 @@ class EditorViewModelTest {
     }
 
     @Test
-    fun aRefusedDeleteLeavesASaveThatRunsToGoOn() {
+    fun aRefusedDeleteLetsASaveThatRunsEndAndTheScreenCloseOnIt() {
         val editor = Editor()
         val lookup = CompletableDeferred<Unit>()
         var written = false
         editor.save { lookup.await(); written = true; EditorOutcome.Saved("guid") }
 
         editor.delete(refuse = { EditorOutcome.Refused(1) }) { error("a refused delete does not run") }
-        assertEquals(EditorOutcome.Refused(1), editor.outcome.value)
-        // The save still runs, so another save waits for it.
+        // The delete waits for the save, which another save waits for in its turn.
+        assertNull(editor.outcome.value)
         assertTrue(editor.isBusy)
 
-        editor.onOutcomeHandled()
         lookup.complete(Unit)
         assertTrue(written)
+        assertEquals(EditorOutcome.Refused(1), editor.outcome.value)
+        // Told the refusal, the screen closes on the save, which it tells the screen it returns to.
+        editor.onOutcomeHandled()
         assertEquals(EditorOutcome.Saved("guid"), editor.outcome.value)
         assertFalse(editor.isBusy)
     }
@@ -279,15 +296,18 @@ class EditorViewModelTest {
         editor.save { null }
         assertFalse(editor.busy.value)
 
-        // A refused delete leaves a save that runs, which holds it until it ends.
+        // A refused delete waits for a save that runs, and holds it until the screen has acted on the refusal, the save
+        // then left for the screen to close on.
         val next = CompletableDeferred<Unit>()
         editor.save { next.await(); EditorOutcome.Saved("guid") }
         editor.delete(refuse = { EditorOutcome.Refused(1) }) {}
         assertTrue(editor.busy.value)
         next.complete(Unit)
+        assertTrue(editor.busy.value)
+        editor.onOutcomeHandled()
         assertFalse(editor.busy.value)
 
-        // A delete holds it until it has deleted, once the screen has acted on what the save before it saved.
+        // A delete holds it until it has deleted.
         editor.onOutcomeHandled()
         val delete = CompletableDeferred<Unit>()
         editor.delete { delete.await() }
