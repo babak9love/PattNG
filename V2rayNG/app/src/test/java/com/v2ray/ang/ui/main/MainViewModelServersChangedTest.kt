@@ -367,6 +367,10 @@ class MainViewModelServersChangedTest {
         viewModel.awaitServers("a", "b", "c")
         val readGate = CountDownLatch(1)
         source.holdNextListRead = readGate
+        // The stores of both moves wait in the storage until released: settled, they would have the group read anew,
+        // and shown so, before the reading is looked at.
+        source.hold(0)
+        source.hold(1)
 
         // The groups are read anew, the reading held while it holds the group's load lock; two moves are shown meanwhile,
         // their stores waiting behind it, and an update stores another profile.
@@ -381,6 +385,8 @@ class MainViewModelServersChangedTest {
 
         // That reading, taken before the moves were stored, would undo them on the screen: it is not shown.
         assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
+        source.release(0)
+        source.release(1)
         withTimeout(5_000) { last.join() }
         // Shown anew once both moves are stored: with the profile the update stored.
         viewModel.awaitServers("b", "c", "a", "d")
@@ -459,6 +465,9 @@ class MainViewModelServersChangedTest {
         source.refusals.set(1)
         val readGate = CountDownLatch(1)
         source.holdNextListRead = readGate
+        // As above: the stores wait until released, so that nothing settles them before the reading is looked at.
+        source.hold(0)
+        source.hold(1)
 
         // A reading held while it holds the group's load lock, two moves queued behind it, the first to be refused.
         val reload = viewModel.setupGroupTab(forceRefresh = true)
@@ -470,6 +479,8 @@ class MainViewModelServersChangedTest {
         withTimeout(5_000) { reload.join() }
         // The reading, taken before the moves were settled, is held back.
         assertEquals(listOf("b", "c", "a"), viewModel.shownServers())
+        source.release(0)
+        source.release(1)
         withTimeout(5_000) { last.join() }
 
         // Told once both are settled, and the groups shown as stored: the second move made, the first one not.
