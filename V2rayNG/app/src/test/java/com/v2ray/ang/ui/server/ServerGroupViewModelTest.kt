@@ -92,11 +92,11 @@ class ServerGroupViewModelTest {
         assertEquals(EditorOutcome.Refused(R.string.toast_profile_group_not_fallback, listOf("other group")), viewModel.outcome.value)
         assertTrue(source.saves.isEmpty())
 
-        // A custom configuration cannot be one either, and is no group.
+        // A custom configuration cannot be one either, and is told as such.
         source.names.add("custom", EConfigType.CUSTOM)
         viewModel.onOutcomeHandled()
         viewModel.save(edit.copy(fallbackTag = "custom"))
-        assertEquals(EditorOutcome.Refused(R.string.toast_profile_name_not_found, listOf("custom")), viewModel.outcome.value)
+        assertEquals(EditorOutcome.Refused(R.string.toast_profile_custom_not_fallback, listOf("custom")), viewModel.outcome.value)
 
         // A profile that can be the fallback is found by the name, beside the group that has it too.
         source.names.add("other group")

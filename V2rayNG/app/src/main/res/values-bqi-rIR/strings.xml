@@ -590,6 +590,9 @@
     <string name="toast_profile_no_server">پروفایل «%1$s» نشۊوی سرور ناره، سی همی زنجیره پروکسی ازس رد نیبۊ</string>
     <string name="toast_profile_group_not_fallback">«%1$s» یه بونکۊ سیاسته، وو بونکۊ سیاست سی بارت جایگۊزین قابل استفاده نی؛ یه پروفایل دیه انتخاب کنین</string>
     <string name="toast_profile_group_not_hop">«%1$s» یه بونکۊ سیاسته، سی همی زنجیره پروکسی ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_chain_not_hop">«%1$s» یه زنجیره پروکسیه، سی همی زنجیره پروکسی دیه ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_custom_not_hop">«%1$s» یه کانفیگ سفارشیه، سی همی زنجیره پروکسی ازس رد نیبۊ؛ یه پروفایل دیه انتخاب کنین</string>
+    <string name="toast_profile_custom_not_fallback">«%1$s» یه کانفیگ سفارشیه، وو کانفیگ سفارشی سی بارت جایگۊزین قابل استفاده نی؛ یه پروفایل دیه انتخاب کنین</string>
     <string name="aether_keys_hint_fragment">ClientHello درخواستا WARP API تکه‌تکه فرستاده ابۊ، سی شبکه‌یایی که نوم API نه فیلتر اکنن</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌یل (بایت)</string>

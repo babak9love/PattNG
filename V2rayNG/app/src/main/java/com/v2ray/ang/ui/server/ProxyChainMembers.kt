@@ -31,7 +31,7 @@ internal sealed interface ProxyChainProblem {
     /**
      * The member [name] cannot be a hop, for the [message] that tells why, whose argument is the name: no profile that
      * can be a hop has it, or none any more, several have it, the one that has it has no server address, or only a
-     * policy group has it.
+     * group, a chain or a custom configuration has it.
      */
     data class Unresolved(val name: String, @StringRes val message: Int) : ProxyChainProblem
 
@@ -42,10 +42,10 @@ internal sealed interface ProxyChainProblem {
 /**
  * PattNG: why a chain of [members], the names of its profiles in its order, cannot be saved, as the chain finds its
  * hops when it runs, see [CoreConfigContextBuilder.proxyChainHops]: the first of the names that finds no profile that
- * can be a hop, several, one without a server address, or only a policy group, or a second Aether member. Null when
- * it can. [find] looks a name up among the profiles a filter takes, see [ByName]; inline, so that an editor looks up
- * through its own source, which suspends. The previous and the next profile of a subscription, which chain each of its
- * profiles, are checked alike, in the order the chain finds them.
+ * can be a hop, several, one without a server address, or only a group, a chain or a custom configuration, or a
+ * second Aether member. Null when it can. [find] looks a name up among the profiles a filter takes, see [ByName];
+ * inline, so that an editor looks up through its own source, which suspends. The previous and the next profile of a
+ * subscription, which chain each of its profiles, are checked alike, in the order the chain finds them.
  */
 internal inline fun proxyChainProblem(members: List<String>, find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>): ProxyChainProblem? {
     val (hops, unresolved) = CoreConfigContextBuilder.proxyChainHops(members, find)

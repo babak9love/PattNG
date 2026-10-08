@@ -99,11 +99,19 @@ class ServerProxyChainViewModelTest {
         assertEquals(refused(R.string.toast_profile_group_not_hop, "group"), viewModel.outcome.value)
         assertTrue(source.saves.isEmpty())
 
-        // Nor can a chain, which is no group.
+        // Nor can another chain or a custom configuration, each told as what it is.
         source.names.add("other chain", EConfigType.PROXYCHAIN)
         viewModel.onOutcomeHandled()
         viewModel.save("chain", listOf("entry", "other chain"))
-        assertEquals(refused(CoreConfigContext.UnresolvedName.Reason.NOT_FOUND.message, "other chain"), viewModel.outcome.value)
+        assertEquals(refused(R.string.toast_profile_chain_not_hop, "other chain"), viewModel.outcome.value)
+        source.names.add("custom", EConfigType.CUSTOM)
+        viewModel.onOutcomeHandled()
+        viewModel.save("chain", listOf("custom", "entry"))
+        assertEquals(refused(R.string.toast_profile_custom_not_hop, "custom"), viewModel.outcome.value)
+        // A name no profile has is told as before.
+        viewModel.onOutcomeHandled()
+        viewModel.save("chain", listOf("entry", "gone"))
+        assertEquals(refused(CoreConfigContext.UnresolvedName.Reason.NOT_FOUND.message, "gone"), viewModel.outcome.value)
 
         // A profile that can be a hop is found by the name, beside the group that has it too.
         source.names.add("group")

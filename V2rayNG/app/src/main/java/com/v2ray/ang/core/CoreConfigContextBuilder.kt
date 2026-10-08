@@ -230,9 +230,9 @@ object CoreConfigContextBuilder {
     /**
      * PattNG: the profiles [names], the hops of a proxy chain in the order it lists them, find among those that can be a
      * hop, see [takesAsHop], and the first of the names that finds none, several, one a chain cannot go through, see
-     * [hasServerAddress], or only a policy group, which is told as such rather than as a name no profile has. [find]
-     * looks a name up among the profiles a filter takes, see [ByName]; inline, so that an editor looks up through its own
-     * source, which suspends. A blank name names no hop.
+     * [hasServerAddress], or only a group, a chain or a custom configuration, which is told as such rather than as a
+     * name no profile has, see [HOP_REASONS]. [find] looks a name up among the profiles a filter takes, see [ByName];
+     * inline, so that an editor looks up through its own source, which suspends. A blank name names no hop.
      */
     internal inline fun proxyChainHops(
         names: List<String>,
@@ -249,12 +249,7 @@ object CoreConfigContextBuilder {
                     CoreConfigContext.UnresolvedName.Reason.NO_SERVER
                 }
 
-                ByName.None -> if (groupHas(name, find)) {
-                    CoreConfigContext.UnresolvedName.Reason.GROUP_AS_HOP
-                } else {
-                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
-                }
-
+                ByName.None -> reasonByType(name, HOP_REASONS, find) ?: CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
                 ByName.Several -> CoreConfigContext.UnresolvedName.Reason.SEVERAL
             }
             if (reason != null && unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, reason)
@@ -263,11 +258,33 @@ object CoreConfigContextBuilder {
     }
 
     /**
-     * PattNG: whether a policy group has [name], as [find] looks it up, see [proxyChainHops] and [fallbackOf]: a name
-     * that finds no profile a chain or a group can use is told as a group's when a group has it.
+     * PattNG: the types of profile a chain cannot go through, see [takesAsHop], with why each is told, see
+     * [reasonByType].
      */
-    internal inline fun groupHas(name: String, find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>): Boolean =
-        find(name) { it.configType == EConfigType.POLICYGROUP } != ByName.None
+    internal val HOP_REASONS = listOf(
+        EConfigType.POLICYGROUP to CoreConfigContext.UnresolvedName.Reason.GROUP_AS_HOP,
+        EConfigType.PROXYCHAIN to CoreConfigContext.UnresolvedName.Reason.CHAIN_AS_HOP,
+        EConfigType.CUSTOM to CoreConfigContext.UnresolvedName.Reason.CUSTOM_AS_HOP,
+    )
+
+    /** PattNG: the types of profile a group cannot fall back to, see [takesAsFallback], with why each is told. */
+    internal val FALLBACK_REASONS = listOf(
+        EConfigType.POLICYGROUP to CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK,
+        EConfigType.CUSTOM to CoreConfigContext.UnresolvedName.Reason.CUSTOM_AS_FALLBACK,
+    )
+
+    /**
+     * PattNG: why [name], which finds no profile it can be used as, cannot be used: the reason of the first of
+     * [reasons], in their order, whose type [find] finds a profile of the name among, or null when none does, as when no
+     * profile has the name at all. A name that a profile of another type has is told by what it names, rather than as a
+     * name no profile has.
+     */
+    internal inline fun reasonByType(
+        name: String,
+        reasons: List<Pair<EConfigType, CoreConfigContext.UnresolvedName.Reason>>,
+        find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>,
+    ): CoreConfigContext.UnresolvedName.Reason? =
+        reasons.firstOrNull { (type, _) -> find(name) { it.configType == type } != ByName.None }?.second
 
     /**
      * PattNG: whether a proxy chain can go through [profile]: an Aether one, whose core it reaches on the loopback, or
@@ -381,9 +398,10 @@ object CoreConfigContextBuilder {
 
     /**
      * PattNG: the one profile [name], the fallback a policy group names, finds among those that can be a fallback, see
-     * [takesAsFallback], or why it finds none: no such profile has the name, several have it, or only a policy group
-     * has it, which is told as such rather than as a name no profile has. [find] looks a name up among the profiles a
-     * filter takes, see [ByName]; inline, so that the group editor looks up through its own source, which suspends.
+     * [takesAsFallback], or why it finds none: no such profile has the name, several have it, or only a group or a
+     * custom configuration has it, which is told as such rather than as a name no profile has, see [FALLBACK_REASONS].
+     * [find] looks a name up among the profiles a filter takes, see [ByName]; inline, so that the group editor looks up
+     * through its own source, which suspends.
      */
     internal inline fun fallbackOf(
         name: String,
@@ -392,12 +410,7 @@ object CoreConfigContextBuilder {
         when (val found = find(name, ::takesAsFallback)) {
             is ByName.One -> found.value to null
             ByName.Several -> null to CoreConfigContext.UnresolvedName.Reason.SEVERAL
-            ByName.None -> null to
-                if (groupHas(name, find)) {
-                    CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK
-                } else {
-                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
-                }
+            ByName.None -> null to (reasonByType(name, FALLBACK_REASONS, find) ?: CoreConfigContext.UnresolvedName.Reason.NOT_FOUND)
         }
 
     /**

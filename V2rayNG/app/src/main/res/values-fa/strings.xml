@@ -590,6 +590,9 @@
     <string name="toast_profile_no_server">پروفایل «%1$s» نشانی سرور ندارد، پس زنجیره پروکسی نمی‌تواند از آن بگذرد</string>
     <string name="toast_profile_group_not_fallback">«%1$s» یک گروه خط مشی است، و گروه خط مشی نمی‌تواند خروجی پشتیبان باشد؛ پروفایل دیگری انتخاب کنید</string>
     <string name="toast_profile_group_not_hop">«%1$s» یک گروه خط مشی است، پس زنجیره پروکسی نمی‌تواند از آن بگذرد؛ پروفایل دیگری انتخاب کنید</string>
+    <string name="toast_profile_chain_not_hop">«%1$s» یک زنجیره پروکسی است، پس زنجیره پروکسی دیگری نمی‌تواند از آن بگذرد؛ پروفایل دیگری انتخاب کنید</string>
+    <string name="toast_profile_custom_not_hop">«%1$s» یک کانفیگ سفارشی است، پس زنجیره پروکسی نمی‌تواند از آن بگذرد؛ پروفایل دیگری انتخاب کنید</string>
+    <string name="toast_profile_custom_not_fallback">«%1$s» یک کانفیگ سفارشی است، و کانفیگ سفارشی نمی‌تواند خروجی پشتیبان باشد؛ پروفایل دیگری انتخاب کنید</string>
     <string name="aether_keys_hint_fragment">ClientHello درخواست‌های WARP API را تکه‌تکه می‌فرستد، برای شبکه‌هایی که نام API را فیلتر می‌کنند</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌ها (بایت)</string>

@@ -92,7 +92,7 @@ class ServerGroupViewModel(
     /**
      * Saves the group as [edit] has it. The fallback of a group that tests its members names a profile, and the name has
      * to find that one profile, as at the start: a name no profile has, as after a rename or a delete, several have, or
-     * only a group has, is told rather than saved, see [CoreConfigContextBuilder.fallbackOf].
+     * only a group or a custom configuration has, is told rather than saved, see [CoreConfigContextBuilder.fallbackOf].
      */
     fun save(edit: PolicyGroupEdit) = launchSave {
         if (edit.remarks.isBlank()) return@launchSave null

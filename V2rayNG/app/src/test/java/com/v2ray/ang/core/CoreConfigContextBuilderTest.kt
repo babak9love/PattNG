@@ -3,6 +3,9 @@ package com.v2ray.ang.core
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.CoreConfigContext
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.CHAIN_AS_HOP
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.CUSTOM_AS_FALLBACK
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.CUSTOM_AS_HOP
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.GROUP_AS_HOP
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.NO_SERVER
@@ -97,7 +100,7 @@ class CoreConfigContextBuilderTest {
     }
 
     @Test
-    fun aHopOnlyAGroupHasIsToldAsAGroupsAndAProfileOfItsNameStillGoes() {
+    fun aHopOnlyAGroupAChainOrACustomConfigurationHasIsToldByWhatItIsAndAProfileOfItsNameStillGoes() {
         fun profile(name: String, type: EConfigType) = ProfileItem.create(type).apply { remarks = name; server = "203.0.113.7" }
         val shared = profile("shared", EConfigType.TROJAN)
         val profiles = listOf(
@@ -114,9 +117,11 @@ class CoreConfigContextBuilderTest {
 
         assertEquals(listOf(vless) to CoreConfigContext.UnresolvedName("group", GROUP_AS_HOP), hops("vless", "group"))
         assertEquals(R.string.toast_profile_group_not_hop, GROUP_AS_HOP.message)
-        // A chain or a custom configuration cannot be a hop either, and is no group.
-        assertEquals(CoreConfigContext.UnresolvedName("chain", NOT_FOUND), hops("chain").second)
-        assertEquals(CoreConfigContext.UnresolvedName("custom", NOT_FOUND), hops("custom").second)
+        // A chain or a custom configuration cannot be a hop either, and is told by what it is.
+        assertEquals(CoreConfigContext.UnresolvedName("chain", CHAIN_AS_HOP), hops("chain").second)
+        assertEquals(CoreConfigContext.UnresolvedName("custom", CUSTOM_AS_HOP), hops("custom").second)
+        // A name no profile has is told as before.
+        assertEquals(CoreConfigContext.UnresolvedName("gone", NOT_FOUND), hops("gone").second)
         // A group of the name stands aside for the one profile of it that can be a hop.
         assertEquals(listOf(shared) to null, hops("shared"))
     }
@@ -174,7 +179,7 @@ class CoreConfigContextBuilderTest {
     }
 
     @Test
-    fun aFallbackIsFoundAmongTheProfilesThatCanBeOneAndANameOnlyAGroupHasIsToldAsSuch() {
+    fun aFallbackIsFoundAmongTheProfilesThatCanBeOneAndANameOnlyAGroupOrACustomConfigurationHasIsToldAsSuch() {
         fun profile(name: String, type: EConfigType) = ProfileItem.create(type).apply { remarks = name }
         val exit = profile("exit", EConfigType.VLESS)
         val shared = profile("shared", EConfigType.TROJAN)
@@ -192,11 +197,35 @@ class CoreConfigContextBuilderTest {
         assertEquals(exit to null, CoreConfigContextBuilder.fallbackOf("exit", find))
         assertEquals(null to GROUP_AS_FALLBACK, CoreConfigContextBuilder.fallbackOf("group", find))
         assertEquals(null to NOT_FOUND, CoreConfigContextBuilder.fallbackOf("gone", find))
-        // A custom configuration cannot be one either, and is no group.
-        assertEquals(null to NOT_FOUND, CoreConfigContextBuilder.fallbackOf("custom", find))
+        // A custom configuration cannot be one either, and is told as such.
+        assertEquals(null to CUSTOM_AS_FALLBACK, CoreConfigContextBuilder.fallbackOf("custom", find))
         assertEquals(null to SEVERAL, CoreConfigContextBuilder.fallbackOf("twice", find))
         // A group of the name stands aside for the one profile of it that can be the fallback.
         assertEquals(shared to null, CoreConfigContextBuilder.fallbackOf("shared", find))
+    }
+
+    @Test
+    fun aNameIsToldByTheTypesThatCannotBeUsedThereAndNoOther() {
+        // The types a name is told by are those a chain cannot go through, and those a group cannot fall back to.
+        for (type in EConfigType.entries) {
+            val profile = ProfileItem.create(type)
+            assertEquals(!CoreConfigContextBuilder.takesAsHop(profile), type in CoreConfigContextBuilder.HOP_REASONS.map { it.first }, type.name)
+            assertEquals(!CoreConfigContextBuilder.takesAsFallback(profile), type in CoreConfigContextBuilder.FALLBACK_REASONS.map { it.first }, type.name)
+        }
+        assertEquals(R.string.toast_profile_group_not_hop, GROUP_AS_HOP.message)
+        assertEquals(R.string.toast_profile_chain_not_hop, CHAIN_AS_HOP.message)
+        assertEquals(R.string.toast_profile_custom_not_hop, CUSTOM_AS_HOP.message)
+        assertEquals(R.string.toast_profile_group_not_fallback, GROUP_AS_FALLBACK.message)
+        assertEquals(R.string.toast_profile_custom_not_fallback, CUSTOM_AS_FALLBACK.message)
+
+        // A name profiles of two such types share is told by the first of them in order: a group before a chain.
+        val shared = listOf(
+            ProfileItem.create(EConfigType.PROXYCHAIN).apply { remarks = "shared" },
+            ProfileItem.create(EConfigType.POLICYGROUP).apply { remarks = "shared" },
+        )
+        val find = { name: String, takes: (ProfileItem) -> Boolean -> ByName.find(name, shared.asSequence().filter(takes)) { it.remarks } }
+        assertEquals(GROUP_AS_HOP, CoreConfigContextBuilder.reasonByType("shared", CoreConfigContextBuilder.HOP_REASONS, find))
+        assertNull(CoreConfigContextBuilder.reasonByType("gone", CoreConfigContextBuilder.HOP_REASONS, find))
     }
 
     @Test
