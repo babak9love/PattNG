@@ -588,6 +588,7 @@
     <string name="toast_profile_name_not_found">هیچ پروفایلی با نام «%1$s» پیدا نشد</string>
     <string name="toast_profile_name_duplicate">دو پروفایل با نام «%1$s» پیدا شد؛ لطفاً نام یکی را تغییر دهید</string>
     <string name="toast_profile_no_server">پروفایل «%1$s» نشانی سرور ندارد، پس زنجیره پروکسی نمی‌تواند از آن بگذرد</string>
+    <string name="toast_profile_group_not_fallback">«%1$s» یک گروه خط مشی است، و گروه خط مشی نمی‌تواند خروجی پشتیبان باشد؛ پروفایل دیگری انتخاب کنید</string>
     <string name="aether_keys_hint_fragment">ClientHello درخواست‌های WARP API را تکه‌تکه می‌فرستد، برای شبکه‌هایی که نام API را فیلتر می‌کنند</string>
     <string name="aether_lab_fragment">تکه‌تکه کردن ClientHello</string>
     <string name="aether_lab_fragment_size">اندازه تکه‌ها (بایت)</string>

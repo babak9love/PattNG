@@ -14,7 +14,7 @@ data class CoreConfigContext(
     val routingDomainRules: List<RoutingDomainRule> = emptyList(),
     /**
      * PattNG: a profile a routing rule sends to, or a policy group falls back to, by a name no profile has, or several
-     * have; the session is refused for it.
+     * have, or, as a fallback, only a policy group has; the session is refused for it.
      */
     val unresolvedTarget: UnresolvedName? = null,
 ) {
@@ -42,6 +42,9 @@ data class CoreConfigContext(
 
             /** The one that has it has no server address, so a proxy chain cannot go through it. */
             NO_SERVER(R.string.toast_profile_no_server),
+
+            /** As the fallback of a policy group, only a policy group has it, and a group cannot fall back to a group. */
+            GROUP_AS_FALLBACK(R.string.toast_profile_group_not_fallback),
         }
     }
 

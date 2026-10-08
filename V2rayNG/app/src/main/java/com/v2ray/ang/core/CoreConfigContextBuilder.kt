@@ -353,14 +353,12 @@ object CoreConfigContextBuilder {
             .filter { it !in AppConfig.BUILTIN_OUTBOUND_TAGS && resolvedOutbounds.none { outbound -> outbound.tag == it && takesAsFallback(outbound.profile) } }
             .distinct()
             .mapNotNull { tag ->
-                when (val found = SettingsManager.findServerViaRemarks(tag, ::takesAsFallback)) {
-                    is ByName.One -> resolveOutbound(tag, found.value)
-                    ByName.None, ByName.Several -> {
-                        LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' has ${if (found == ByName.Several) "several matching profiles" else "no matching profile"}; the session is refused")
-                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag, reasonOf(found == ByName.Several))
-                        null
-                    }
+                val (profile, reason) = fallbackOf(tag, SettingsManager::findServerViaRemarks)
+                if (reason != null) {
+                    LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' cannot be used ($reason); the session is refused")
+                    if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag, reason)
                 }
+                profile?.let { resolveOutbound(tag, it) }
             }
             .toList()
         return fallbacks to unresolved
@@ -369,6 +367,27 @@ object CoreConfigContextBuilder {
     /** PattNG: whether [profile] can be the fallback of a policy group: any profile but a group or a custom configuration. */
     internal fun takesAsFallback(profile: ProfileItem): Boolean =
         profile.configType != EConfigType.CUSTOM && profile.configType != EConfigType.POLICYGROUP
+
+    /**
+     * PattNG: the one profile [name], the fallback a policy group names, finds among those that can be a fallback, see
+     * [takesAsFallback], or why it finds none: no such profile has the name, several have it, or only a policy group
+     * has it, which is told as such rather than as a name no profile has. [find] looks a name up among the profiles a
+     * filter takes, see [ByName]; inline, so that the group editor looks up through its own source, which suspends.
+     */
+    internal inline fun fallbackOf(
+        name: String,
+        find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>,
+    ): Pair<ProfileItem?, CoreConfigContext.UnresolvedName.Reason?> =
+        when (val found = find(name, ::takesAsFallback)) {
+            is ByName.One -> found.value to null
+            ByName.Several -> null to CoreConfigContext.UnresolvedName.Reason.SEVERAL
+            ByName.None -> null to
+                if (find(name) { it.configType == EConfigType.POLICYGROUP } == ByName.None) {
+                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
+                } else {
+                    CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK
+                }
+        }
 
     /**
      * PattNG: the name of the profile the policy group [profile] falls back to, trimmed, or null when it names none. The

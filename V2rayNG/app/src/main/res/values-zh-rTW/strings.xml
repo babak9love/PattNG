@@ -586,6 +586,7 @@
     <string name="toast_profile_name_not_found">找不到名為「%1$s」的設定檔</string>
     <string name="toast_profile_name_duplicate">找到兩個名為「%1$s」的設定檔；請重新命名其中一個</string>
     <string name="toast_profile_no_server">設定檔「%1$s」沒有伺服器位址，代理鏈無法經過它</string>
+    <string name="toast_profile_group_not_fallback">「%1$s」是策略群組，策略群組不能作為備用出站；請選擇其他設定檔</string>
     <string name="aether_keys_hint_fragment">將 WARP API 請求的 ClientHello 分片傳送，用於會過濾 API 名稱的網路</string>
     <string name="aether_lab_fragment">分片 ClientHello</string>
     <string name="aether_lab_fragment_size">分片大小（位元組）</string>

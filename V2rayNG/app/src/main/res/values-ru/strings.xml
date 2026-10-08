@@ -592,6 +592,7 @@
     <string name="toast_profile_name_not_found">Профиль с именем «%1$s» не найден</string>
     <string name="toast_profile_name_duplicate">Найдено два профиля с именем «%1$s»; переименуйте один из них</string>
     <string name="toast_profile_no_server">У профиля «%1$s» нет адреса сервера, поэтому цепочка прокси не может пройти через него</string>
+    <string name="toast_profile_group_not_fallback">«%1$s» — политика группы, а политика группы не может быть резервным исходящим подключением; выберите другой профиль</string>
     <string name="aether_keys_hint_fragment">Отправляет ClientHello запросов к WARP API по частям, для сетей, которые фильтруют имя API</string>
     <string name="aether_lab_fragment">Фрагментировать ClientHello</string>
     <string name="aether_lab_fragment_size">Размер фрагментов (байт)</string>

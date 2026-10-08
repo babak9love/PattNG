@@ -3,6 +3,7 @@ package com.v2ray.ang.core
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.ByName
 import com.v2ray.ang.dto.CoreConfigContext
+import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.NO_SERVER
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
 import com.v2ray.ang.dto.CoreConfigContext.UnresolvedName.Reason.SEVERAL
@@ -144,6 +145,32 @@ class CoreConfigContextBuilderTest {
         for (type in others) {
             assertFalse(CoreConfigContextBuilder.takesAsFallback(ProfileItem.create(type)), type.name)
         }
+    }
+
+    @Test
+    fun aFallbackIsFoundAmongTheProfilesThatCanBeOneAndANameOnlyAGroupHasIsToldAsSuch() {
+        fun profile(name: String, type: EConfigType) = ProfileItem.create(type).apply { remarks = name }
+        val exit = profile("exit", EConfigType.VLESS)
+        val shared = profile("shared", EConfigType.TROJAN)
+        val profiles = listOf(
+            exit,
+            profile("group", EConfigType.POLICYGROUP),
+            profile("custom", EConfigType.CUSTOM),
+            profile("twice", EConfigType.VLESS),
+            profile("twice", EConfigType.PROXYCHAIN),
+            profile("shared", EConfigType.POLICYGROUP),
+            shared,
+        )
+        val find = { name: String, takes: (ProfileItem) -> Boolean -> ByName.find(name, profiles.asSequence().filter(takes)) { it.remarks } }
+
+        assertEquals(exit to null, CoreConfigContextBuilder.fallbackOf("exit", find))
+        assertEquals(null to GROUP_AS_FALLBACK, CoreConfigContextBuilder.fallbackOf("group", find))
+        assertEquals(null to NOT_FOUND, CoreConfigContextBuilder.fallbackOf("gone", find))
+        // A custom configuration cannot be one either, and is no group.
+        assertEquals(null to NOT_FOUND, CoreConfigContextBuilder.fallbackOf("custom", find))
+        assertEquals(null to SEVERAL, CoreConfigContextBuilder.fallbackOf("twice", find))
+        // A group of the name stands aside for the one profile of it that can be the fallback.
+        assertEquals(shared to null, CoreConfigContextBuilder.fallbackOf("shared", find))
     }
 
     @Test

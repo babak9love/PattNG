@@ -83,13 +83,27 @@ class ServerGroupViewModelTest {
 
     @Test
     fun theFallbackIsFoundAmongTheProfilesAGroupCanFallBackTo() {
-        // A group cannot fall back to a group, so it does not find one by its name.
+        // A group cannot fall back to a group: a name only a group has is told as a group's.
         source.names.add("other group", EConfigType.POLICYGROUP)
         val viewModel = viewModel()
 
         viewModel.save(edit.copy(fallbackTag = "other group"))
 
-        assertEquals(EditorOutcome.Refused(R.string.toast_profile_name_not_found, listOf("other group")), viewModel.outcome.value)
+        assertEquals(EditorOutcome.Refused(R.string.toast_profile_group_not_fallback, listOf("other group")), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+
+        // A custom configuration cannot be one either, and is no group.
+        source.names.add("custom", EConfigType.CUSTOM)
+        viewModel.onOutcomeHandled()
+        viewModel.save(edit.copy(fallbackTag = "custom"))
+        assertEquals(EditorOutcome.Refused(R.string.toast_profile_name_not_found, listOf("custom")), viewModel.outcome.value)
+
+        // A profile that can be the fallback is found by the name, beside the group that has it too.
+        source.names.add("other group")
+        viewModel.onOutcomeHandled()
+        viewModel.save(edit.copy(fallbackTag = "other group"))
+        assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
+        assertEquals("other group", source.stored.getValue("guid-1").policyGroupFallbackTag)
     }
 
     @Test
