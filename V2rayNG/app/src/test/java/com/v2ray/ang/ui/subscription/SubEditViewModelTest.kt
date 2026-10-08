@@ -125,6 +125,18 @@ class SubEditViewModelTest {
     }
 
     @Test
+    fun aNeighborOnlyAGroupHasIsToldAsAGroups() {
+        // A policy group cannot be a hop of the chain around the subscription's profiles.
+        source.names.add("group", EConfigType.POLICYGROUP)
+        val viewModel = viewModel()
+
+        viewModel.save(edits(prev = "group"))
+
+        assertEquals(EditorOutcome.Refused(R.string.toast_profile_group_not_hop, listOf("group")), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+    }
+
+    @Test
     fun twoAetherNeighborsAreTold() {
         source.names.add("warp", EConfigType.AETHER, server = null)
         source.names.add("warp 2", EConfigType.AETHER, server = null)

@@ -761,9 +761,9 @@ object CoreConfigManager {
     /**
      * PattNG: [unresolved], a name by which a proxy chain, the subscription around a profile, a routing rule or the
      * fallback of a policy group names a profile, and which no profile has any more, as after it was renamed or
-     * deleted, several have, as a chain's hop, one without a server address has, or, as a fallback, only a group has,
-     * see [CoreConfigContext.UnresolvedName], as a failure whose message, which names it, is meant for the screen; null
-     * when there is none.
+     * deleted, several have, as a chain's hop, one without a server address has, or, as a chain's hop or a fallback,
+     * only a group has, see [CoreConfigContext.UnresolvedName], as a failure whose message, which names it, is meant for
+     * the screen; null when there is none.
      */
     private fun unresolvedNameFailure(context: Context, guid: String, unresolved: CoreConfigContext.UnresolvedName?): ConfigResult? {
         val name = unresolved ?: return null

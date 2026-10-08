@@ -216,9 +216,7 @@ object CoreConfigContextBuilder {
         }
 
         try {
-            val (hops, unresolved) = proxyChainHops(ProfileItem.proxyChainMembersOf(config.proxyChainProfiles)) { name ->
-                SettingsManager.findServerViaRemarks(name, ::takesAsHop)
-            }
+            val (hops, unresolved) = proxyChainHops(ProfileItem.proxyChainMembersOf(config.proxyChainProfiles), SettingsManager::findServerViaRemarks)
             return hops.reversed() to unresolved
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain profiles for '${config.remarks}'", e)
@@ -230,18 +228,20 @@ object CoreConfigContextBuilder {
     internal fun takesAsHop(profile: ProfileItem): Boolean = !profile.configType.isComplexType()
 
     /**
-     * PattNG: the profiles [names], the hops of a proxy chain in the order it lists them, find through [find], see
-     * [ByName], and the first of the names that finds none, several, or one a chain cannot go through, see
-     * [hasServerAddress]. A blank name names no hop.
+     * PattNG: the profiles [names], the hops of a proxy chain in the order it lists them, find among those that can be a
+     * hop, see [takesAsHop], and the first of the names that finds none, several, one a chain cannot go through, see
+     * [hasServerAddress], or only a policy group, which is told as such rather than as a name no profile has. [find]
+     * looks a name up among the profiles a filter takes, see [ByName]; inline, so that an editor looks up through its own
+     * source, which suspends. A blank name names no hop.
      */
-    internal fun proxyChainHops(
+    internal inline fun proxyChainHops(
         names: List<String>,
-        find: (String) -> ByName<ProfileItem>,
+        find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>,
     ): Pair<List<ProfileItem>, CoreConfigContext.UnresolvedName?> {
         val hops = mutableListOf<ProfileItem>()
         var unresolved: CoreConfigContext.UnresolvedName? = null
         for (name in names.map(String::trim).filter(String::isNotEmpty)) {
-            val reason = when (val found = find(name)) {
+            val reason = when (val found = find(name, ::takesAsHop)) {
                 is ByName.One -> if (hasServerAddress(found.value)) {
                     hops += found.value
                     null
@@ -249,13 +249,25 @@ object CoreConfigContextBuilder {
                     CoreConfigContext.UnresolvedName.Reason.NO_SERVER
                 }
 
-                ByName.None -> CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
+                ByName.None -> if (groupHas(name, find)) {
+                    CoreConfigContext.UnresolvedName.Reason.GROUP_AS_HOP
+                } else {
+                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
+                }
+
                 ByName.Several -> CoreConfigContext.UnresolvedName.Reason.SEVERAL
             }
             if (reason != null && unresolved == null) unresolved = CoreConfigContext.UnresolvedName(name, reason)
         }
         return hops to unresolved
     }
+
+    /**
+     * PattNG: whether a policy group has [name], as [find] looks it up, see [proxyChainHops] and [fallbackOf]: a name
+     * that finds no profile a chain or a group can use is told as a group's when a group has it.
+     */
+    internal inline fun groupHas(name: String, find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>): Boolean =
+        find(name) { it.configType == EConfigType.POLICYGROUP } != ByName.None
 
     /**
      * PattNG: whether a proxy chain can go through [profile]: an Aether one, whose core it reaches on the loopback, or
@@ -291,9 +303,8 @@ object CoreConfigContextBuilder {
 
         try {
             val subItem = MmkvManager.decodeSubscription(config.subscriptionId) ?: return listOf(config) to null
-            val find = { name: String -> SettingsManager.findServerViaRemarks(name, ::takesAsHop) }
-            val (next, nextUnresolved) = proxyChainHops(listOfNotNull(subItem.nextProfile), find)
-            val (prev, prevUnresolved) = proxyChainHops(listOfNotNull(subItem.prevProfile), find)
+            val (next, nextUnresolved) = proxyChainHops(listOfNotNull(subItem.nextProfile), SettingsManager::findServerViaRemarks)
+            val (prev, prevUnresolved) = proxyChainHops(listOfNotNull(subItem.prevProfile), SettingsManager::findServerViaRemarks)
             return next + config + prev to (nextUnresolved ?: prevUnresolved)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain from group for '${config.remarks}'", e)
@@ -382,10 +393,10 @@ object CoreConfigContextBuilder {
             is ByName.One -> found.value to null
             ByName.Several -> null to CoreConfigContext.UnresolvedName.Reason.SEVERAL
             ByName.None -> null to
-                if (find(name) { it.configType == EConfigType.POLICYGROUP } == ByName.None) {
-                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
-                } else {
+                if (groupHas(name, find)) {
                     CoreConfigContext.UnresolvedName.Reason.GROUP_AS_FALLBACK
+                } else {
+                    CoreConfigContext.UnresolvedName.Reason.NOT_FOUND
                 }
         }
 

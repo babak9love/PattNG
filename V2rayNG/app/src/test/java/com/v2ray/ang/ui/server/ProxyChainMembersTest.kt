@@ -22,7 +22,7 @@ class ProxyChainMembersTest {
             "warp" to ProfileItem.create(EConfigType.AETHER),
             "exit" to dialled(EConfigType.TROJAN),
         )
-        assertNull(proxyChainProblem(listOf("entry", "warp", "exit")) { name -> profiles[name]?.let { ByName.One(it) } ?: ByName.None })
+        assertNull(proxyChainProblem(listOf("entry", "warp", "exit")) { name, _ -> profiles[name]?.let { ByName.One(it) } ?: ByName.None })
     }
 
     @Test
@@ -32,14 +32,14 @@ class ProxyChainMembersTest {
             "twice" to ByName.Several,
             "bare" to ByName.One(ProfileItem.create(EConfigType.TROJAN)),
         )
-        fun problem(vararg members: String) = proxyChainProblem(members.toList()) { found[it] ?: ByName.None }
+        fun problem(vararg members: String) = proxyChainProblem(members.toList()) { name, _ -> found[name] ?: ByName.None }
         // The first of the members that cannot be told is named, as the chain names it when it runs.
         assertEquals(ProxyChainProblem.Unresolved("twice", R.string.toast_profile_name_duplicate), problem("entry", "twice", "gone"))
         assertEquals(ProxyChainProblem.Unresolved("gone", R.string.toast_profile_name_not_found), problem("entry", "gone", "twice"))
         assertEquals(ProxyChainProblem.Unresolved("bare", R.string.toast_profile_no_server), problem("entry", "bare"))
         // The same name and message the start gives for the chain.
         for (members in listOf(listOf("entry", "twice", "gone"), listOf("gone", "entry", "twice"), listOf("bare", "gone"))) {
-            val atStart = CoreConfigContextBuilder.proxyChainHops(members) { found[it] ?: ByName.None }.second!!
+            val atStart = CoreConfigContextBuilder.proxyChainHops(members) { name, _ -> found[name] ?: ByName.None }.second!!
             assertEquals(ProxyChainProblem.Unresolved(atStart.name, atStart.reason.message), problem(*members.toTypedArray()), members.toString())
         }
     }
@@ -51,7 +51,20 @@ class ProxyChainMembersTest {
             "warp 2" to ByName.One(ProfileItem.create(EConfigType.AETHER)),
             "entry" to ByName.One(dialled(EConfigType.VLESS)),
         )
-        assertEquals(ProxyChainProblem.SecondAether, proxyChainProblem(listOf("warp", "entry", "warp 2")) { found.getValue(it) })
+        assertEquals(ProxyChainProblem.SecondAether, proxyChainProblem(listOf("warp", "entry", "warp 2")) { name, _ -> found.getValue(name) })
+    }
+
+    @Test
+    fun aMemberOnlyAGroupHasIsToldAsAGroupsAsTheStartTellsIt() {
+        val profiles = listOf(
+            dialled(EConfigType.VLESS).apply { remarks = "entry" },
+            dialled(EConfigType.POLICYGROUP).apply { remarks = "group" },
+        )
+        val find = { name: String, takes: (ProfileItem) -> Boolean -> ByName.find(name, profiles.asSequence().filter(takes)) { it.remarks } }
+
+        assertEquals(ProxyChainProblem.Unresolved("group", R.string.toast_profile_group_not_hop), proxyChainProblem(listOf("entry", "group"), find))
+        val atStart = CoreConfigContextBuilder.proxyChainHops(listOf("entry", "group"), find).second!!
+        assertEquals(ProxyChainProblem.Unresolved(atStart.name, atStart.reason.message), proxyChainProblem(listOf("entry", "group"), find))
     }
 
     @Test

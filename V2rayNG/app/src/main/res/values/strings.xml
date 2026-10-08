@@ -594,6 +594,7 @@
     <string name="toast_profile_name_duplicate">Two profiles named \"%1$s\" were found; please rename one</string>
     <string name="toast_profile_no_server">Profile \"%1$s\" has no server address, so a proxy chain cannot go through it</string>
     <string name="toast_profile_group_not_fallback">\"%1$s\" is a policy group, and a policy group cannot be a fallback outbound; choose another profile</string>
+    <string name="toast_profile_group_not_hop">\"%1$s\" is a policy group, so a proxy chain cannot go through it; choose another profile</string>
     <string name="aether_keys_hint_fragment">Sends the ClientHello of the calls to the WARP API in pieces, for networks that filter the name of the API</string>
     <string name="aether_lab_fragment">Fragment ClientHello</string>
     <string name="aether_lab_fragment_size">Fragment size (bytes)</string>

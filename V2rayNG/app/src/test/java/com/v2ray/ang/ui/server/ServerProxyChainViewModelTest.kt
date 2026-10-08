@@ -90,13 +90,26 @@ class ServerProxyChainViewModelTest {
 
     @Test
     fun membersAreFoundAmongTheProfilesAChainCanGoThrough() {
-        // A policy group cannot be a hop, so a chain does not find it by its name.
+        // A policy group cannot be a hop: a name only a group has is told as a group's.
         source.names.add("group", EConfigType.POLICYGROUP)
         val viewModel = viewModel()
 
         viewModel.save("chain", listOf("entry", "group"))
 
-        assertEquals(refused(CoreConfigContext.UnresolvedName.Reason.NOT_FOUND.message, "group"), viewModel.outcome.value)
+        assertEquals(refused(R.string.toast_profile_group_not_hop, "group"), viewModel.outcome.value)
+        assertTrue(source.saves.isEmpty())
+
+        // Nor can a chain, which is no group.
+        source.names.add("other chain", EConfigType.PROXYCHAIN)
+        viewModel.onOutcomeHandled()
+        viewModel.save("chain", listOf("entry", "other chain"))
+        assertEquals(refused(CoreConfigContext.UnresolvedName.Reason.NOT_FOUND.message, "other chain"), viewModel.outcome.value)
+
+        // A profile that can be a hop is found by the name, beside the group that has it too.
+        source.names.add("group")
+        viewModel.onOutcomeHandled()
+        viewModel.save("chain", listOf("entry", "group"))
+        assertEquals(EditorOutcome.Saved("guid-1"), viewModel.outcome.value)
     }
 
     @Test
@@ -166,7 +179,8 @@ class ServerProxyChainViewModelTest {
         viewModel.save("chain", listOf("entry", "exit"))
         gate.complete(Unit)
 
-        assertEquals(1, source.names.lookups)
+        // One lookup for each member, of the one save.
+        assertEquals(2, source.names.lookups)
         assertEquals(listOf("guid-1"), source.saves)
     }
 

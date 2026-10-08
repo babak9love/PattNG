@@ -589,6 +589,7 @@
     <string name="toast_profile_name_duplicate">\"%1$s\" নামে দুটি প্রোফাইল পাওয়া গেছে; অনুগ্রহ করে একটির নাম পরিবর্তন করুন</string>
     <string name="toast_profile_no_server">প্রোফাইল \"%1$s\"-এর কোনো সার্ভার ঠিকানা নেই, তাই প্রক্সি চেইন এর মধ্য দিয়ে যেতে পারে না</string>
     <string name="toast_profile_group_not_fallback">\"%1$s\" একটি নীতি গ্রুপ, এবং নীতি গ্রুপ বিকল্প বহির্গামী সংযোগ হতে পারে না; অন্য একটি প্রোফাইল বেছে নিন</string>
+    <string name="toast_profile_group_not_hop">\"%1$s\" একটি নীতি গ্রুপ, তাই প্রক্সি চেইন এর মধ্য দিয়ে যেতে পারে না; অন্য একটি প্রোফাইল বেছে নিন</string>
     <string name="aether_keys_hint_fragment">WARP API-এর অনুরোধের ClientHello টুকরো টুকরো করে পাঠায়, যেসব নেটওয়ার্ক API-এর নাম ফিল্টার করে তাদের জন্য</string>
     <string name="aether_lab_fragment">ClientHello ভাগ করুন</string>
     <string name="aether_lab_fragment_size">খণ্ডের আকার (বাইট)</string>

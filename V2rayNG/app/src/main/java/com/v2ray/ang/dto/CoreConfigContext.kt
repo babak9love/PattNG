@@ -24,8 +24,8 @@ data class CoreConfigContext(
         val resolvedProfiles: List<ProfileItem>,
         val resolvedType: CoreResolvedType,
         /**
-         * PattNG: a hop the proxy chain, or the subscription around the profile, names that no profile has, or several
-         * have; the configuration is refused for it.
+         * PattNG: a hop the proxy chain, or the subscription around the profile, names that no profile has, several
+         * have, or only a policy group has; the configuration is refused for it.
          */
         val unresolvedHop: UnresolvedName? = null,
     )
@@ -45,6 +45,9 @@ data class CoreConfigContext(
 
             /** As the fallback of a policy group, only a policy group has it, and a group cannot fall back to a group. */
             GROUP_AS_FALLBACK(R.string.toast_profile_group_not_fallback),
+
+            /** As a hop of a proxy chain, only a policy group has it, and a chain cannot go through a group. */
+            GROUP_AS_HOP(R.string.toast_profile_group_not_hop),
         }
     }
 
