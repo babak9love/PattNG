@@ -61,6 +61,23 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun aProxyChainIsBuiltWholeOrNotAtAll() {
+        val entry = ProfileItem.create(EConfigType.VLESS).apply { remarks = "entry" }
+        val middle = ProfileItem.create(EConfigType.VLESS).apply { remarks = "middle" }
+        val exit = ProfileItem.create(EConfigType.VLESS).apply { remarks = "exit" }
+        val build = { profile: ProfileItem -> V2rayConfig.OutboundBean(tag = profile.remarks, protocol = "vless") }
+
+        val whole = CoreConfigManager.chainHops(listOf(entry, middle, exit), build)
+        assertEquals(listOf("entry", "middle", "exit"), whole?.map { it.second.tag })
+        assertEquals(listOf(entry, middle, exit), whole?.map { it.first })
+        // A hop that builds no outbound, wherever it stands, leaves no chain rather than a shorter one.
+        for (broken in listOf(entry, middle, exit)) {
+            assertNull(CoreConfigManager.chainHops(listOf(entry, middle, exit)) { profile -> build(profile).takeUnless { profile === broken } })
+        }
+        assertNull(CoreConfigManager.chainHops(emptyList(), build))
+    }
+
+    @Test
     fun aCoreThatDialsOutThroughAChainHopNeedsThatHop() {
         val warp = ProfileItem.create(EConfigType.AETHER).apply { remarks = "warp"; aetherProtocol = "wg" }
         val hop = ProfileItem.create(EConfigType.VLESS).apply { remarks = "hop"; server = "1.2.3.4"; serverPort = "443" }

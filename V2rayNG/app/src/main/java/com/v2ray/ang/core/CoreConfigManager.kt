@@ -390,6 +390,19 @@ object CoreConfigManager {
     }
 
     /**
+     * PattNG: the hops of a proxy chain, [profiles] in order, each with its outbound as [convert] builds it; null when
+     * there are none, or when a hop builds no outbound. A chain is built whole or not at all: without one of its hops it
+     * would carry the traffic a shorter way than it names. Not built, a chain that is the main server is refused, see
+     * [lacksMainOutbound], and one that is a routing target is left out, as any target that cannot be built is: the
+     * rules that name it send their traffic to the main server instead, see [appendRoutingUserRule].
+     */
+    internal fun chainHops(
+        profiles: List<ProfileItem>,
+        convert: (ProfileItem) -> V2rayConfig.OutboundBean?,
+    ): List<Pair<ProfileItem, V2rayConfig.OutboundBean>>? =
+        profiles.map { profile -> profile to (convert(profile) ?: return null) }.ifEmpty { null }
+
+    /**
      * Build and insert a multi-hop chain entry.
      *
      * PattNG: an Aether hop dials through no hop by its outbound, which only reaches the core on the
@@ -403,13 +416,11 @@ object CoreConfigManager {
         existingTags: MutableSet<String>,
         v2rayConfig: V2rayConfig,
     ) {
-        val chain = resolvedOutbound.resolvedProfiles
-            .mapNotNull { profile -> convertProfile2Outbound(profile)?.let { profile to it } }
-        val chainOutbounds = chain.map { it.second }.toMutableList()
-        if (chainOutbounds.isEmpty()) {
-            LogUtil.w(AppConfig.TAG, "PROXYCHAIN resolved outbound '${resolvedOutbound.tag}' has no valid profiles, skipping")
+        val chain = chainHops(resolvedOutbound.resolvedProfiles, ::convertProfile2Outbound) ?: run {
+            LogUtil.w(AppConfig.TAG, "PROXYCHAIN resolved outbound '${resolvedOutbound.tag}' has a hop that could not be built, skipping")
             return
         }
+        val chainOutbounds = chain.map { it.second }.toMutableList()
         if (chainOutbounds.size == 1) {
             val outbound = chainOutbounds.first()
             outbound.tag = resolvedOutbound.tag
@@ -776,9 +787,9 @@ object CoreConfigManager {
     /**
      * PattNG: whether [v2rayConfig], built for a profile, has neither the outbound tagged proxy nor the balancer of a
      * policy group that is the main server: the main server could not be built, its outbound skipped with a warning,
-     * and Xray would send everything, the rules that name proxy included, out by the first outbound left, which is
-     * direct, while the app shows the profile connected. A custom configuration is never built here, and may hold
-     * freedom outbounds alone.
+     * and Xray would send what no rule sends elsewhere out by the first outbound left, which is direct, while the app
+     * shows the profile connected; what a rule sends to proxy it would drop. A custom configuration is never built
+     * here, and may hold freedom outbounds alone.
      */
     internal fun lacksMainOutbound(v2rayConfig: V2rayConfig): Boolean =
         v2rayConfig.outbounds.none { it.tag == AppConfig.TAG_PROXY } &&
