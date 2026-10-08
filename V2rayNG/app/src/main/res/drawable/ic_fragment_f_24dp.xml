@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Geometric letter F. Shape is path-based so system font cannot change it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Vertical stem + top bar + middle bar -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M6.5,3.5h12v2.8H9.8v3.6h8.2v2.7H9.8V20.5H6.5z" />
+</vector>

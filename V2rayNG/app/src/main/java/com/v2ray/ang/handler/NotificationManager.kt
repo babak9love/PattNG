@@ -31,10 +31,20 @@ object NotificationManager {
     private const val NOTIFICATION_PENDING_INTENT_RESTART_V2RAY = 2
     private const val NOTIFICATION_ICON_THRESHOLD = 3000
     private const val QUERY_INTERVAL_MS = 3000L
+    private const val CONNECTING_ICON_INTERVAL_MS = 400L
+
+    private val connectingIconFrames = intArrayOf(
+        R.drawable.ic_stat_connecting_1,
+        R.drawable.ic_stat_connecting_2,
+        R.drawable.ic_stat_connecting_3,
+    )
 
     private var lastQueryTime = 0L
     private var mBuilder: NotificationCompat.Builder? = null
     private var speedNotificationJob: Job? = null
+    private var connectingIconJob: Job? = null
+    private var connectingIconFrame = 0
+    @Volatile private var isConnecting = false
     private var mNotificationManager: NotificationManager? = null
     private var statusLine: String? = null
     private var lastContentText: String? = null
@@ -46,6 +56,12 @@ object NotificationManager {
      */
     fun setStatusLine(text: String?) {
         statusLine = text
+        // Non-null status line = still connecting (e.g. Aether warm-up); animate the status icon.
+        if (text.isNullOrEmpty()) {
+            stopConnectingIconAnimation()
+        } else {
+            startConnectingIconAnimation()
+        }
         val builder = mBuilder ?: return
         val content = composeContentText()
         builder.setStyle(NotificationCompat.BigTextStyle().bigText(content))
@@ -147,6 +163,7 @@ object NotificationManager {
      */
     fun cancelNotification() {
         val service = getService() ?: return
+        stopConnectingIconAnimation()
         speedNotificationJob?.cancel()
         speedNotificationJob = null
         service.stopForeground(Service.STOP_FOREGROUND_REMOVE)
@@ -198,12 +215,15 @@ object NotificationManager {
     private fun updateNotification(contentText: String?, proxyTraffic: Long, directTraffic: Long) {
         // Taken once: the speed job runs on its own thread, and a stop clears the builder meanwhile.
         val builder = mBuilder ?: return
-        if (proxyTraffic < NOTIFICATION_ICON_THRESHOLD && directTraffic < NOTIFICATION_ICON_THRESHOLD) {
-            builder.setSmallIcon(R.drawable.ic_stat_name)
-        } else if (proxyTraffic > directTraffic) {
-            builder.setSmallIcon(R.drawable.ic_stat_proxy)
-        } else {
-            builder.setSmallIcon(R.drawable.ic_stat_direct)
+        // While connecting, keep the animated spinner frames; do not touch connected icons
+        if (!isConnecting) {
+            if (proxyTraffic < NOTIFICATION_ICON_THRESHOLD && directTraffic < NOTIFICATION_ICON_THRESHOLD) {
+                builder.setSmallIcon(R.drawable.ic_stat_name)
+            } else if (proxyTraffic > directTraffic) {
+                builder.setSmallIcon(R.drawable.ic_stat_proxy)
+            } else {
+                builder.setSmallIcon(R.drawable.ic_stat_direct)
+            }
         }
         lastContentText = contentText
         val content = composeContentText()
@@ -216,6 +236,37 @@ object NotificationManager {
      * Gets the notification manager.
      * @return The notification manager.
      */
+
+    private fun startConnectingIconAnimation() {
+        if (connectingIconJob?.isActive == true) {
+            isConnecting = true
+            return
+        }
+        isConnecting = true
+        connectingIconFrame = 0
+        connectingIconJob = CoroutineScope(Dispatchers.Main).launch {
+            while (isActive && isConnecting) {
+                val builder = mBuilder ?: break
+                val frame = connectingIconFrames[connectingIconFrame % connectingIconFrames.size]
+                connectingIconFrame++
+                builder.setSmallIcon(frame)
+                getNotificationManager()?.notify(NOTIFICATION_ID, builder.build())
+                delay(CONNECTING_ICON_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopConnectingIconAnimation() {
+        isConnecting = false
+        connectingIconJob?.cancel()
+        connectingIconJob = null
+        connectingIconFrame = 0
+        // Restore the normal connected icon; traffic-based icons continue via speed updates
+        val builder = mBuilder ?: return
+        builder.setSmallIcon(R.drawable.ic_stat_name)
+        getNotificationManager()?.notify(NOTIFICATION_ID, builder.build())
+    }
+
     private fun getNotificationManager(): NotificationManager? {
         if (mNotificationManager == null) {
             val service = getService() ?: return null
