@@ -36,6 +36,31 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun aConfigurationWhoseMainServerProducedNoOutboundIsRefusedRatherThanRunDirect() {
+        fun config(vararg tags: String, balancer: String? = null) = V2rayConfig(
+            log = V2rayConfig.LogBean(),
+            inbounds = arrayListOf(V2rayConfig.InboundBean(tag = "socks", port = 10808, protocol = "socks")),
+            outbounds = ArrayList(tags.map { V2rayConfig.OutboundBean(tag = it, protocol = if (it == AppConfig.TAG_DIRECT) "freedom" else "vless") }),
+            routing = V2rayConfig.RoutingBean(
+                domainStrategy = "AsIs",
+                rules = arrayListOf(),
+                balancers = balancer?.let { listOf(V2rayConfig.RoutingBean.BalancerBean(tag = it, selector = listOf("${AppConfig.TAG_PROXY}-"))) },
+            ),
+        )
+        // The main server's outbound was skipped: what is left would send everything out directly.
+        assertTrue(CoreConfigManager.lacksMainOutbound(config(AppConfig.TAG_DIRECT, "block")))
+        // Nor does the policy group of a routing target stand in for it.
+        assertTrue(
+            CoreConfigManager.lacksMainOutbound(
+                config(AppConfig.TAG_DIRECT, "proxy-germany-1-a", balancer = "${AppConfig.TAG_BALANCER_PRE}-germany")
+            )
+        )
+        // The main server's outbound, or the balancer of a policy group that is the main server.
+        assertFalse(CoreConfigManager.lacksMainOutbound(config(AppConfig.TAG_PROXY, AppConfig.TAG_DIRECT, "block")))
+        assertFalse(CoreConfigManager.lacksMainOutbound(config("proxy-proxy-1-a", AppConfig.TAG_DIRECT, balancer = AppConfig.TAG_BALANCER)))
+    }
+
+    @Test
     fun aCoreThatDialsOutThroughAChainHopNeedsThatHop() {
         val warp = ProfileItem.create(EConfigType.AETHER).apply { remarks = "warp"; aetherProtocol = "wg" }
         val hop = ProfileItem.create(EConfigType.VLESS).apply { remarks = "hop"; server = "1.2.3.4"; serverPort = "443" }

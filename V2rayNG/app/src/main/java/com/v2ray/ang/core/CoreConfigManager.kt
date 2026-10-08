@@ -49,6 +49,7 @@ object CoreConfigManager {
             aetherFailure(context, guid, dependency)?.let { return it }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
             val v2rayConfig = buildUnifiedConfig(configContext)
+            if (lacksMainOutbound(v2rayConfig)) return mainOutboundFailure(context, guid)
             // PattNG: what the Aether core sends out leaves through Xray.
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
@@ -99,6 +100,8 @@ object CoreConfigManager {
             speedtestCoresRefusal(configContext.resolvedOutbounds)?.let { refusal -> aetherFailure(context, guid, refusal)?.let { return it } }
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
             val v2rayConfig = buildUnifiedConfig(configContext)
+            // A test would measure the direct way out in place of the profile.
+            if (lacksMainOutbound(v2rayConfig)) return mainOutboundFailure(context, guid)
             postProcessForSpeedtest(v2rayConfig)
 
             // Not routed through an inbound of this configuration: a test's core of its own dials out through
@@ -766,6 +769,28 @@ object CoreConfigManager {
             status = false,
             guid = guid,
             errorMessage = context.getString(R.string.aether_chain_hop_missing),
+            localizedError = true,
+        )
+    }
+
+    /**
+     * PattNG: whether [v2rayConfig], built for a profile, has neither the outbound tagged proxy nor the balancer of a
+     * policy group that is the main server: the main server could not be built, its outbound skipped with a warning,
+     * and Xray would send everything, the rules that name proxy included, out by the first outbound left, which is
+     * direct, while the app shows the profile connected. A custom configuration is never built here, and may hold
+     * freedom outbounds alone.
+     */
+    internal fun lacksMainOutbound(v2rayConfig: V2rayConfig): Boolean =
+        v2rayConfig.outbounds.none { it.tag == AppConfig.TAG_PROXY } &&
+            v2rayConfig.routing.balancers.orEmpty().none { it.tag == AppConfig.TAG_BALANCER }
+
+    /** PattNG: see [lacksMainOutbound], as a failure whose message is meant for the screen. */
+    private fun mainOutboundFailure(context: Context, guid: String): ConfigResult {
+        LogUtil.w(AppConfig.TAG, "The main server produced no outbound, guid=$guid")
+        return ConfigResult(
+            status = false,
+            guid = guid,
+            errorMessage = context.getString(R.string.config_main_outbound_missing),
             localizedError = true,
         )
     }

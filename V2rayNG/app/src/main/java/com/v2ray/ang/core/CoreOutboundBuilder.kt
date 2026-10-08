@@ -107,6 +107,13 @@ object CoreOutboundBuilder {
         }
     }
 
+    /**
+     * PattNG: a mux concurrency setting, [text], as Xray takes it: the whole number written, or [default] when the field,
+     * which takes any text, holds none. A blank field left the outbound unbuilt, and the profile's traffic went out
+     * directly while the app showed it connected.
+     */
+    internal fun muxConcurrency(text: String?, default: Int): Int = Utils.parseInt(text?.trim(), default)
+
     /** Applies global outbound options (mux, protocol-specific tweaks, etc.). */
     private fun updateOutboundWithGlobalSettings(outbound: OutboundBean): Boolean {
         try {
@@ -127,8 +134,11 @@ object CoreOutboundBuilder {
 
             if (muxEnabled) {
                 outbound.mux?.enabled = true
-                outbound.mux?.concurrency = MmkvManager.decodeSettingsString(AppConfig.PREF_MUX_CONCURRENCY, "8").orEmpty().toInt()
-                outbound.mux?.xudpConcurrency = MmkvManager.decodeSettingsString(AppConfig.PREF_MUX_XUDP_CONCURRENCY, AppConfig.DEFAULT_MUX_XUDP_CONCURRENCY).orEmpty().toInt()
+                outbound.mux?.concurrency = muxConcurrency(MmkvManager.decodeSettingsString(AppConfig.PREF_MUX_CONCURRENCY, "8"), 8)
+                outbound.mux?.xudpConcurrency = muxConcurrency(
+                    MmkvManager.decodeSettingsString(AppConfig.PREF_MUX_XUDP_CONCURRENCY, AppConfig.DEFAULT_MUX_XUDP_CONCURRENCY),
+                    AppConfig.DEFAULT_MUX_XUDP_CONCURRENCY.toInt(),
+                )
                 outbound.mux?.xudpProxyUDP443 = MmkvManager.decodeSettingsString(AppConfig.PREF_MUX_XUDP_QUIC, "reject")
                 if (protocol.equals(EConfigType.VLESS.name, true) && outbound.settings?.flow?.isNotEmpty() == true) {
                     outbound.mux?.concurrency = -1

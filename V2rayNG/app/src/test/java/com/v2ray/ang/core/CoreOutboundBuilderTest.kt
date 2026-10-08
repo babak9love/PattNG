@@ -24,6 +24,17 @@ class CoreOutboundBuilderTest {
         ProfileItem.create(EConfigType.VLESS).apply { dialMode = mode }
 
     @Test
+    fun aMuxConcurrencyFieldThatHoldsNoNumberFallsBackToTheDefault() {
+        assertEquals(16, CoreOutboundBuilder.muxConcurrency("16", 8))
+        assertEquals(16, CoreOutboundBuilder.muxConcurrency(" 16 ", 8))
+        assertEquals(-1, CoreOutboundBuilder.muxConcurrency("-1", 8))
+        // Blank, whitespace, words, a decimal and an overflow left the outbound unbuilt before.
+        for (text in listOf(null, "", "  ", "eight", "1.5", "99999999999")) {
+            assertEquals(8, CoreOutboundBuilder.muxConcurrency(text, 8), text.toString())
+        }
+    }
+
+    @Test
     fun test_applyDialMode_setsSockoptDialMode() {
         val outbound = OutboundBean(protocol = "vless", streamSettings = OutboundBean.StreamSettingsBean())
 
