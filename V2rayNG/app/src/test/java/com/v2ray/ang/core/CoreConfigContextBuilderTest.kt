@@ -229,6 +229,30 @@ class CoreConfigContextBuilderTest {
     }
 
     @Test
+    fun aNameNoUsableProfileHasCostsOneLookupMoreHoweverManyTypesTellIt() {
+        val profiles = listOf(
+            ProfileItem.create(EConfigType.PROXYCHAIN).apply { remarks = "chain" },
+            ProfileItem.create(EConfigType.PROXYCHAIN).apply { remarks = "shared" },
+            ProfileItem.create(EConfigType.POLICYGROUP).apply { remarks = "shared" },
+        )
+        var lookups = 0
+        val find = { name: String, takes: (ProfileItem) -> Boolean ->
+            lookups++
+            ByName.find(name, profiles.asSequence().filter(takes)) { it.remarks }
+        }
+        fun lookupsOf(name: String): Int {
+            lookups = 0
+            CoreConfigContextBuilder.proxyChainHops(listOf(name), find)
+            return lookups
+        }
+        // Each lookup reads every profile: one for the hop, and one more among all the types a hop cannot be.
+        assertEquals(2, lookupsOf("gone"))
+        assertEquals(2, lookupsOf("chain"))
+        // Several such profiles have the name: the types one by one, until the first in order, the group, has it.
+        assertEquals(3, lookupsOf("shared"))
+    }
+
+    @Test
     fun aGroupFallbackNameIsReadTrimmedAndABlankOneNamesNone() {
         fun group(fallback: String?) = ProfileItem.create(EConfigType.POLICYGROUP).apply { policyGroupFallbackTag = fallback }
         assertEquals("exit", CoreConfigContextBuilder.fallbackNameOf(group("exit")))

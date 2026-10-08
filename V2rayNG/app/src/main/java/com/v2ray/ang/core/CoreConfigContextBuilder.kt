@@ -277,14 +277,19 @@ object CoreConfigContextBuilder {
      * PattNG: why [name], which finds no profile it can be used as, cannot be used: the reason of the first of
      * [reasons], in their order, whose type [find] finds a profile of the name among, or null when none does, as when no
      * profile has the name at all. A name that a profile of another type has is told by what it names, rather than as a
-     * name no profile has.
+     * name no profile has. One lookup among the profiles of all those types tells it, as each lookup reads every
+     * profile; the types are looked up one by one only when several of those profiles have the name.
      */
     internal inline fun reasonByType(
         name: String,
         reasons: List<Pair<EConfigType, CoreConfigContext.UnresolvedName.Reason>>,
         find: (String, (ProfileItem) -> Boolean) -> ByName<ProfileItem>,
     ): CoreConfigContext.UnresolvedName.Reason? =
-        reasons.firstOrNull { (type, _) -> find(name) { it.configType == type } != ByName.None }?.second
+        when (val found = find(name) { profile -> reasons.any { it.first == profile.configType } }) {
+            ByName.None -> null
+            is ByName.One -> reasons.first { it.first == found.value.configType }.second
+            ByName.Several -> reasons.firstOrNull { (type, _) -> find(name) { it.configType == type } != ByName.None }?.second
+        }
 
     /**
      * PattNG: whether a proxy chain can go through [profile]: an Aether one, whose core it reaches on the loopback, or
