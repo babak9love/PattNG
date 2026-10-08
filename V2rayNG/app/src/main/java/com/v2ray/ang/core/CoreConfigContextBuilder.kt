@@ -337,7 +337,9 @@ object CoreConfigContextBuilder {
      * Fallback targets must not overlap with already resolved tags or builtin tags. PattNG: a target is a profile's
      * name, read as [fallbackNameOf] reads it; the first one that no profile has any more, or several have, goes beside
      * them, for the session to be refused for it rather than fall back to an outbound that is not there, or to a profile
-     * it may not mean.
+     * it may not mean. A routing target of that name stands in for the fallback only when it can be one, see
+     * [takesAsFallback]: a group, which builds a balancer and no outbound of its name, is looked up and refused as when
+     * no rule sends to it.
      */
     private fun resolveFallbackOutbounds(
         resolvedOutbounds: List<CoreConfigContext.ResolvedOutbound>,
@@ -348,7 +350,7 @@ object CoreConfigContextBuilder {
             .filter { it.resolvedType == CoreResolvedType.POLICYGROUP }
             .filter { BalancerStrategyType.from(it.profile.policyGroupType).supportsObservatory && it.profile.policyGroupTestOutbounds != false }
             .mapNotNull { fallbackNameOf(it.profile) }
-            .filter { it !in AppConfig.BUILTIN_OUTBOUND_TAGS && resolvedOutbounds.none { outbound -> outbound.tag == it } }
+            .filter { it !in AppConfig.BUILTIN_OUTBOUND_TAGS && resolvedOutbounds.none { outbound -> outbound.tag == it && takesAsFallback(outbound.profile) } }
             .distinct()
             .mapNotNull { tag ->
                 when (val found = SettingsManager.findServerViaRemarks(tag, ::takesAsFallback)) {
