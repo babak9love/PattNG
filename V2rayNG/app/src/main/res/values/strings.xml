@@ -707,6 +707,7 @@
     <string name="aether_chain_hop_missing">The hop the Aether profile of this proxy chain dials out through could not be built, and the Aether core would reach the internet without it</string>
     <string name="config_main_outbound_missing">The selected profile could not be built, and all traffic would reach the internet directly without it; check its settings</string>
     <string name="config_routing_target_unbuilt">The profile \"%1$s\", which a routing rule sends traffic to, could not be built; fix it, or turn off the rules that use it</string>
+    <string name="config_group_fallback_unbuilt">The profile \"%1$s\", which a policy group falls back to, could not be built; fix it, or choose another fallback outbound for the group</string>
     <string name="aether_config_single_profile">A configuration can use only one Aether profile</string>
     <string name="aether_config_two_exits">One Aether core would have to dial out two ways here: the same tunnel is used on its own and behind a proxy chain\'s hop, behind two different hops, or with two different exit-node settings</string>
     <string name="aether_custom_no_outbound">No SOCKS outbound of the configuration dials %1$s:%2$d, where the Aether command listens</string>

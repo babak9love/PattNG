@@ -145,4 +145,14 @@ class CoreConfigContextBuilderTest {
             assertFalse(CoreConfigContextBuilder.takesAsFallback(ProfileItem.create(type)), type.name)
         }
     }
+
+    @Test
+    fun aGroupFallbackNameIsReadTrimmedAndABlankOneNamesNone() {
+        fun group(fallback: String?) = ProfileItem.create(EConfigType.POLICYGROUP).apply { policyGroupFallbackTag = fallback }
+        assertEquals("exit", CoreConfigContextBuilder.fallbackNameOf(group("exit")))
+        assertEquals("exit", CoreConfigContextBuilder.fallbackNameOf(group(" exit ")))
+        assertNull(CoreConfigContextBuilder.fallbackNameOf(group("   ")))
+        assertNull(CoreConfigContextBuilder.fallbackNameOf(group("")))
+        assertNull(CoreConfigContextBuilder.fallbackNameOf(group(null)))
+    }
 }

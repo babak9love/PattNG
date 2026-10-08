@@ -335,8 +335,9 @@ object CoreConfigContextBuilder {
      * Resolve and collect fallback outbounds from all POLICYGROUP nodes.
      *
      * Fallback targets must not overlap with already resolved tags or builtin tags. PattNG: a target is a profile's
-     * name; the first one that no profile has any more, or several have, goes beside them, for the session to be
-     * refused for it rather than fall back to an outbound that is not there, or to a profile it may not mean.
+     * name, read as [fallbackNameOf] reads it; the first one that no profile has any more, or several have, goes beside
+     * them, for the session to be refused for it rather than fall back to an outbound that is not there, or to a profile
+     * it may not mean.
      */
     private fun resolveFallbackOutbounds(
         resolvedOutbounds: List<CoreConfigContext.ResolvedOutbound>,
@@ -346,7 +347,7 @@ object CoreConfigContextBuilder {
             .asSequence()
             .filter { it.resolvedType == CoreResolvedType.POLICYGROUP }
             .filter { BalancerStrategyType.from(it.profile.policyGroupType).supportsObservatory && it.profile.policyGroupTestOutbounds != false }
-            .mapNotNull { it.profile.policyGroupFallbackTag?.takeIf(String::isNotBlank) }
+            .mapNotNull { fallbackNameOf(it.profile) }
             .filter { it !in AppConfig.BUILTIN_OUTBOUND_TAGS && resolvedOutbounds.none { outbound -> outbound.tag == it } }
             .distinct()
             .mapNotNull { tag ->
@@ -354,7 +355,7 @@ object CoreConfigContextBuilder {
                     is ByName.One -> resolveOutbound(tag, found.value)
                     ByName.None, ByName.Several -> {
                         LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' has ${if (found == ByName.Several) "several matching profiles" else "no matching profile"}; the session is refused")
-                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag.trim(), reasonOf(found == ByName.Several))
+                        if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag, reasonOf(found == ByName.Several))
                         null
                     }
                 }
@@ -366,6 +367,15 @@ object CoreConfigContextBuilder {
     /** PattNG: whether [profile] can be the fallback of a policy group: any profile but a group or a custom configuration. */
     internal fun takesAsFallback(profile: ProfileItem): Boolean =
         profile.configType != EConfigType.CUSTOM && profile.configType != EConfigType.POLICYGROUP
+
+    /**
+     * PattNG: the name of the profile the policy group [profile] falls back to, trimmed, or null when it names none. The
+     * outbound built for that profile is tagged with it, and the group's balancer falls back to it, see
+     * CoreConfigManager.resolvePolicyGroupFallbackTag: both read it here, so that the two tags match. A blank name
+     * names none; the group then falls back to its first member, rather than to an outbound of a blank tag.
+     */
+    internal fun fallbackNameOf(profile: ProfileItem): String? =
+        profile.policyGroupFallbackTag?.trim()?.takeIf(String::isNotEmpty)
 
     /**
      * A group is filled by a filter rather than by named members, so it can catch several Aether

@@ -51,6 +51,7 @@ object CoreConfigManager {
             val v2rayConfig = buildUnifiedConfig(configContext)
             if (lacksMainOutbound(v2rayConfig)) return mainOutboundFailure(context, guid)
             unbuiltRoutingTarget(v2rayConfig)?.let { return routingTargetFailure(context, guid, it) }
+            unbuiltGroupFallback(v2rayConfig)?.let { return groupFallbackFailure(context, guid, it) }
             // PattNG: what the Aether core sends out leaves through Xray.
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
@@ -547,8 +548,9 @@ object CoreConfigManager {
             return firstMemberTag
         }
         return if (strategyType.supportsObservatory && profile.policyGroupTestOutbounds != false) {
-            profile.policyGroupFallbackTag
-                ?.takeIf { it.isNotEmpty() && it != AppConfig.TAG_PROXY }
+            // PattNG: the name the outbound built for the fallback is tagged with.
+            CoreConfigContextBuilder.fallbackNameOf(profile)
+                ?.takeIf { it != AppConfig.TAG_PROXY }
             // Xray excludes dead random/roundRobin candidates only when fallbackTag is set;
             // without this default, an enabled empty field creates no observatory.
                 ?: firstMemberTag
@@ -815,9 +817,7 @@ object CoreConfigManager {
      */
     internal fun unbuiltRoutingTarget(v2rayConfig: V2rayConfig): String? =
         v2rayConfig.routing.rules.firstNotNullOfOrNull { rule ->
-            rule.outboundTag?.takeIf { tag ->
-                tag.isNotBlank() && tag !in AppConfig.BUILTIN_OUTBOUND_TAGS && v2rayConfig.outbounds.none { it.tag == tag }
-            }
+            rule.outboundTag?.takeIf { tag -> lacksOutbound(v2rayConfig, tag) }
         }
 
     /** PattNG: see [unbuiltRoutingTarget], as a failure whose message, which names [target], is meant for the screen. */
@@ -830,6 +830,34 @@ object CoreConfigManager {
             localizedError = true,
         )
     }
+
+    /**
+     * PattNG: the name of the profile a policy group of [v2rayConfig], built for a profile, falls back to that the
+     * configuration has no outbound of: that profile could not be built, as a chain with a hop that cannot be, say. Null
+     * when every group falls back to an outbound that is there, or to none. Xray would drop the group's traffic whenever
+     * its probes find no member alive, rather than send it by the fallback the group names; the session is refused for
+     * it instead, as for a fallback whose name no profile has. A latency test is not refused: it measures the group's
+     * first member alone, and never falls back.
+     */
+    internal fun unbuiltGroupFallback(v2rayConfig: V2rayConfig): String? =
+        v2rayConfig.routing.balancers.orEmpty().firstNotNullOfOrNull { balancer ->
+            balancer.fallbackTag?.takeIf { tag -> lacksOutbound(v2rayConfig, tag) }
+        }
+
+    /** PattNG: see [unbuiltGroupFallback], as a failure whose message, which names [fallback], is meant for the screen. */
+    private fun groupFallbackFailure(context: Context, guid: String, fallback: String): ConfigResult {
+        LogUtil.w(AppConfig.TAG, "The policy group fallback '$fallback' could not be built; the session is refused, guid=$guid")
+        return ConfigResult(
+            status = false,
+            guid = guid,
+            errorMessage = context.getString(R.string.config_group_fallback_unbuilt, fallback),
+            localizedError = true,
+        )
+    }
+
+    /** PattNG: whether [tag], which traffic is sent to, names neither a built-in outbound nor an outbound of [v2rayConfig]. */
+    private fun lacksOutbound(v2rayConfig: V2rayConfig, tag: String): Boolean =
+        tag.isNotBlank() && tag !in AppConfig.BUILTIN_OUTBOUND_TAGS && v2rayConfig.outbounds.none { it.tag == tag }
 
     /**
      * PattNG: a custom configuration with a balancer or an observatory that would pick the exit-node by

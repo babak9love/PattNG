@@ -698,6 +698,7 @@
     <string name="aether_chain_hop_missing">无法构建此代理链中 Aether 配置向外连接所经的那一跳，Aether 内核将会不经它直接连接互联网</string>
     <string name="config_main_outbound_missing">无法构建所选配置，所有流量将会不经它直接连接互联网；请检查其设置</string>
     <string name="config_routing_target_unbuilt">无法构建路由规则发送流量所到的配置“%1$s”；请修复它，或关闭使用它的规则</string>
+    <string name="config_group_fallback_unbuilt">无法构建策略组的备用出站配置“%1$s”；请修复它，或为该策略组选择其他备用出站</string>
     <string name="aether_config_single_profile">一个配置只能使用一个 Aether 配置</string>
     <string name="aether_config_two_exits">这里一个 Aether 内核将不得不以两种方式向外连接：同一隧道既单独使用又位于代理链的某一跳之后，或位于两个不同的跳之后，或使用两种不同的 exit-node 设置</string>
     <string name="aether_custom_no_outbound">配置中没有 SOCKS 出站连接 %1$s:%2$d，而 Aether 命令在该处监听</string>
