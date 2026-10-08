@@ -699,6 +699,7 @@
     <string name="aether_exit_node_name_taken">در مسیریابی اینجا از پروفایلی با نام exit-node استفاده شده، و exit-node نام outbound ـی است که هستهٔ Aether از راه آن به بیرون وصل می‌شود؛ نام آن پروفایل را تغییر دهید</string>
     <string name="aether_chain_hop_missing">گامی که پروفایل Aether این زنجیرهٔ پروکسی از راه آن به بیرون وصل می‌شود ساخته نشد، و هستهٔ Aether بدون آن به اینترنت می‌رسید</string>
     <string name="config_main_outbound_missing">پروفایل انتخاب‌شده ساخته نشد، و همهٔ ترافیک بدون آن مستقیم به اینترنت می‌رسید؛ تنظیماتش را بررسی کنید</string>
+    <string name="config_routing_target_unbuilt">پروفایل «%1$s» که یک قانون مسیریابی ترافیک را به آن می‌فرستد ساخته نشد؛ آن را درست کنید، یا قانون‌هایی را که از آن استفاده می‌کنند خاموش کنید</string>
     <string name="aether_config_single_profile">یک پیکربندی فقط می‌تواند از یک پروفایل Aether استفاده کند</string>
     <string name="aether_config_two_exits">اینجا یک هستهٔ Aether باید از دو راه به بیرون وصل شود: همان تونل هم به‌تنهایی و هم پشت یک گام زنجیرهٔ پروکسی، یا پشت دو گام متفاوت، یا با دو تنظیم متفاوت exit-node به کار رفته است</string>
     <string name="aether_custom_no_outbound">هیچ خروجی SOCKS در پیکربندی به %1$s:%2$d وصل نمی‌شود؛ فرمان Aether همان‌جا گوش می‌دهد</string>

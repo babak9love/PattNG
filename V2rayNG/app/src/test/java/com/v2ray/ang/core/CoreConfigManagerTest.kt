@@ -61,6 +61,25 @@ class CoreConfigManagerTest {
     }
 
     @Test
+    fun aRuleWhoseTargetWasNotBuiltIsNamedForTheSessionToBeRefused() {
+        fun config(vararg tags: String, rules: List<V2rayConfig.RoutingBean.RulesBean>) = V2rayConfig(
+            log = V2rayConfig.LogBean(),
+            inbounds = arrayListOf(V2rayConfig.InboundBean(tag = "socks", port = 10808, protocol = "socks")),
+            outbounds = ArrayList(tags.map { V2rayConfig.OutboundBean(tag = it, protocol = "vless") }),
+            routing = V2rayConfig.RoutingBean(domainStrategy = "AsIs", rules = ArrayList(rules)),
+        )
+        fun rule(outboundTag: String? = null, balancerTag: String? = null) =
+            V2rayConfig.RoutingBean.RulesBean(domain = listOf("example.com"), outboundTag = outboundTag, balancerTag = balancerTag)
+
+        // A rule to a profile that was built, to a built-in outbound, or to the balancer of a group has its way out.
+        val built = listOf(rule("germany"), rule(AppConfig.TAG_DIRECT), rule(AppConfig.TAG_BLOCKED), rule(AppConfig.TAG_PROXY), rule(balancerTag = "balancer-group"))
+        assertNull(CoreConfigManager.unbuiltRoutingTarget(config(AppConfig.TAG_PROXY, "germany", rules = built)))
+        // One to a profile that was not built is named, the first of them.
+        val unbuilt = listOf(rule(AppConfig.TAG_DIRECT), rule("routed chain"), rule("france"))
+        assertEquals("routed chain", CoreConfigManager.unbuiltRoutingTarget(config(AppConfig.TAG_PROXY, rules = unbuilt)))
+    }
+
+    @Test
     fun aProxyChainIsBuiltWholeOrNotAtAll() {
         val entry = ProfileItem.create(EConfigType.VLESS).apply { remarks = "entry" }
         val middle = ProfileItem.create(EConfigType.VLESS).apply { remarks = "middle" }

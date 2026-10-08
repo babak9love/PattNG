@@ -105,9 +105,10 @@ object CoreConfigContextBuilder {
     /**
      * Collect and resolve non-builtin routing targets from enabled rules.
      *
-     * Invalid or empty targets are skipped and handled by fallback logic later. PattNG: a target is a profile's name;
-     * the first one that no profile has any more, or several have, goes beside them, for the session to be refused for
-     * it rather than send the rule's traffic by the proxy, or by a profile it may not mean.
+     * Invalid or empty targets are skipped. PattNG: the session is then refused for them, see
+     * CoreConfigManager.unbuiltRoutingTarget. A target is a profile's name; the first one that no profile has any more,
+     * or several have, goes beside them, for the session to be refused for it rather than send the rule's traffic by
+     * the proxy, or by a profile it may not mean.
      */
     private fun resolveRoutingOutbounds(): Pair<List<CoreConfigContext.ResolvedOutbound>, CoreConfigContext.UnresolvedName?> {
         val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList<CoreConfigContext.ResolvedOutbound>() to null

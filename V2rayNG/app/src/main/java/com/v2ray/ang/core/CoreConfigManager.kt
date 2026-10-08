@@ -50,6 +50,7 @@ object CoreConfigManager {
             if (takesExitNodeName(dependency, configContext.resolvedOutbounds)) return exitNodeNameFailure(context, guid)
             val v2rayConfig = buildUnifiedConfig(configContext)
             if (lacksMainOutbound(v2rayConfig)) return mainOutboundFailure(context, guid)
+            unbuiltRoutingTarget(v2rayConfig)?.let { return routingTargetFailure(context, guid, it) }
             // PattNG: what the Aether core sends out leaves through Xray.
             val secondaryPort = AetherCoreManager.secondarySocksPort
             val core = (dependency as? AetherDependency.Single)?.core?.let {
@@ -393,8 +394,8 @@ object CoreConfigManager {
      * PattNG: the hops of a proxy chain, [profiles] in order, each with its outbound as [convert] builds it; null when
      * there are none, or when a hop builds no outbound. A chain is built whole or not at all: without one of its hops it
      * would carry the traffic a shorter way than it names. Not built, a chain that is the main server is refused, see
-     * [lacksMainOutbound], and one that is a routing target is left out, as any target that cannot be built is: the
-     * rules that name it send their traffic to the main server instead, see [appendRoutingUserRule].
+     * [lacksMainOutbound], and so is the session for one that is a routing target, as for any target that cannot be
+     * built, see [unbuiltRoutingTarget].
      */
     internal fun chainHops(
         profiles: List<ProfileItem>,
@@ -802,6 +803,30 @@ object CoreConfigManager {
             status = false,
             guid = guid,
             errorMessage = context.getString(R.string.config_main_outbound_missing),
+            localizedError = true,
+        )
+    }
+
+    /**
+     * PattNG: the name a rule of [v2rayConfig], built for a profile, sends traffic to that the configuration has no
+     * outbound of: the profile of that name, a routing target, could not be built, as a chain with a hop that cannot be,
+     * say. Null when every rule has its outbound, or the balancer of a group in its place. The session is refused for
+     * it, as for a target whose name no profile has, rather than send the rule's traffic another way than it names.
+     */
+    internal fun unbuiltRoutingTarget(v2rayConfig: V2rayConfig): String? =
+        v2rayConfig.routing.rules.firstNotNullOfOrNull { rule ->
+            rule.outboundTag?.takeIf { tag ->
+                tag.isNotBlank() && tag !in AppConfig.BUILTIN_OUTBOUND_TAGS && v2rayConfig.outbounds.none { it.tag == tag }
+            }
+        }
+
+    /** PattNG: see [unbuiltRoutingTarget], as a failure whose message, which names [target], is meant for the screen. */
+    private fun routingTargetFailure(context: Context, guid: String, target: String): ConfigResult {
+        LogUtil.w(AppConfig.TAG, "The routing target '$target' could not be built; the session is refused, guid=$guid")
+        return ConfigResult(
+            status = false,
+            guid = guid,
+            errorMessage = context.getString(R.string.config_routing_target_unbuilt, target),
             localizedError = true,
         )
     }
@@ -1592,15 +1617,9 @@ object CoreConfigManager {
             rule.balancerTag = balancerTag
         }
 
-        // If the outbound tag is a custom one that failed to inject, fall back to proxy
-        if (!outboundTag.isNullOrBlank()
-            && outboundTag !in policyGroupBalancerTags
-            && outboundTag !in AppConfig.BUILTIN_OUTBOUND_TAGS
-            && v2rayConfig.outbounds.none { it.tag == outboundTag }
-        ) {
-            LogUtil.w(AppConfig.TAG, "Outbound tag '$outboundTag' not found, falling back to '${AppConfig.TAG_PROXY}'")
-            rule.outboundTag = AppConfig.TAG_PROXY
-        }
+        // PattNG: a target that could not be built keeps its name here rather than fall back to proxy, the main server,
+        // which would send the rule's traffic another way than it names: the session is refused for it, see
+        // unbuiltRoutingTarget. A latency test, which leaves the targets out, clears the rules.
 
         v2rayConfig.routing.rules.add(rule)
     }
