@@ -767,7 +767,7 @@ object CoreConfigManager {
      */
     private fun unresolvedNameFailure(context: Context, guid: String, unresolved: CoreConfigContext.UnresolvedName?): ConfigResult? {
         val name = unresolved ?: return null
-        LogUtil.w(AppConfig.TAG, "A chain or a routing rule names a profile it cannot use (${name.reason}), guid=$guid")
+        LogUtil.w(AppConfig.TAG, "A chain, a routing rule or a policy group's fallback names a profile it cannot use (${name.reason}), guid=$guid")
         return ConfigResult(
             status = false,
             guid = guid,

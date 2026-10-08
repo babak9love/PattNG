@@ -355,7 +355,7 @@ object CoreConfigContextBuilder {
             .mapNotNull { tag ->
                 val (profile, reason) = fallbackOf(tag, SettingsManager::findServerViaRemarks)
                 if (reason != null) {
-                    LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' cannot be used ($reason); the session is refused")
+                    LogUtil.w(AppConfig.TAG, "Policy group fallback '$tag' cannot be used ($reason)")
                     if (unresolved == null) unresolved = CoreConfigContext.UnresolvedName(tag, reason)
                 }
                 profile?.let { resolveOutbound(tag, it) }
