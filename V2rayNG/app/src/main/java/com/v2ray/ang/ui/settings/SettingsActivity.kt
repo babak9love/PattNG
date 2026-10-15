@@ -175,6 +175,8 @@ fun SettingsScreen(
     var delayTestUrl by rememberMmkvString(AppConfig.PREF_DELAY_TEST_URL, "")
     var realPingConcurrency by rememberMmkvString(AppConfig.PREF_REAL_PING_CONCURRENCY, "16")
     var ipApiUrl by rememberMmkvString(AppConfig.PREF_IP_API_URL, "")
+    var autoRemoveInvalidAfterTest by rememberMmkvBool(AppConfig.PREF_AUTO_REMOVE_INVALID_AFTER_TEST, false)
+    var autoSortAfterTest by rememberMmkvBool(AppConfig.PREF_AUTO_SORT_AFTER_TEST, false)
 
     val isVpn = mode == VPN
     val hevTunEnabled = isVpn && useHevTun
@@ -626,6 +628,18 @@ fun SettingsScreen(
                     title = stringResource(R.string.title_pref_ip_api_url),
                     value = ipApiUrl,
                     onValueChanged = { ipApiUrl = it }
+                )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.title_pref_auto_remove_invalid_after_test),
+                    summary = stringResource(R.string.summary_pref_auto_remove_invalid_after_test),
+                    checked = autoRemoveInvalidAfterTest,
+                    onCheckedChange = { autoRemoveInvalidAfterTest = it }
+                )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.title_pref_auto_sort_after_test),
+                    summary = stringResource(R.string.summary_pref_auto_sort_after_test),
+                    checked = autoSortAfterTest,
+                    onCheckedChange = { autoSortAfterTest = it }
                 )
             }
 
