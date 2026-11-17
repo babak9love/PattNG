@@ -212,7 +212,6 @@
     <string name="summary_system_vpn_settings">Mở cài đặt VPN của Android để cấu hình VPN luôn bật, nếu thiết bị này hỗ trợ.</string>
     <string name="toast_system_vpn_settings_unavailable">Không có cài đặt VPN hệ thống.</string>
 
-
     <string name="subscription_updater_job_tips">Tác vụ sẽ chạy trong nền và thông tin tiến độ sẽ hiển thị trong thông báo.</string>
     <string name="title_pref_auto_test_after_update_subscription">Tự động kiểm tra sau khi cập nhật đăng ký</string>
     <string name="summary_pref_auto_test_after_update_subscription">Quá trình kiểm tra tự động mất nhiều thời gian. Nếu bật, tác vụ sẽ chạy trong nền; nếu không, tác vụ sẽ chạy trên trang hiện tại.</string>
@@ -263,7 +262,6 @@
 
     <string name="title_pref_vpn_mtu">VPN MTU (mặc định 1500)</string>
 
-
     <string name="title_pref_domestic_dns">DNS cho kết nối trực tiếp (không bắt buộc)</string>
     <string name="summary_pref_domestic_dns" translatable="false">DNS</string>
 
@@ -301,7 +299,6 @@
     <string name="title_pref_confirm_remove">Xác nhận xóa tệp cấu hình</string>
     <string name="summary_pref_confirm_remove">Yêu cầu xác nhận từ người dùng khi thực hiện xóa tệp cấu hình.</string>
 
-
     <string name="title_pref_append_http_proxy">Thêm proxy HTTP vào VPN</string>
     <string name="summary_pref_append_http_proxy">Proxy HTTP sẽ được trình duyệt hoặc một số ứng dụng hỗ trợ dùng trực tiếp mà không đi qua thiết bị NIC ảo (Android 10+)</string>
 
@@ -323,8 +320,6 @@
     <string name="title_oss_license">Giấy phép mã nguồn mở</string>
     <string name="title_translators">Người dịch</string>
     <string name="title_tg_channel">Kênh Telegram</string>
-    <string name="title_donate">Ủng hộ</string>
-
     <string name="title_pref_promotion">Ưu đãi</string>
 
     <string name="title_pref_auto_update_subscription">Tự động cập nhật các gói đăng ký</string>
@@ -555,7 +550,6 @@
     <string name="acc_download_file">Tải xuống tệp tài nguyên</string>
     <string name="acc_qr_code">Mã QR</string>
     <string name="acc_copy_log">Sao chép nhật ký</string>
-    <string name="acc_copy_address">Sao chép địa chỉ %1$s</string>
     <string name="acc_clear_log">Xóa nhật ký</string>
     <string name="acc_add_rule">Thêm quy tắc định tuyến</string>
     <string name="acc_start">Khởi động dịch vụ</string>
