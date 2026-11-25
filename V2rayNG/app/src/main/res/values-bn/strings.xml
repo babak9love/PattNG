@@ -212,7 +212,6 @@
     <string name="summary_system_vpn_settings">ডিভাইসে সমর্থিত হলে সর্বদা চালু VPN কনফিগার করতে Android-এর VPN সেটিংস খুলুন।</string>
     <string name="toast_system_vpn_settings_unavailable">সিস্টেমের VPN সেটিংস উপলভ্য নয়।</string>
 
-
     <string name="subscription_updater_job_tips">কাজটি ব্যাকগ্রাউন্ডে চলবে এবং অগ্রগতির তথ্য বিজ্ঞপ্তিতে দেখানো হবে।</string>
     <string name="title_pref_auto_test_after_update_subscription">সাবস্ক্রিপশন আপডেটের পর স্বয়ংক্রিয় পরীক্ষা</string>
     <string name="summary_pref_auto_test_after_update_subscription">স্বয়ংক্রিয় পরীক্ষায় অনেক সময় লাগে। চালু থাকলে কাজটি ব্যাকগ্রাউন্ডে চলবে; অন্যথায় বর্তমান পৃষ্ঠায় চলবে।</string>
@@ -263,7 +262,6 @@
 
     <string name="title_pref_vpn_mtu">VPN MTU (ডিফল্ট 1500)</string>
 
-
     <string name="title_pref_domestic_dns">সরাসরি DNS (ঐচ্ছিক)</string>
     <string name="summary_pref_domestic_dns" translatable="false">DNS</string>
 
@@ -309,7 +307,6 @@
     <string name="title_pref_confirm_remove">কনফিগারেশন ফাইল মুছে ফেলার নিশ্চিতকরণ</string>
     <string name="summary_pref_confirm_remove">কনফিগারেশন ফাইল মুছে ফেলার জন্য ব্যবহারকারীর দ্বিতীয় নিশ্চিতকরণের প্রয়োজন</string>
 
-
     <string name="title_pref_append_http_proxy">VPN-এ HTTP প্রক্সি যুক্ত করুন</string>
     <string name="summary_pref_append_http_proxy">ভার্চুয়াল NIC ডিভাইসের মধ্য দিয়ে না গিয়ে ব্রাউজার ও কিছু সমর্থিত অ্যাপ সরাসরি HTTP প্রক্সি ব্যবহার করবে (Android 10+)</string>
 
@@ -331,8 +328,6 @@
     <string name="title_oss_license">ওপেন সোর্স লাইসেন্স</string>
     <string name="title_translators">অনুবাদকগণ</string>
     <string name="title_tg_channel">টেলিগ্রাম চ্যানেল</string>
-    <string name="title_donate">দান করুন</string>
-
     <string name="title_pref_promotion">প্রচার</string>
 
     <string name="title_pref_auto_update_subscription">স্বয়ংক্রিয় আপডেট সাবস্ক্রিপশন</string>
@@ -565,7 +560,6 @@
     <string name="acc_download_file">অ্যাসেট ফাইল ডাউনলোড করুন</string>
     <string name="acc_qr_code">QR কোড</string>
     <string name="acc_copy_log">লগ কপি করুন</string>
-    <string name="acc_copy_address">%1$s ঠিকানা কপি করুন</string>
     <string name="acc_clear_log">লগ মুছুন</string>
     <string name="acc_add_rule">রাউটিং নিয়ম যোগ করুন</string>
     <string name="acc_start">সার্ভিস শুরু করুন</string>

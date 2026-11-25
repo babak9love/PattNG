@@ -212,7 +212,6 @@
     <string name="summary_system_vpn_settings">Открыть настройки VPN в Android для включения постоянного VPN-подключения, если устройство его поддерживает</string>
     <string name="toast_system_vpn_settings_unavailable">Системные настройки VPN недоступны.</string>
 
-
     <string name="subscription_updater_job_tips">Задача будет выполняться в фоновом режиме, информация о ходе выполнения будет отображаться в уведомлении.</string>
     <string name="title_pref_auto_test_after_update_subscription">Автопроверка после обновления подписки</string>
     <string name="summary_pref_auto_test_after_update_subscription">Автоматическая проверка занимает много времени. Если включено, задача выполняется в фоновом режиме; иначе — для текущей вкладки.</string>
@@ -263,7 +262,6 @@
 
     <string name="title_pref_vpn_mtu">VPN MTU (по умолчанию 1500)</string>
 
-
     <string name="title_pref_domestic_dns">DNS для прямых подключений (необязательно)</string>
     <string name="summary_pref_domestic_dns" translatable="false">DNS</string>
 
@@ -309,7 +307,6 @@
     <string name="title_pref_confirm_remove">Подтверждать удаление профиля</string>
     <string name="summary_pref_confirm_remove">Обязательное подтверждение удаления профиля</string>
 
-
     <string name="title_pref_append_http_proxy">Дополнительный HTTP-прокси</string>
     <string name="summary_pref_append_http_proxy">Браузеры и поддерживаемые приложения смогут использовать HTTP-прокси напрямую, минуя виртуальный сетевой адаптер (Android 10+)</string>
 
@@ -331,8 +328,6 @@
     <string name="title_oss_license">Лицензии открытого исходного кода</string>
     <string name="title_translators">Переводчики</string>
     <string name="title_tg_channel">Telegram-канал</string>
-    <string name="title_donate">Пожертвовать</string>
-
     <string name="title_pref_promotion">Предложения</string>
 
     <string name="title_pref_auto_update_subscription">Автоматически обновлять подписки</string>
@@ -569,7 +564,6 @@
     <string name="acc_download_file">Загрузить файлы ресурсов</string>
     <string name="acc_qr_code">QR-код</string>
     <string name="acc_copy_log">Копировать журнал</string>
-    <string name="acc_copy_address">Копировать адрес %1$s</string>
     <string name="acc_clear_log">Очистить журнал</string>
     <string name="acc_add_rule">Добавить правило маршрутизации</string>
     <string name="acc_start">Запустить службу</string>

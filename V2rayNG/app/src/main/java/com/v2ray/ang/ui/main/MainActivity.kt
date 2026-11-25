@@ -158,8 +158,6 @@ abstract class BaseMainActivity : HelperBaseComponentActivity() {
             is MainAction.ShareClipboard -> shareToClipboard(action.guid)
             is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
             is MainAction.OpenSubscriptionLink -> openSubscriptionLink(action.url)
-            is MainAction.CopyDonationAddress -> copyDonationAddress(action.address)
-            MainAction.OpenAuthorTelegram -> Utils.openUri(this, AppConfig.AUTHOR_TELEGRAM_URL)
             else -> mainViewModel.onAction(action)
         }
     }
@@ -181,12 +179,6 @@ abstract class BaseMainActivity : HelperBaseComponentActivity() {
         // Links come from a remote panel, so only http(s) and tg:// are ever handed to ACTION_VIEW.
         val safeUrl = SubscriptionInfoParser.sanitizeLink(url) ?: return
         Utils.openUri(this, safeUrl)
-    }
-
-    /** PattNG: puts a donation address on the clipboard just as the Donate dialog shows it. */
-    private fun copyDonationAddress(address: String) {
-        Utils.setClipboard(this, address)
-        toastSuccess(R.string.toast_success)
     }
 
     private fun navigateTo(destination: MainDestination) {

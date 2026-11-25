@@ -22,6 +22,7 @@ import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.matchesPattern
 import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.handler.SubscriptionInfoParser
+import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.ui.base.BaseViewModel
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CancellationException
@@ -386,9 +387,7 @@ class MainViewModel(
             is MainAction.EditServer,
             is MainAction.ShareClipboard,
             is MainAction.ShareFullContent,
-            is MainAction.OpenSubscriptionLink,
-            is MainAction.CopyDonationAddress,
-            MainAction.OpenAuthorTelegram -> {
+            is MainAction.OpenSubscriptionLink -> {
                 // Handled by Activity via its onAction lambda
             }
         }
@@ -1077,6 +1076,24 @@ class MainViewModel(
         if (testRequests.completeBulk(requestId) == null) return
         resetTestStatus()
         viewModelScope.launch(ioDispatcher) {
+            if (MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_REMOVE_INVALID_AFTER_TEST, false)) {
+                try {
+                    removeInvalidServerInternal()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Auto remove invalid after test failed", e)
+                }
+            }
+            if (MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_SORT_AFTER_TEST, false)) {
+                try {
+                    sortByTestResultsInternal()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Auto sort after test failed", e)
+                }
+            }
             cacheMutex.withLock { groupDataCache.clear() }
             reloadAllGroups(_uiState.value.groups.map { it.id })
         }

@@ -212,7 +212,6 @@
     <string name="summary_system_vpn_settings">فتح إعدادات VPN في Android لإعداد VPN الدائم، إذا كان الجهاز يدعمه.</string>
     <string name="toast_system_vpn_settings_unavailable">إعدادات VPN للنظام غير متاحة.</string>
 
-
     <string name="subscription_updater_job_tips">ستعمل المهمة في الخلفية، وسيُعرض تقدمها في الإشعار.</string>
     <string name="title_pref_auto_test_after_update_subscription">اختبار تلقائي بعد تحديث الاشتراك</string>
     <string name="summary_pref_auto_test_after_update_subscription">يستغرق الاختبار التلقائي وقتاً طويلاً. عند تمكينه، ستعمل المهمة في الخلفية؛ وإلا فستعمل في الصفحة الحالية.</string>
@@ -263,7 +262,6 @@
 
     <string name="title_pref_vpn_mtu">قيمة MTU لشبكة VPN (الافتراضي 1500)</string>
 
-
     <string name="title_pref_domestic_dns">DNS المباشر (اختياري)</string>
     <string name="summary_pref_domestic_dns" translatable="false">DNS</string>
 
@@ -309,7 +307,6 @@
     <string name="title_pref_confirm_remove">تأكيد حذف ملف التكوين</string>
     <string name="summary_pref_confirm_remove">ما إذا كان حذف ملف التكوين يتطلب تأكيدًا ثانيًا من قبل المستخدم</string>
 
-
     <string name="title_pref_append_http_proxy">إضافة وكيل HTTP إلى شبكة VPN</string>
     <string name="summary_pref_append_http_proxy">سيُستخدم وكيل HTTP مباشرةً من المتصفح وبعض التطبيقات المدعومة من دون المرور بواجهة NIC الافتراضية (Android 10+)</string>
 
@@ -331,8 +328,6 @@
     <string name="title_oss_license">تراخيص المصادر المفتوحة</string>
     <string name="title_translators">المترجمون</string>
     <string name="title_tg_channel">قناة Telegram</string>
-    <string name="title_donate">تبرع</string>
-
     <string name="title_pref_promotion">ترويج</string>
 
     <string name="title_pref_auto_update_subscription">اشتراكات التحديث التلقائي</string>
@@ -573,7 +568,6 @@
     <string name="acc_download_file">تنزيل ملفات الموارد</string>
     <string name="acc_qr_code">رمز QR</string>
     <string name="acc_copy_log">نسخ السجل</string>
-    <string name="acc_copy_address">نسخ عنوان %1$s</string>
     <string name="acc_clear_log">مسح السجل</string>
     <string name="acc_add_rule">إضافة قاعدة توجيه</string>
     <string name="acc_start">بدء الخدمة</string>
